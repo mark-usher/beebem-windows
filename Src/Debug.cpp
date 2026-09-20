@@ -4166,7 +4166,7 @@ int DebugDisassembleInstruction(int Addr, bool Host, char *pszOutput)
 {
 	int operand = 0;
 	int zpaddr = 0;
-	int l = 0;
+	int Length = 0;
 
 	char *s = pszOutput;
 
@@ -4207,15 +4207,15 @@ int DebugDisassembleInstruction(int Addr, bool Host, char *pszOutput)
 	switch (ip->bytes)
 	{
 		case 1:
-			l = 0;
+			Length = 0;
 			break;
 		case 2:
 			operand = DebugReadMem(Addr, Host);
-			l = 2;
+			Length = 2;
 			break;
 		case 3:
 			operand = DebugReadMem(Addr, Host) | (DebugReadMem(Addr + 1, Host) << 8);
-			l = 4;
+			Length = 4;
 			break;
 	}
 
@@ -4227,7 +4227,7 @@ int DebugDisassembleInstruction(int Addr, bool Host, char *pszOutput)
 		}
 
 		operand = operand + ip->bytes + Addr - 1;
-		l = 4;
+		Length = 4;
 	}
 	else if (ip->flag & ZPR)
 	{
@@ -4245,29 +4245,29 @@ int DebugDisassembleInstruction(int Addr, bool Host, char *pszOutput)
 	switch (ip->flag & ADRMASK)
 	{
 	case IMM:
-		s += sprintf(s, "#%0*X    ", l, operand);
+		s += sprintf(s, "#%0*X    ", Length, operand);
 		break;
 	case REL:
 	case ABS:
 	case ZPG:
-		s += sprintf(s, "%0*X     ", l, operand);
+		s += sprintf(s, "%0*X     ", Length, operand);
 		break;
 	case IND:
-		s += sprintf(s, "(%0*X)   ", l, operand);
+		s += sprintf(s, "(%0*X)   ", Length, operand);
 		break;
 	case ABX:
 	case ZPX:
-		s += sprintf(s, "%0*X,X   ", l, operand);
+		s += sprintf(s, "%0*X,X   ", Length, operand);
 		break;
 	case ABY:
 	case ZPY:
-		s += sprintf(s, "%0*X,Y   ", l, operand);
+		s += sprintf(s, "%0*X,Y   ", Length, operand);
 		break;
 	case INX:
-		s += sprintf(s, "(%0*X,X) ", l, operand);
+		s += sprintf(s, "(%0*X,X) ", Length, operand);
 		break;
 	case INY:
-		s += sprintf(s, "(%0*X),Y ", l, operand);
+		s += sprintf(s, "(%0*X),Y ", Length, operand);
 		break;
 	case ACC:
 		s += sprintf(s, "A        ");
@@ -4281,11 +4281,13 @@ int DebugDisassembleInstruction(int Addr, bool Host, char *pszOutput)
 		break;
 	}
 
-	if (l == 2) {
+	if (Length == 2)
+	{
 		s += sprintf(s, "  ");
 	}
 
-	if (Host) {
+	if (Host)
+	{
 		s += sprintf(s, "            ");
 	}
 
