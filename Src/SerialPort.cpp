@@ -160,6 +160,13 @@ bool SerialPort::InitThread()
 		return false;
 	}
 
+	m_OverlappedWrite.hEvent = CreateEvent(nullptr, TRUE, FALSE, nullptr);
+
+	if (m_OverlappedWrite.hEvent == nullptr)
+	{
+		return false;
+	}
+
 	// Create the thread.
 
 	unsigned int ThreadID = 0;
@@ -243,6 +250,12 @@ void SerialPort::Close()
 	{
 		CloseHandle(m_OverlappedRead.hEvent);
 		m_OverlappedRead.hEvent = nullptr;
+	}
+
+	if (m_OverlappedWrite.hEvent != nullptr)
+	{
+		CloseHandle(m_OverlappedWrite.hEvent);
+		m_OverlappedWrite.hEvent = nullptr;
 	}
 
 	DeleteCriticalSection(&m_BufferLock);
@@ -346,11 +359,11 @@ bool SerialPort::WriteChar(unsigned char Data)
 {
 	DWORD BytesSent = 0;
 
-	bool Success = !!WriteFile(m_hSerialPort,
-	                           &Data,
-	                           1,
-	                           &BytesSent,
-	                           &m_OverlappedWrite);
+	BOOL Success = WriteFile(m_hSerialPort,
+	                         &Data,
+	                         1,
+	                         &BytesSent,
+	                         &m_OverlappedWrite);
 
 	if (!Success)
 	{
@@ -358,9 +371,29 @@ bool SerialPort::WriteChar(unsigned char Data)
 
 		if (Error == ERROR_IO_PENDING)
 		{
-			DWORD WaitResult = WaitForSingleObject(m_OverlappedWrite.hEvent, INFINITE);
+			DWORD Result = WaitForSingleObject(m_OverlappedWrite.hEvent,
+			                                   INFINITE);
 
-			Success = WaitResult == WAIT_OBJECT_0;
+			if (Result == WAIT_OBJECT_0)
+			{
+				Success = GetOverlappedResult(m_hSerialPort,
+				                              &m_OverlappedWrite,
+				                              &BytesSent,
+				                              FALSE);
+
+				#ifdef DEBUG_SERIAL
+				if (!Success)
+				{
+					DebugTrace("GetOverlappedResult failed, code %lu", (ULONG)Error);
+				}
+				#endif
+			}
+			else
+			{
+				#ifdef DEBUG_SERIAL
+				DebugTrace("WaitForSingleObject failed, code %lu\n", Result);
+				#endif
+			}
 		}
 		else
 		{
@@ -370,7 +403,9 @@ bool SerialPort::WriteChar(unsigned char Data)
 		}
 	}
 
-	return Success;
+	ResetEvent(m_OverlappedWrite.hEvent);
+
+	return !!Success;
 }
 
 /*--------------------------------------------------------------------------*/

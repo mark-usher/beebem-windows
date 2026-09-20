@@ -277,7 +277,11 @@ static void HandleTXData(unsigned char Data)
 			#endif
 
 			IP232Write(SerialACIA.TDSR);
-			if (!IP232Raw && SerialACIA.TDSR == 255) IP232Write(SerialACIA.TDSR);
+
+			if (!IP232Raw && SerialACIA.TDSR == 255)
+			{
+				IP232Write(SerialACIA.TDSR);
+			}
 		}
 		else
 		{
