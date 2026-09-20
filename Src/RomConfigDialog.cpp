@@ -61,15 +61,144 @@ const RomConfigFile& RomConfigDialog::GetRomConfig() const
 
 /****************************************************************************/
 
+INT_PTR RomConfigDialog::DlgProc(UINT nMessage,
+                                 WPARAM wParam,
+                                 LPARAM /* lParam */)
+{
+	switch (nMessage)
+	{
+		case WM_INITDIALOG:
+			OnInitDialog();
+			return TRUE;
+
+		case WM_COMMAND: {
+			int nDlgItemID = GET_WM_COMMAND_ID(wParam, lParam);
+			int Notification = GET_WM_COMMAND_CMD(wParam, lParam);
+
+			switch (nDlgItemID)
+			{
+			case IDC_MODEL:
+				if (Notification == CBN_SELCHANGE)
+				{
+					OnModelChange();
+				}
+				break;
+
+			case IDC_SELECTROM:
+				OnSelectROM();
+				break;
+
+			case IDC_MARKWRITABLE:
+				OnMarkWritable();
+				break;
+
+			case IDC_RAM:
+				OnRAM();
+				break;
+
+			case IDC_EMPTY:
+				OnEmpty();
+				break;
+
+			case IDC_UP:
+				OnMoveUp();
+				break;
+
+			case IDC_DOWN:
+				OnMoveDown();
+				break;
+
+			case IDC_SAVE:
+				SaveROMConfigFile();
+				m_ROMListView.SetFocus();
+				break;
+
+			case IDC_LOAD:
+				LoadROMConfigFile();
+				m_ROMListView.SetFocus();
+				break;
+
+			case IDOK:
+				EndDialog(TRUE);
+				return TRUE;
+
+			case IDCANCEL:
+				EndDialog(FALSE);
+				return TRUE;
+			}
+			break;
+		}
+	}
+
+	return FALSE;
+}
+
+/****************************************************************************/
+
+void RomConfigDialog::OnInitDialog()
+{
+	m_ROMListView.Init(m_hwnd, IDC_ROMLIST);
+	m_ModelComboBox.Init(m_hwnd, IDC_MODEL);
+
+	m_ROMListView.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+	m_ROMListView.InsertColumn(0, "Bank", LVCFMT_LEFT, 45);
+	m_ROMListView.InsertColumn(1, "ROM File", LVCFMT_LEFT, 200);
+	m_ROMListView.SetColumnWidth(1, LVSCW_AUTOSIZE_USEHEADER);
+
+	FillModelList();
+	FillROMList();
+}
+
+/****************************************************************************/
+
+void RomConfigDialog::OnModelChange()
+{
+	m_Model = static_cast<Model>(m_ModelComboBox.GetCurSel());
+	FillROMList();
+}
+
+/****************************************************************************/
+
+void RomConfigDialog::OnSelectROM()
+{
+	int Row = m_ROMListView.GetSelectionMark();
+
+	if (Row >= 0 && Row <= 16)
+	{
+		char szROMFile[MAX_PATH];
+		szROMFile[0] = '\0';
+
+		if (GetROMFile(szROMFile))
+		{
+			// Strip user data path
+			char szROMPath[MAX_PATH];
+			strcpy(szROMPath, "BeebFile");
+			mainWin->GetDataPath(mainWin->GetUserDataPath(), szROMPath);
+
+			int nROMPathLen = (int)strlen(szROMPath);
+
+			if (strncmp(szROMFile, szROMPath, nROMPathLen) == 0)
+			{
+				strcpy(szROMFile, szROMFile + nROMPathLen + 1);
+			}
+
+			m_RomConfig.SetFileName(m_Model, Row, szROMFile);
+			UpdateROMField(Row);
+		}
+	}
+
+	m_ROMListView.SetFocus();
+}
+
+/****************************************************************************/
+
 void RomConfigDialog::UpdateROMField(int Row)
 {
 	bool Unplugged = false;
-	int Bank;
+	int Bank = 16 - Row;
 
 	if (m_Model == Model::Master128 || m_Model == Model::MasterET)
 	{
-		Bank = 16 - Row;
-
 		if (Bank >= 0 && Bank <= 7)
 		{
 			Unplugged = (RTCGetData(m_Model, 20) & (1 << Bank)) == 0;
@@ -88,6 +217,112 @@ void RomConfigDialog::UpdateROMField(int Row)
 	}
 
 	m_ROMListView.SetItemText(Row, 1, (LPTSTR)RomFileName.c_str());
+}
+
+/****************************************************************************/
+
+void RomConfigDialog::OnMarkWritable()
+{
+	int Row = m_ROMListView.GetSelectionMark();
+
+	if (Row >= 1 && Row <= 16)
+	{
+		std::string RomFileName = m_RomConfig.GetFileName(m_Model, Row);
+
+		if (RomFileName != BANK_EMPTY && RomFileName != BANK_RAM)
+		{
+			if (StringEndsWith(RomFileName, ROM_WRITABLE))
+			{
+				RomFileName = RomFileName.substr(0, RomFileName.size() - strlen(ROM_WRITABLE));
+			}
+			else
+			{
+				RomFileName += ROM_WRITABLE;
+			}
+
+			m_RomConfig.SetFileName(m_Model, Row, RomFileName);
+
+			UpdateROMField(Row);
+		}
+	}
+
+	m_ROMListView.SetFocus();
+}
+
+/****************************************************************************/
+
+void RomConfigDialog::OnRAM()
+{
+	int Row = m_ROMListView.GetSelectionMark();
+
+	if (Row >= 1 && Row <= 16)
+	{
+		m_RomConfig.SetFileName(m_Model, Row, BANK_RAM);
+		UpdateROMField(Row);
+	}
+
+	m_ROMListView.SetFocus();
+}
+
+/****************************************************************************/
+
+void RomConfigDialog::OnEmpty()
+{
+	int Row = m_ROMListView.GetSelectionMark();
+
+	if (Row >= 1 && Row <= 16)
+	{
+		m_RomConfig.SetFileName(m_Model, Row, BANK_EMPTY);
+		UpdateROMField(Row);
+	}
+
+	m_ROMListView.SetFocus();
+}
+
+/****************************************************************************/
+
+void RomConfigDialog::OnMoveUp()
+{
+	int Row = m_ROMListView.GetSelectionMark();
+
+	if (Row >= 2)
+	{
+		int PreviousRow = Row - 1;
+
+		m_RomConfig.Swap(m_Model, PreviousRow, Row);
+
+		UpdateROMField(PreviousRow);
+		UpdateROMField(Row);
+
+		m_ROMListView.SetSelectionMark(PreviousRow);
+	}
+
+	m_ROMListView.SetFocus();
+}
+
+/****************************************************************************/
+
+void RomConfigDialog::OnMoveDown()
+{
+	int Row = m_ROMListView.GetSelectionMark();
+
+	if (Row > 0)
+	{
+		const int NextRow = Row + 1;
+		const int Count = m_ROMListView.GetItemCount();
+
+		if (NextRow < Count)
+		{
+			m_RomConfig.Swap(m_Model, Row, NextRow);
+
+			UpdateROMField(Row);
+			UpdateROMField(NextRow);
+
+			m_ROMListView.SetSelectionMark(NextRow);
+		}
+
+		m_ROMListView.SetFocus();
+	}
 }
 
 /****************************************************************************/
@@ -122,193 +357,6 @@ void RomConfigDialog::FillROMList()
 		m_ROMListView.InsertItem(Row, 0, str, Bank);
 		UpdateROMField(Row);
 	}
-}
-
-/****************************************************************************/
-
-INT_PTR RomConfigDialog::DlgProc(UINT   nMessage,
-                                 WPARAM wParam,
-                                 LPARAM /* lParam */)
-{
-	switch (nMessage)
-	{
-		case WM_INITDIALOG:
-			m_ROMListView.Init(m_hwnd, IDC_ROMLIST);
-			m_ModelComboBox.Init(m_hwnd, IDC_MODEL);
-
-			m_ROMListView.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
-			m_ROMListView.InsertColumn(0, "Bank", LVCFMT_LEFT, 45);
-			m_ROMListView.InsertColumn(1, "ROM File", LVCFMT_LEFT, 200);
-			m_ROMListView.SetColumnWidth(1, LVSCW_AUTOSIZE_USEHEADER);
-
-			FillModelList();
-			FillROMList();
-			return TRUE;
-
-		case WM_COMMAND: {
-			int nDlgItemID = GET_WM_COMMAND_ID(wParam, lParam);
-			int Notification = GET_WM_COMMAND_CMD(wParam, lParam);
-
-			switch (nDlgItemID)
-			{
-			case IDC_MODEL:
-				if (Notification == CBN_SELCHANGE)
-				{
-					m_Model = static_cast<Model>(m_ModelComboBox.GetCurSel());
-					FillROMList();
-				}
-				break;
-
-			case IDC_SELECTROM: {
-				int Row = m_ROMListView.GetSelectionMark();
-
-				if (Row >= 0 && Row <= 16)
-				{
-					char szROMFile[MAX_PATH];
-					szROMFile[0] = '\0';
-
-					if (GetROMFile(szROMFile))
-					{
-						// Strip user data path
-						char szROMPath[MAX_PATH];
-						strcpy(szROMPath, "BeebFile");
-						mainWin->GetDataPath(mainWin->GetUserDataPath(), szROMPath);
-
-						int nROMPathLen = (int)strlen(szROMPath);
-
-						if (strncmp(szROMFile, szROMPath, nROMPathLen) == 0)
-						{
-							strcpy(szROMFile, szROMFile + nROMPathLen + 1);
-						}
-
-						m_RomConfig.SetFileName(m_Model, Row, szROMFile);
-						UpdateROMField(Row);
-					}
-				}
-
-				m_ROMListView.SetFocus();
-				break;
-			}
-
-			case IDC_MARKWRITABLE: {
-				int Row = m_ROMListView.GetSelectionMark();
-
-				if (Row >= 1 && Row <= 16)
-				{
-					std::string RomFileName = m_RomConfig.GetFileName(m_Model, Row);
-
-					if (RomFileName != BANK_EMPTY && RomFileName != BANK_RAM)
-					{
-						if (StringEndsWith(RomFileName, ROM_WRITABLE))
-						{
-							RomFileName = RomFileName.substr(0, RomFileName.size() - strlen(ROM_WRITABLE));
-						}
-						else
-						{
-							RomFileName += ROM_WRITABLE;
-						}
-
-						m_RomConfig.SetFileName(m_Model, Row, RomFileName);
-
-						UpdateROMField(Row);
-					}
-				}
-
-				m_ROMListView.SetFocus();
-				break;
-			}
-
-			case IDC_RAM: {
-				int Row = m_ROMListView.GetSelectionMark();
-
-				if (Row >= 1 && Row <= 16)
-				{
-					m_RomConfig.SetFileName(m_Model, Row, BANK_RAM);
-					UpdateROMField(Row);
-				}
-
-				m_ROMListView.SetFocus();
-				break;
-			}
-
-			case IDC_EMPTY: {
-				int Row = m_ROMListView.GetSelectionMark();
-
-				if (Row >= 1 && Row <= 16)
-				{
-					m_RomConfig.SetFileName(m_Model, Row, BANK_EMPTY);
-					UpdateROMField(Row);
-				}
-
-				m_ROMListView.SetFocus();
-				break;
-			}
-
-			case IDC_UP: {
-				int Row = m_ROMListView.GetSelectionMark();
-
-				if (Row >= 2)
-				{
-					int PreviousRow = Row - 1;
-
-					m_RomConfig.Swap(m_Model, PreviousRow, Row);
-
-					UpdateROMField(PreviousRow);
-					UpdateROMField(Row);
-
-					m_ROMListView.SetSelectionMark(PreviousRow);
-				}
-
-				m_ROMListView.SetFocus();
-				break;
-			}
-
-			case IDC_DOWN: {
-				int Row = m_ROMListView.GetSelectionMark();
-
-				if (Row > 0)
-				{
-					const int NextRow = Row + 1;
-					const int Count = m_ROMListView.GetItemCount();
-
-					if (NextRow < Count)
-					{
-						m_RomConfig.Swap(m_Model, Row, NextRow);
-
-						UpdateROMField(Row);
-						UpdateROMField(NextRow);
-
-						m_ROMListView.SetSelectionMark(NextRow);
-					}
-
-					m_ROMListView.SetFocus();
-				}
-				break;
-			}
-
-			case IDC_SAVE:
-				SaveROMConfigFile();
-				m_ROMListView.SetFocus();
-				break;
-
-			case IDC_LOAD:
-				LoadROMConfigFile();
-				m_ROMListView.SetFocus();
-				break;
-
-			case IDOK:
-				EndDialog(TRUE);
-				return TRUE;
-
-			case IDCANCEL:
-				EndDialog(FALSE);
-				return TRUE;
-			}
-			break;
-		}
-	}
-
-	return FALSE;
 }
 
 /****************************************************************************/

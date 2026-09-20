@@ -47,6 +47,15 @@ class RomConfigDialog : public Dialog
 			LPARAM lParam
 		);
 
+		void OnInitDialog();
+		void OnModelChange();
+		void OnSelectROM();
+		void OnMarkWritable();
+		void OnRAM();
+		void OnEmpty();
+		void OnMoveUp();
+		void OnMoveDown();
+
 		void UpdateROMField(int Row);
 		void FillModelList();
 		void FillROMList();
