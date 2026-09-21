@@ -1698,7 +1698,7 @@ void BeebWin::LoadSWRAMPreferences()
 		}
 	}
 
-	if (!m_Preferences.GetBoolValue(CFG_SOLIDISK_SWRAM_BOARD_ENABLED, UserPortRTCEnabled, false))
+	if (!m_Preferences.GetBoolValue(CFG_SOLIDISK_SWRAM_BOARD_ENABLED, SolidiskSWRAMBoardEnabled, false))
 	{
 		m_Preferences.GetBoolValue(CFG_SWRAM_BOARD_ENABLED_OLD, SolidiskSWRAMBoardEnabled, false);
 	}
