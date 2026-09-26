@@ -198,7 +198,7 @@ static CommandStatusType CommandStatus;
 
 /*--------------------------------------------------------------------------*/
 
-// Note Head select is done from bit 5 of the drive output register
+// Note Head select is done from bit 5 of the drive output register.
 #define CURRENT_HEAD ((FDCState.DriveControlOutputPort >> 5) & 1)
 
 static bool SaveTrackImage(int DriveNum, int HeadNum, int TrackNum);
@@ -245,7 +245,7 @@ static void NotImp(const char *Command)
 
 /*--------------------------------------------------------------------------*/
 
-// Load the head - ignore for the moment
+// Load the head - ignore for the moment.
 
 static void DoLoadHead()
 {
@@ -253,7 +253,7 @@ static void DoLoadHead()
 
 /*--------------------------------------------------------------------------*/
 
-// Initialise our disc structures
+// Initialise our disc structures.
 
 static void InitDiscStore()
 {
@@ -273,19 +273,22 @@ static void InitDiscStore()
 
 /*--------------------------------------------------------------------------*/
 
-// Given a logical track number accounts for bad tracks
+// Given a logical track number accounts for bad tracks.
 
 static unsigned char SkipBadTracks(int Drive, unsigned char Track)
 {
 	if (DiscInfo[Drive].Type == DiscType::FSD)
 	{
-		return Track; // FSD - no bad tracks, but possible to have unformatted
+		// FSD - no bad tracks, but possible to have unformatted.
+		return Track;
 	}
 	else
 	{
 		int Offset = 0;
 
-		if (TubeType != TubeDevice::TorchZ80) // If running under Torch Z80, ignore bad tracks
+		// If running under Torch Z80, ignore bad tracks.
+
+		if (TubeType != TubeDevice::TorchZ80)
 		{
 			if (FDCState.BadTracks[Drive][0] <= Track) Offset++;
 			if (FDCState.BadTracks[Drive][1] <= Track) Offset++;
@@ -314,12 +317,7 @@ static int GetSelectedDrive()
 
 /*--------------------------------------------------------------------------*/
 
-// Returns a pointer to the data structure for a particular track. You pass
-// the logical track number, it takes into account bad tracks and the drive
-// select and head select etc.  It always returns a valid ptr - if there
-// aren't that many tracks then it uses the last one.
-// The one exception!!!! is that if no drives are selected it returns nullptr
-// FSD - returns the physical track pointer for track ID
+// Returns the physical track pointer for the given track ID.
 
 static TrackType *GetTrackPtrPhysical(unsigned char PhysicalTrackID)
 {
@@ -335,11 +333,11 @@ static TrackType *GetTrackPtrPhysical(unsigned char PhysicalTrackID)
 
 /*--------------------------------------------------------------------------*/
 
-// Returns a pointer to the data structure for a particular track.  You pass
+// Returns a pointer to the data structure for a particular track. You pass
 // the logical track number, it takes into account bad tracks and the drive
-// select and head select etc.  It always returns a valid ptr - if there
+// select and head select etc. It always returns a valid ptr - if there
 // there aren't that many tracks then it uses the last one.
-// The one exception!!!! is that if no drives are selected it returns nullptr
+// The one exception!!!! is that if no drives are selected it returns nullptr.
 
 // FSD - unsigned char because maximum &FF
 
@@ -372,7 +370,8 @@ static TrackType *GetTrackPtr(unsigned char LogicalTrackID)
 			}
 		}
 
-		return nullptr; // if it's not found from the above, then it doesn't exist!
+		// If it's not found from the above, then it doesn't exist!
+		return nullptr;
 	}
 	else
 	{
@@ -392,7 +391,8 @@ static TrackType *GetTrackPtr(unsigned char LogicalTrackID)
 // Returns a pointer to the data structure for a particular sector.
 // Returns nullptr for Sector not found. Doesn't check cylinder/head ID.
 
-static SectorType *GetSectorPtr(TrackType *Track, unsigned char LogicalSectorID, bool /* FindDeleted */)
+static SectorType *GetSectorPtr(TrackType *Track,
+                                unsigned char LogicalSectorID)
 {
 	int Drive = GetSelectedDrive();
 
@@ -406,9 +406,10 @@ static SectorType *GetSectorPtr(TrackType *Track, unsigned char LogicalSectorID,
 		return nullptr;
 	}
 
-	// FSD - from PositionInTrack, instead of 0 to allow Mini Office II to have repeated sector ID
-	// if logical sector from track ID is logicalsectorid passed here then return the record number
-	// and move the positionintrack to here too
+	// FSD - from PositionInTrack, instead of 0 to allow Mini Office II to have
+	// repeated sector ID if logical sector from track ID is LogicalSectorID
+	// passed here then return the record number and move the PositionInTrack
+	// to here too.
 
 	for (int CurrentSector = FDCState.PositionInTrack[Drive]; CurrentSector < Track->NSectors; CurrentSector++)
 	{
@@ -443,7 +444,8 @@ static SectorType *GetSectorPtr(TrackType *Track, unsigned char LogicalSectorID,
 // Returns nullptr for Sector not found. Doesn't check cylinder/head ID
 // FSD - returns the sector IDs
 
-static SectorType *GetSectorPtrForTrackID(TrackType *Track, unsigned char LogicalSectorID, bool /* FindDeleted */)
+static SectorType *GetSectorPtrForTrackID(TrackType *Track,
+                                          unsigned char LogicalSectorID)
 {
 	int Drive = GetSelectedDrive();
 
@@ -472,16 +474,6 @@ static void DoErr(unsigned char ErrNum)
 	CommandStatus.NextInterruptIsErr = ErrNum;
 	FDCState.StatusReg = STATUS_REG_COMMAND_BUSY; // Command is busy - come back when I have an interrupt
 	UpdateNMIStatus();
-}
-
-/*--------------------------------------------------------------------------*/
-
-// Checks a few things in the sector - returns true if OK
-// FSD - Sectors are always OK
-
-static bool ValidateSector(const SectorType* /*Sector */, int /* Track */, int /* SecLength */)
-{
-	return true;
 }
 
 /*--------------------------------------------------------------------------*/
@@ -596,7 +588,8 @@ static void DoVarLength_WriteDataCommand()
 		return;
 	}
 
-	CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr, FDCState.Params[1], false);
+	CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr,
+	                                              FDCState.Params[1]);
 
 	if (CommandStatus.CurrentSectorPtr == nullptr)
 	{
@@ -609,20 +602,13 @@ static void DoVarLength_WriteDataCommand()
 	CommandStatus.SectorsToGo   = FDCState.Params[2] & 0x1F;
 	CommandStatus.SectorLength  = 1 << (7 + ((FDCState.Params[2] >> 5) & 7));
 
-	if (ValidateSector(CommandStatus.CurrentSectorPtr, CommandStatus.TrackAddr, CommandStatus.SectorLength))
-	{
-		CommandStatus.ByteWithinSector = 0;
-		CommandStatus.FirstWriteInt = true;
+	CommandStatus.ByteWithinSector = 0;
+	CommandStatus.FirstWriteInt = true;
 
-		FDCState.StatusReg = STATUS_REG_COMMAND_BUSY;
-		UpdateNMIStatus();
+	FDCState.StatusReg = STATUS_REG_COMMAND_BUSY;
+	UpdateNMIStatus();
 
-		SetTrigger(TIME_BETWEEN_BYTES, Disc8271Trigger);
-	}
-	else
-	{
-		DoErr(RESULT_REG_DRIVE_NOT_PRESENT); // Sector not found
-	}
+	SetTrigger(TIME_BETWEEN_BYTES, Disc8271Trigger);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -663,8 +649,7 @@ static void WriteInterrupt()
 		{
 			CommandStatus.CurrentSector++;
 			CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr,
-			                                              CommandStatus.CurrentSector,
-			                                              false);
+			                                              CommandStatus.CurrentSector);
 
 			if (CommandStatus.CurrentSectorPtr == nullptr)
 			{
@@ -858,7 +843,8 @@ static void DoVarLength_ReadDataCommand()
 		return;
 	}
 
-	CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr, FDCState.Params[1], false);
+	CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr,
+	                                              FDCState.Params[1]);
 
 	if (CommandStatus.CurrentSectorPtr == nullptr)
 	{
@@ -887,19 +873,12 @@ static void DoVarLength_ReadDataCommand()
 		FDCState.SectorOverRead = true;
 	}
 
-	if (ValidateSector(CommandStatus.CurrentSectorPtr, CommandStatus.TrackAddr, CommandStatus.SectorLength))
-	{
-		CommandStatus.ByteWithinSector = 0;
+	CommandStatus.ByteWithinSector = 0;
 
-		FDCState.StatusReg = STATUS_REG_COMMAND_BUSY;
-		UpdateNMIStatus();
+	FDCState.StatusReg = STATUS_REG_COMMAND_BUSY;
+	UpdateNMIStatus();
 
-		SetTrigger(TIME_BETWEEN_BYTES, Disc8271Trigger);
-	}
-	else
-	{
-		DoErr(RESULT_REG_SECTOR_NOT_FOUND);
-	}
+	SetTrigger(TIME_BETWEEN_BYTES, Disc8271Trigger);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1004,8 +983,7 @@ static void ReadInterrupt()
 		{
 			CommandStatus.CurrentSector++;
 			CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr,
-			                                              CommandStatus.CurrentSector,
-			                                              false);
+			                                              CommandStatus.CurrentSector);
 
 			if (CommandStatus.CurrentSectorPtr == nullptr)
 			{
@@ -1096,7 +1074,8 @@ static void Do128ByteSR_ReadDataAndDeldCommand()
 		return;
 	}
 
-	CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr, FDCState.Params[1], false);
+	CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr,
+	                                              FDCState.Params[1]);
 
 	if (CommandStatus.CurrentSectorPtr == nullptr)
 	{
@@ -1109,19 +1088,12 @@ static void Do128ByteSR_ReadDataAndDeldCommand()
 	CommandStatus.SectorsToGo   = 1;
 	CommandStatus.SectorLength  = 128;
 
-	if (ValidateSector(CommandStatus.CurrentSectorPtr, CommandStatus.TrackAddr, CommandStatus.SectorLength))
-	{
-		CommandStatus.ByteWithinSector = 0;
+	CommandStatus.ByteWithinSector = 0;
 
-		FDCState.StatusReg = STATUS_REG_COMMAND_BUSY;
-		UpdateNMIStatus();
+	FDCState.StatusReg = STATUS_REG_COMMAND_BUSY;
+	UpdateNMIStatus();
 
-		SetTrigger(TIME_BETWEEN_BYTES, Disc8271Trigger);
-	}
-	else
-	{
-		DoErr(RESULT_REG_SECTOR_NOT_FOUND);
-	}
+	SetTrigger(TIME_BETWEEN_BYTES, Disc8271Trigger);
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1189,7 +1161,8 @@ static void Read128Interrupt()
 		if (--CommandStatus.SectorsToGo > 0)
 		{
 			CommandStatus.CurrentSector++;
-			CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr, CommandStatus.CurrentSector, false);
+			CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr,
+			                                              CommandStatus.CurrentSector);
 
 			if (CommandStatus.CurrentSectorPtr == nullptr)
 			{
@@ -1303,7 +1276,7 @@ static void DoReadIDCommand()
 	}
 
 	// FSD - was GetSectorPtr
-	CommandStatus.CurrentSectorPtr = GetSectorPtrForTrackID(CommandStatus.CurrentTrackPtr, 0, false);
+	CommandStatus.CurrentSectorPtr = GetSectorPtrForTrackID(CommandStatus.CurrentTrackPtr, 0);
 
 	if (CommandStatus.CurrentSectorPtr == nullptr)
 	{
@@ -1384,8 +1357,7 @@ static void ReadIDInterrupt()
 			FDCState.PositionInTrack[Drive] = CommandStatus.CurrentSector; // FSD
 
 			CommandStatus.CurrentSectorPtr = GetSectorPtrForTrackID(CommandStatus.CurrentTrackPtr,
-			                                                        CommandStatus.CurrentSector,
-			                                                        false);
+			                                                        CommandStatus.CurrentSector);
 
 			if (CommandStatus.CurrentSectorPtr == nullptr)
 			{
@@ -1485,7 +1457,8 @@ static void DoVarLength_VerifyDataAndDeldCommand()
 		return;
 	}
 
-	CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr, FDCState.Params[1], false);
+	CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr,
+	                                              FDCState.Params[1]);
 
 	if (CommandStatus.CurrentSectorPtr == nullptr)
 	{
@@ -1556,7 +1529,7 @@ static void DoFormatCommand()
 		return;
 	}
 
-	CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr, 0, false);
+	CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr, 0);
 
 	if (CommandStatus.CurrentSectorPtr == nullptr)
 	{
@@ -1606,7 +1579,7 @@ static void FormatInterrupt()
 
 	if (!CommandStatus.FirstWriteInt)
 	{
-		// Ignore the ID data for now - just count the bytes
+		// Ignore the ID data for now - just count the bytes.
 		CommandStatus.ByteWithinSector++;
 	}
 	else
@@ -1618,7 +1591,7 @@ static void FormatInterrupt()
 
 	if (CommandStatus.ByteWithinSector >= 4)
 	{
-		// Fill sector with 0xe5 chars
+		// Fill sector with 0xe5 chars.
 		for (int i = 0; i < 256; ++i)
 		{
 			CommandStatus.CurrentSectorPtr->Data[i] = (unsigned char)0xe5;
@@ -1630,8 +1603,7 @@ static void FormatInterrupt()
 		{
 			CommandStatus.CurrentSector++;
 			CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr,
-			                                              CommandStatus.CurrentSector,
-			                                              false);
+			                                              CommandStatus.CurrentSector);
 
 			if (CommandStatus.CurrentSectorPtr == nullptr)
 			{
@@ -1641,7 +1613,7 @@ static void FormatInterrupt()
 		}
 		else
 		{
-			// Last sector done, write the track back to disc
+			// Last sector done, write the track back to disc.
 			if (SaveTrackImage(FDCState.Select[0] ? 0 : 1, CURRENT_HEAD, CommandStatus.TrackAddr))
 			{
 				LastByte = true;
@@ -2013,20 +1985,20 @@ static const PrimaryCommandLookupType PrimaryCommandLookup[] = {
 
 /*--------------------------------------------------------------------------*/
 
-// returns a pointer to the data structure for the given command
+// Returns a pointer to the data structure for the given command.
 // If no matching command is given, the pointer points to an entry with a 0
 // mask, with a sensible function to call.
 
 static const PrimaryCommandLookupType *CommandPtrFromNumber(int CommandNumber)
 {
-	const PrimaryCommandLookupType *presptr = PrimaryCommandLookup;
+	const PrimaryCommandLookupType* pCommand = PrimaryCommandLookup;
 
-	while (presptr->CommandNum != (presptr->Mask & CommandNumber))
+	while (pCommand->CommandNum != (pCommand->Mask & CommandNumber))
 	{
-		presptr++;
+		pCommand++;
 	}
 
-	return presptr;
+	return pCommand;
 
 	// FSD - could FSDPhysicalTrack = -1 here?
 }
@@ -2059,7 +2031,7 @@ unsigned char Disc8271Read(int Address)
 			WriteLog("8271 Result register read (0x%02X)\n", ResultReg);
 			#endif
 
-			// Clear interrupt request and result reg full flag
+			// Clear interrupt request and result reg full flag.
 			FDCState.StatusReg &= ~(STATUS_REG_RESULT_FULL | STATUS_REG_INTERRUPT_REQUEST);
 			UpdateNMIStatus();
 			Value = FDCState.ResultReg;
@@ -2764,7 +2736,7 @@ bool IsDiscWritable(int Drive)
 /*--------------------------------------------------------------------------*/
 
 // If disc is being made writable then check that the disc catalogue will
-// not get corrupted if new files are added.  The files in the disc catalogue
+// not get corrupted if new files are added. The files in the disc catalogue
 // must be in descending sector order otherwise the DFS ROMs write over
 // files at the start of the disc. The sector count in the catalogue must
 // also be correct.
@@ -2983,6 +2955,8 @@ void Save8271UEF(FILE *SUEF)
 	UEFWrite8(FDCState.FSDPhysicalTrack[1], SUEF);
 }
 
+/*--------------------------------------------------------------------------*/
+
 void Load8271UEF(FILE *SUEF, int Version)
 {
 	bool Loaded = false;
@@ -3128,8 +3102,7 @@ void Load8271UEF(FILE *SUEF, int Version)
 		if (CommandStatus.CurrentTrackPtr != nullptr)
 		{
 			CommandStatus.CurrentSectorPtr = GetSectorPtr(CommandStatus.CurrentTrackPtr,
-			                                              CommandStatus.CurrentSector,
-			                                              false);
+			                                              CommandStatus.CurrentSector);
 		}
 		else
 		{
@@ -3137,3 +3110,5 @@ void Load8271UEF(FILE *SUEF, int Version)
 		}
 	}
 }
+
+/*--------------------------------------------------------------------------*/
