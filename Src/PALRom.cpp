@@ -19,7 +19,7 @@ Boston, MA  02110-1301, USA.
 ****************************************************************/
 
 /*
- * (C) Nigel Barnes (original work from Mame
+ * (C) Nigel Barnes (original work from Mame)
  * (C) Steve Inglis derivative work for BeebEm
  *
  * BBC Micro PALPROM carrier boards original work done by Nigel.
@@ -33,206 +33,232 @@ Boston, MA  02110-1301, USA.
 #include "PALRom.h"
 #include "zlib/zlib.h"
 
+/****************************************************************************/
+
 PALRomState PALRom[MAX_PAL_ROMS];
 
-static uint8_t cciword_device(int ROMSEL, int offset)
+/****************************************************************************/
+
+static unsigned char ReadInterWord(int Bank, int Offset)
 {
-    switch (offset & 0x3fe0)
+    switch (Offset & 0x3FE0)
     {
         case 0x0060:
-        case 0x3fc0: PALRom[ROMSEL].Bank = 0; break;
+        case 0x3FC0: PALRom[Bank].Bank = 0; break;
         case 0x0040:
-        case 0x3fa0:
-        case 0x3fe0: PALRom[ROMSEL].Bank = 1; break;
+        case 0x3FA0:
+        case 0x3FE0: PALRom[Bank].Bank = 1; break;
     }
 
-    return PALRom[ROMSEL].Rom[(offset & 0x3fff) | (PALRom[ROMSEL].Bank << 14)];
+    return PALRom[Bank].Rom[(Offset & 0x3FFF) | (PALRom[Bank].Bank << 14)];
 }
 
-static uint8_t ccibase_device(int ROMSEL, int offset)
+/****************************************************************************/
+
+static unsigned char ReadInterBase(int Bank, int Offset)
 {
-    switch (offset & 0x3fe0)
+    switch (Offset & 0x3FE0)
     {
-        case 0x3f80: PALRom[ROMSEL].Bank = 0; break;
-        case 0x3fa0: PALRom[ROMSEL].Bank = 1; break;
-        case 0x3fc0: PALRom[ROMSEL].Bank = 2; break;
-        case 0x3fe0: PALRom[ROMSEL].Bank = 3; break;
+        case 0x3F80: PALRom[Bank].Bank = 0; break;
+        case 0x3FA0: PALRom[Bank].Bank = 1; break;
+        case 0x3FC0: PALRom[Bank].Bank = 2; break;
+        case 0x3FE0: PALRom[Bank].Bank = 3; break;
     }
 
-    return PALRom[ROMSEL].Rom[(offset & 0x3fff) | (PALRom[ROMSEL].Bank << 14)];
+    return PALRom[Bank].Rom[(Offset & 0x3FFF) | (PALRom[Bank].Bank << 14)];
 }
 
-static uint8_t ccispell_device(int ROMSEL, int offset)
+/****************************************************************************/
+
+static unsigned char ReadSpellMaster(int Bank, int Offset)
 {
-    if (offset == 0x3fe0)
+    if (Offset == 0x3FE0)
     {
-        PALRom[ROMSEL].Bank = 0;
+        PALRom[Bank].Bank = 0;
     }
-    else if (PALRom[ROMSEL].Bank == 0)
+    else if (PALRom[Bank].Bank == 0)
     {
-        switch (offset & 0x3fe0)
+        switch (Offset & 0x3FE0)
         {
-            case 0x3fc0: PALRom[ROMSEL].Bank = 1; break;
-            case 0x3fa0: PALRom[ROMSEL].Bank = 2; break;
-            case 0x3f80: PALRom[ROMSEL].Bank = 3; break;
-            case 0x3f60: PALRom[ROMSEL].Bank = 4; break;
-            case 0x3f40: PALRom[ROMSEL].Bank = 5; break;
-            case 0x3f20: PALRom[ROMSEL].Bank = 6; break;
-            case 0x3f00: PALRom[ROMSEL].Bank = 7; break;
+            case 0x3FC0: PALRom[Bank].Bank = 1; break;
+            case 0x3FA0: PALRom[Bank].Bank = 2; break;
+            case 0x3F80: PALRom[Bank].Bank = 3; break;
+            case 0x3F60: PALRom[Bank].Bank = 4; break;
+            case 0x3F40: PALRom[Bank].Bank = 5; break;
+            case 0x3F20: PALRom[Bank].Bank = 6; break;
+            case 0x3F00: PALRom[Bank].Bank = 7; break;
         }
     }
 
-    return PALRom[ROMSEL].Rom[(offset & 0x3fff) | (PALRom[ROMSEL].Bank << 14)];
+    return PALRom[Bank].Rom[(Offset & 0x3FFF) | (PALRom[Bank].Bank << 14)];
 }
 
-static uint8_t acotrilogy(int ROMSEL, int offset)
+/****************************************************************************/
+
+static unsigned char ReadViewTrilogy(int Bank, int Offset)
 {
-    switch (offset & 0x3ff8)
+    switch (Offset & 0x3FF8)
     {
-        case 0x3ff8: PALRom[ROMSEL].Bank = offset & 0x03; break;
+        case 0x3FF8: PALRom[Bank].Bank = Offset & 0x03; break;
     }
 
-    return PALRom[ROMSEL].Rom[(offset & 0x3fff) | (PALRom[ROMSEL].Bank << 14)];
+    return PALRom[Bank].Rom[(Offset & 0x3FFF) | (PALRom[Bank].Bank << 14)];
 }
 
-static uint8_t pres_abepdevice(int ROMSEL, int offset)
+/****************************************************************************/
+
+static unsigned char ReadAdvancedBasicEditor(int Bank, int Offset)
 {
-    switch (offset & 0x3ffc)
+    switch (Offset & 0x3FFC)
     {
-        case 0x3ff8: PALRom[ROMSEL].Bank = 0; break;
-        case 0x3ffc: PALRom[ROMSEL].Bank = 1; break;
+        case 0x3FF8: PALRom[Bank].Bank = 1; break;
+        case 0x3FFC: PALRom[Bank].Bank = 0; break;
     }
 
-    return PALRom[ROMSEL].Rom[(offset & 0x3fff) | (PALRom[ROMSEL].Bank << 14)];
+    return PALRom[Bank].Rom[(Offset & 0x3FFF) | (PALRom[Bank].Bank << 14)];
 }
 
-static uint8_t pres_abedevice(int ROMSEL, int offset)
+/****************************************************************************/
+
+static unsigned char ReadAdvancedBasicEditorPlus(int Bank, int Offset)
 {
-    switch (offset & 0x3ffc)
+    switch (Offset & 0x3FFC)
     {
-        case 0x3ff8: PALRom[ROMSEL].Bank = 1; break;
-        case 0x3ffc: PALRom[ROMSEL].Bank = 0; break;
+        case 0x3FF8: PALRom[Bank].Bank = 0; break;
+        case 0x3FFC: PALRom[Bank].Bank = 1; break;
     }
 
-    return PALRom[ROMSEL].Rom[(offset & 0x3fff) | (PALRom[ROMSEL].Bank << 14)];
+    return PALRom[Bank].Rom[(Offset & 0x3FFF) | (PALRom[Bank].Bank << 14)];
 }
 
-static uint8_t watqst_device(int ROMSEL, int offset)
+/****************************************************************************/
+
+static unsigned char ReadQuest(int Bank, int Offset)
 {
-    switch (offset & 0x3fe0)
+    switch (Offset & 0x3FE0)
     {
-        case 0x0820: PALRom[ROMSEL].Bank = 2; break;
-        case 0x11e0: PALRom[ROMSEL].Bank = 1; break;
-        case 0x12c0: PALRom[ROMSEL].Bank = 3; break;
-        case 0x1340: PALRom[ROMSEL].Bank = 0; break;
+        case 0x0820: PALRom[Bank].Bank = 2; break;
+        case 0x11E0: PALRom[Bank].Bank = 1; break;
+        case 0x12C0: PALRom[Bank].Bank = 3; break;
+        case 0x1340: PALRom[Bank].Bank = 0; break;
     }
 
-    if (offset & 0x2000)
+    if (Offset & 0x2000)
     {
-        return PALRom[ROMSEL].Rom[(offset & 0x1fff) | (PALRom[ROMSEL].Bank << 13)];
+        return PALRom[Bank].Rom[(Offset & 0x1FFF) | (PALRom[Bank].Bank << 13)];
     }
     else
     {
-        return PALRom[ROMSEL].Rom[(offset & 0x1fff)];
+        return PALRom[Bank].Rom[(Offset & 0x1FFF)];
     }
 }
 
-static uint8_t watwap_device(int ROMSEL, int offset)
+/****************************************************************************/
+
+static unsigned char ReadWappingEditor(int Bank, int Offset)
 {
-    switch (offset & 0x3fe0)
+    switch (Offset & 0x3FE0)
     {
-        case 0x1f00: PALRom[ROMSEL].Bank = 0; break;
-        case 0x1f20: PALRom[ROMSEL].Bank = 1; break;
-        case 0x1f40: PALRom[ROMSEL].Bank = 2; break;
-        case 0x1f60: PALRom[ROMSEL].Bank = 3; break;
-        case 0x1f80: PALRom[ROMSEL].Bank = 4; break;
-        case 0x1fa0: PALRom[ROMSEL].Bank = 5; break;
-        case 0x1fc0: PALRom[ROMSEL].Bank = 6; break;
-        case 0x1fe0: PALRom[ROMSEL].Bank = 7; break;
+        case 0x1F00: PALRom[Bank].Bank = 0; break;
+        case 0x1F20: PALRom[Bank].Bank = 1; break;
+        case 0x1F40: PALRom[Bank].Bank = 2; break;
+        case 0x1F60: PALRom[Bank].Bank = 3; break;
+        case 0x1F80: PALRom[Bank].Bank = 4; break;
+        case 0x1FA0: PALRom[Bank].Bank = 5; break;
+        case 0x1FC0: PALRom[Bank].Bank = 6; break;
+        case 0x1FE0: PALRom[Bank].Bank = 7; break;
     }
 
-    if (offset & 0x2000)
+    if (Offset & 0x2000)
     {
-        return PALRom[ROMSEL].Rom[(offset & 0x1fff) | (PALRom[ROMSEL].Bank << 13)];
+        return PALRom[Bank].Rom[(Offset & 0x1FFF) | (PALRom[Bank].Bank << 13)];
     }
     else
     {
-        return PALRom[ROMSEL].Rom[offset & 0x1fff];
+        return PALRom[Bank].Rom[Offset & 0x1FFF];
     }
 }
 
-static uint8_t wapted_device(int ROMSEL, int offset)
+/****************************************************************************/
+
+static unsigned char ReadTeletextEditor(int Bank, int Offset)
 {
-    switch (offset & 0x3fe0)
+    switch (Offset & 0x3FE0)
     {
-        case 0x1f80: PALRom[ROMSEL].Bank = 0; break;
-        case 0x1fa0: PALRom[ROMSEL].Bank = 1; break;
-        case 0x1fc0: PALRom[ROMSEL].Bank = 2; break;
-        case 0x1fe0: PALRom[ROMSEL].Bank = 3; break;
+        case 0x1F80: PALRom[Bank].Bank = 0; break;
+        case 0x1FA0: PALRom[Bank].Bank = 1; break;
+        case 0x1FC0: PALRom[Bank].Bank = 2; break;
+        case 0x1FE0: PALRom[Bank].Bank = 3; break;
     }
 
-    if (offset & 0x2000)
+    if (Offset & 0x2000)
     {
-        return PALRom[ROMSEL].Rom[(offset & 0x1fff) | (PALRom[ROMSEL].Bank << 13)];
+        return PALRom[Bank].Rom[(Offset & 0x1FFF) | (PALRom[Bank].Bank << 13)];
     }
     else
     {
-        return PALRom[ROMSEL].Rom[offset & 0x1fff];
+        return PALRom[Bank].Rom[Offset & 0x1FFF];
     }
 }
 
-static uint8_t wwplusii_device(int ROMSEL, int offset)
+/****************************************************************************/
+
+static unsigned char ReadWordwisePlus2(int Bank, int Offset)
 {
-    switch (offset & 0x3fe0)
+    switch (Offset & 0x3FE0)
     {
-        case 0x3f80: PALRom[ROMSEL].Bank = 0; break;
-        case 0x3fa0: PALRom[ROMSEL].Bank = 1; break;
+        case 0x3F80: PALRom[Bank].Bank = 0; break;
+        case 0x3FA0: PALRom[Bank].Bank = 1; break;
     }
 
-    return PALRom[ROMSEL].Rom[(offset & 0x3fff) | (PALRom[ROMSEL].Bank << 14)];
+    return PALRom[Bank].Rom[(Offset & 0x3FFF) | (PALRom[Bank].Bank << 14)];
 }
 
-uint8_t PALRomRead(int ROMSEL, int offset)
+/****************************************************************************/
+
+unsigned char PALRomRead(int Bank, int Offset)
 {
-    switch (PALRom[ROMSEL].Type)
+    switch (PALRom[Bank].Type)
     {
-        case PALRomType::none:
+        case PALRomType::None:
         default:
-            return PALRom[ROMSEL].Rom[offset];
+            return PALRom[Bank].Rom[Offset];
 
-        case PALRomType::cciword:
-            return cciword_device(ROMSEL, offset);
+        case PALRomType::InterWord:
+            return ReadInterWord(Bank, Offset);
 
-        case PALRomType::ccispell:
-            return ccispell_device(ROMSEL, offset);
+        case PALRomType::SpellMaster:
+            return ReadSpellMaster(Bank, Offset);
 
-        case PALRomType::ccibase:
-            return ccibase_device(ROMSEL, offset);
+        case PALRomType::InterBase:
+            return ReadInterBase(Bank, Offset);
 
-        case PALRomType::acotrilogy:
-            return acotrilogy(ROMSEL, offset);
+        case PALRomType::ViewTrilogy:
+            return ReadViewTrilogy(Bank, Offset);
 
-        case PALRomType::presabe:
-            return pres_abedevice(ROMSEL, offset);
+        case PALRomType::AdvancedBasicEditor:
+            return ReadAdvancedBasicEditor(Bank, Offset);
 
-        case PALRomType::presabep:
-            return pres_abepdevice(ROMSEL, offset);
+        case PALRomType::AdvancedBasicEditorPlus:
+            return ReadAdvancedBasicEditorPlus(Bank, Offset);
 
-        case PALRomType::watqst:
-            return watqst_device(ROMSEL, offset);
+        case PALRomType::Quest:
+            return ReadQuest(Bank, Offset);
 
-        case PALRomType::watwap:
-            return watwap_device(ROMSEL, offset);
+        case PALRomType::WappingEditor:
+            return ReadWappingEditor(Bank, Offset);
 
-        case PALRomType::watted:
-            return wapted_device(ROMSEL, offset);
+        case PALRomType::TeletextEditor:
+            return ReadTeletextEditor(Bank, Offset);
 
-        case PALRomType::wwplusii:
-            return wwplusii_device(ROMSEL, offset);
+        case PALRomType::WordwisePlus2:
+            return ReadWordwisePlus2(Bank, Offset);
     }
 }
 
-PALRomType GuessRomType(uint8_t *Rom, uint32_t Size)
+/****************************************************************************/
+
+PALRomType GuessRomType(unsigned char* Rom, int Size)
 {
     char RomName[11];
     memcpy(RomName, &Rom[9], 10);
@@ -241,61 +267,63 @@ PALRomType GuessRomType(uint8_t *Rom, uint32_t Size)
 
     if (strstr(RomName, "ViewSpell") && Size == PALROM_64K && Crc == 0xE56B0E01)
     {
-        return PALRomType::acotrilogy;
+        return PALRomType::ViewTrilogy; // Acornsoft
     }
     else if (strstr(RomName, "MegaROM") && Size == PALROM_128K && Crc == 0xFAAC60BB)
     {
-        return PALRomType::ccispell;
+        return PALRomType::SpellMaster; // Computer Concepts
     }
     else if (strstr(RomName, "INTER-BASE") && Size == PALROM_64K && Crc == 0x4332ED95)
     {
-        return PALRomType::ccibase;
+        return PALRomType::InterBase; // Computer Concepts
     }
     else if (strstr(RomName, "INTER-WORD") && Size == PALROM_32K && Crc == 0xC93E3C33)
     {
-        return PALRomType::cciword;
+        return PALRomType::InterWord; // Computer Concepts
     }
     else if (strstr(RomName, "AMX") && Size == PALROM_32K && Crc == 0xA72E2E59)
     {
         // outstanding needs updated crc
-        return PALRomType::cciword;
+        return PALRomType::InterWord;
     }
     else if (strstr(RomName, "SPELLMASTE") && Size == PALROM_128K && Crc == 0xC26533EC)
     {
-        return PALRomType::ccispell;
+        return PALRomType::SpellMaster; // Computer Concepts
     }
     else if (strstr(RomName, "Advanced") && Size == PALROM_32K && Crc == 0xE0B93F43)
     {
-        return PALRomType::presabe;
+        return PALRomType::AdvancedBasicEditor; // PRES
     }
     else if (strstr(RomName, "The BASIC") && Size == PALROM_32K && Crc == 0x7E3A119A)
     {
-        return PALRomType::presabep;
+        return PALRomType::AdvancedBasicEditorPlus; // PRES
     }
     else if (strstr(RomName, "QUEST") && Size == PALROM_32K && (Crc == 0x7880EB9A || Crc == 0x839A9B34))
     {
-        return PALRomType::watqst;
+        return PALRomType::Quest; // Watford Electronics
     }
     else if (strstr(RomName, "WAPPING ED") && Size == PALROM_64K && Crc == 0x26431B44)
     {
-        return PALRomType::watwap;
+        return PALRomType::WappingEditor; // Watford Electronics
     }
     else if (strstr(RomName, "TED 32K\0 1") && Size == PALROM_32K && Crc == 0x2D4C6458)
     {
-        return PALRomType::watted;
+        return PALRomType::TeletextEditor; // Watford Electronics
     }
     else if (strstr(RomName, "CONQUEST") && Size == PALROM_32K && Crc == 0xF9634ECE)
     {
-        return PALRomType::watqst;
+        return PALRomType::Quest; // Watford Electronics
     }
     else if (strstr(RomName, "WORDWISE-P") && Size == PALROM_32K && Crc == 0x1F560E1F)
     {
-        return PALRomType::wwplusii;
+        return PALRomType::WordwisePlus2; // Computer Concepts
     }
     else if (strstr(RomName, "MASTER ROM") && Size == PALROM_32K && Crc == 0x6F0CB588)
     {
-        return PALRomType::wwplusii;
+        return PALRomType::WordwisePlus2; // Computer Concepts
     }
 
-    return PALRomType::none;
+    return PALRomType::None;
 }
+
+/****************************************************************************/

@@ -299,7 +299,7 @@ unsigned char BeebReadMem(int Address) {
 
 	if (MachineType == Model::B) {
 		if (Address >= 0x8000 && Address < 0xc000) {
-			if (PALRom[ROMSEL].Type == PALRomType::none) {
+			if (PALRom[ROMSEL].Type == PALRomType::None) {
 				return Roms[ROMSEL][Address - 0x8000];
 			} else {
 				return PALRomRead(ROMSEL, Address - 0x8000);
@@ -327,7 +327,7 @@ unsigned char BeebReadMem(int Address) {
 			}
 		}
 		if (Address >= 0x8000 && Address < 0xc000) {
-			if (PALRom[ROMSEL].Type == PALRomType::none) {
+			if (PALRom[ROMSEL].Type == PALRomType::None) {
 				return Roms[ROMSEL][Address - 0x8000];
 			}
 			else {
@@ -381,7 +381,7 @@ unsigned char BeebReadMem(int Address) {
 		if (Address < 0x8000) return WholeRam[Address];
 		if (Address < 0xB000 && MemSel) return Private[Address-0x8000];
 		if (Address >= 0x8000 && Address < 0xc000) {
-			if (PALRom[ROMSEL].Type == PALRomType::none) {
+			if (PALRom[ROMSEL].Type == PALRomType::None) {
 				return Roms[ROMSEL][Address - 0x8000];
 			}
 			else {
@@ -417,7 +417,7 @@ unsigned char BeebReadMem(int Address) {
 			if (PrivateRAMSelect) {
 				return(PrivateRAM[Address-0x8000]);
 			} else {
-				if (PALRom[ROMSEL].Type == PALRomType::none) {
+				if (PALRom[ROMSEL].Type == PALRomType::None) {
 					return Roms[ROMSEL][Address - 0x8000];
 				}
 				else {
@@ -428,7 +428,7 @@ unsigned char BeebReadMem(int Address) {
 		case 9:
 		case 0xa:
 		case 0xb:
-			if (PALRom[ROMSEL].Type == PALRomType::none) {
+			if (PALRom[ROMSEL].Type == PALRomType::None) {
 				return Roms[ROMSEL][Address - 0x8000];
 			}
 			else {
@@ -1265,7 +1265,7 @@ static bool ReadRom(const std::string& RomFileName, int Bank)
 
 			PALRom[Bank].Type = GuessRomType(PALRom[Bank].Rom, Size);
 
-			if (PALRom[Bank].Type != PALRomType::none)
+			if (PALRom[Bank].Type != PALRomType::None)
 			{
 				RomBankType[Bank] = BankType::Rom;
 				RomWritable[Bank] = false;
@@ -1306,7 +1306,7 @@ void BeebReadRoms()
 		RomBankType[bank] = BankType::Empty;
 		memset(Roms[bank], 0, sizeof(Roms[bank]));
 		memset(PALRom[bank].Rom, 0, sizeof(PALRom[bank].Rom));
-		PALRom[bank].Type = PALRomType::none;
+		PALRom[bank].Type = PALRomType::None;
 		PALRom[bank].Bank = 0;
 	}
 
@@ -1520,7 +1520,7 @@ void SaveMemUEF(FILE *SUEF)
 				break;
 
 			case BankType::Rom:
-				if (PALRom[bank].Type == PALRomType::none)
+				if (PALRom[bank].Type == PALRomType::None)
 				{
 					UEFWrite16(0x0475, SUEF); // ROM bank
 					UEFWrite32(MAX_ROM_SIZE + 2, SUEF);
@@ -1685,7 +1685,7 @@ void LoadSWRomMemUEF(FILE *SUEF)
 	}
 }
 
-bool LoadPALRomEUF(FILE *SUEF, unsigned int ChunkLength)
+bool LoadPALRomUEF(FILE *SUEF, unsigned int ChunkLength)
 {
 	int Bank = UEFRead8(SUEF);
 	RomBankType[Bank] = static_cast<BankType>(UEFRead8(SUEF));
@@ -1707,7 +1707,7 @@ bool LoadPALRomEUF(FILE *SUEF, unsigned int ChunkLength)
 			case BankType::Empty:
 				memset(Roms[Bank], 0, MAX_ROM_SIZE);
 				memset(PALRom[Bank].Rom, 0, MAX_PALROM_SIZE);
-				PALRom[Bank].Type = PALRomType::none;
+				PALRom[Bank].Type = PALRomType::None;
 				PALRom[Bank].Bank = 0;
 				break;
 

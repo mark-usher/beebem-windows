@@ -30,20 +30,19 @@ Boston, MA  02110-1301, USA.
 #ifndef PALROM_HEADER
 #define PALROM_HEADER
 
-#include <stdint.h>
-
-enum class PALRomType {
-    none,
-    cciword,
-    ccibase,
-    ccispell,
-    acotrilogy,
-    presabe,
-    presabep,
-    watqst,
-    watwap,
-    watted,
-    wwplusii
+enum class PALRomType
+{
+    None,
+    InterWord,
+    InterBase,
+    SpellMaster,
+    ViewTrilogy,
+    AdvancedBasicEditor,
+    AdvancedBasicEditorPlus,
+    Quest,
+    WappingEditor,
+    TeletextEditor,
+    WordwisePlus2
 };
 
 constexpr int PALROM_32K = 32768;
@@ -51,9 +50,10 @@ constexpr int PALROM_64K = 65536;
 constexpr int PALROM_128K = 131072;
 constexpr int MAX_PALROM_SIZE = PALROM_128K;
 
-struct PALRomState {
+struct PALRomState
+{
     unsigned char Rom[MAX_PALROM_SIZE];
-    PALRomType Type  = PALRomType::none;
+    PALRomType Type  = PALRomType::None;
     uint8_t Bank = 0;
 };
 
@@ -61,7 +61,7 @@ constexpr int MAX_PAL_ROMS = 16;
 
 extern PALRomState PALRom[MAX_PAL_ROMS];
 
-uint8_t PALRomRead(int romsel, int offset);
-PALRomType GuessRomType(uint8_t *Rom, uint32_t size);
+unsigned char PALRomRead(int Bank, int Offset);
+PALRomType GuessRomType(unsigned char* Rom, int Size);
 
 #endif

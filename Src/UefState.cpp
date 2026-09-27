@@ -558,7 +558,7 @@ UEFStateResult LoadUEFState(const char *FileName)
 					break;
 
 				case 0x047C:
-					LoadPALRomEUF(UEFState, Length);
+					LoadPALRomUEF(UEFState, Length);
 					break;
 
 				case 0x047D:
