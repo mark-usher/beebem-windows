@@ -174,6 +174,8 @@ static bool DebugCmdEcho(const char* args);
 static bool DebugCmdScript(const char* args);
 static bool DebugCmdClear(const char* args);
 
+static void DebugRomState();
+
 /****************************************************************************/
 
 // Debugger commands go here. Format is COMMAND, HANDLER, ARGSPEC, HELPSTRING
@@ -3254,41 +3256,7 @@ static bool DebugCmdState(const char* args)
 			break;
 
 		case 'r': // ROM state
-			DebugDisplayInfo("ROMs by priority:");
-			for (int i = 15; i >= 0; i--)
-			{
-				RomInfo rom;
-
-				char flags[50];
-				flags[0] = '\0';
-
-				if (ReadRomInfo(i, &rom))
-				{
-					if(RomWritable[i])
-						strcat(flags, "Writable, ");
-					if(rom.Flags & RomLanguage)
-						strcat(flags, "Language, ");
-					if(rom.Flags & RomService)
-						strcat(flags, "Service, ");
-					if(rom.Flags & RomRelocate)
-						strcat(flags, "Relocate, ");
-					if(rom.Flags & RomSoftKey)
-						strcat(flags, "SoftKey, ");
-					flags[strlen(flags) - 2] = '\0';
-					DebugDisplayInfoF("Bank %d: %s %s",i,rom.Title,(PagedRomReg == i ? "(Paged in)" : ""));
-					if(strlen(rom.VersionStr) > 0)
-						DebugDisplayInfoF("         Version: 0x%02X (%s)",rom.Version, rom.VersionStr);
-					else
-						DebugDisplayInfoF("         Version: 0x%02X",rom.Version);
-					DebugDisplayInfoF("       Copyright: %s",rom.Copyright);
-					DebugDisplayInfoF("           Flags: %s",flags);
-					DebugDisplayInfoF("   Language Addr: 0x%04X",rom.LanguageAddr);
-					DebugDisplayInfoF("    Service Addr: 0x%04X",rom.ServiceAddr);
-					DebugDisplayInfoF("  Workspace Addr: 0x%04X",rom.WorkspaceAddr);
-					DebugDisplayInfoF(" Relocation Addr: 0x%08X",rom.RelocationAddr);
-					DebugDisplayInfo("");
-				}
-			}
+			DebugRomState();
 			break;
 
 		default:
@@ -3296,6 +3264,75 @@ static bool DebugCmdState(const char* args)
 	}
 
 	return true;
+}
+
+/****************************************************************************/
+
+static void DebugRomState()
+{
+	DebugDisplayInfo("ROMs by priority:");
+
+	for (int i = 15; i >= 0; i--)
+	{
+		RomInfo rom;
+
+		char Flags[200];
+		Flags[0] = '\0';
+
+		if (ReadRomInfo(i, &rom))
+		{
+			if (RomWritable[i])
+			{
+				strcat(Flags, "Writable, ");
+			}
+
+			if (rom.Flags & RomLanguage)
+			{
+				strcat(Flags, "Language, ");
+			}
+
+			if (rom.Flags & RomService)
+			{
+				strcat(Flags, "Service, ");
+			}
+
+			if (rom.Flags & RomRelocate)
+			{
+				strcat(Flags, "Relocate, ");
+			}
+
+			if (rom.Flags & RomSoftKey)
+			{
+				strcat(Flags, "SoftKey, ");
+			}
+
+			const int Len = strlen(Flags);
+
+			if (Len > 2)
+			{
+				Flags[Len - 2] = '\0';
+			}
+
+			DebugDisplayInfoF("Bank %d: %s %s", i, rom.Title, PagedRomReg == i ? "(Paged in)" : "");
+
+			if (strlen(rom.VersionStr) > 0)
+			{
+				DebugDisplayInfoF("         Version: 0x%02X (%s)", rom.Version, rom.VersionStr);
+			}
+			else
+			{
+				DebugDisplayInfoF("         Version: 0x%02X", rom.Version);
+			}
+
+			DebugDisplayInfoF("       Copyright: %s", rom.Copyright);
+			DebugDisplayInfoF("           Flags: %s", Flags);
+			DebugDisplayInfoF("   Language Addr: 0x%04X", rom.LanguageAddr);
+			DebugDisplayInfoF("    Service Addr: 0x%04X", rom.ServiceAddr);
+			DebugDisplayInfoF("  Workspace Addr: 0x%04X", rom.WorkspaceAddr);
+			DebugDisplayInfoF(" Relocation Addr: 0x%08X", rom.RelocationAddr);
+			DebugDisplayInfo("");
+		}
+	}
 }
 
 /****************************************************************************/
