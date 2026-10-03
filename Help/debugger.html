@@ -157,11 +157,17 @@
         </tr>
 
         <tr>
-          <td><span class="cmd">breakpoint &lt;start&gt;[-&lt;end&gt;] [&lt;name&gt;]</span></td>
+          <td>
+            <span class="cmd">breakpoint &lt;start&gt;[-&lt;end&gt;] [&lt;bank&gt;]
+            [&lt;name&gt;]</span>
+          </td>
           <td><span class="cmd">b</span>, <span class="cmd">bp</span></td>
           <td>
-            Set or clear a breakpoint or break range. The breakpoint can be
-            given a name, which defaults to the label for the start address
+            Set or clear a breakpoint or break range. For addresses in the sideways
+            ROM/RAM area (&8000 to &BFFF), the <span class="cmd">bank</span> option
+            (0-15 in decimal) controls which bank the breakpoint is set in.
+            The breakpoint can be given a name, which defaults to the label for the
+            start address
             if <span class="cmd">name</span> is not given
           </td>
         </tr>

@@ -28,6 +28,7 @@ Boston, MA  02110-1301, USA.
 
 #include <windows.h>
 
+#include <assert.h>
 #include <ctype.h>
 #include <stdarg.h>
 #include <string.h>
@@ -182,7 +183,7 @@ static void DebugRomState();
 // Aliases are supported, put these below the command they reference and leave argspec/help
 // empty.
 static const DebugCmd DebugCmdTable[] = {
-	{ "bp",         DebugCmdToggleBreak,   "<start>[-<end>] [<name>]", "Set or clear a breakpoint or break range" },
+	{ "bp",         DebugCmdToggleBreak,   "<start>[-<end>] [<bank>] [<name>]", "Set or clear a breakpoint or break range" },
 	{ "b",          DebugCmdToggleBreak,   "", ""}, // Alias of "bp"
 	{ "breakpoint", DebugCmdToggleBreak,   "", ""}, // Alias of "bp"
 	{ "labels",     DebugCmdLabels,        "<load|show|clear> [p] [<filename>]", "Load labels from file, display known labels, or clear all labels" },
@@ -1654,26 +1655,55 @@ static void DebugAssertBreak(int Addr, int PrevAddr, bool Host)
 		{
 			const Breakpoint& bp = Breakpoints[i];
 
-			if (bp.start == Addr)
+			if (bp.SWRBank != -1)
 			{
-				if (DebugLookupAddress(Addr, Host, &Info))
+				if (bp.start == Addr && bp.SWRBank == ROMSEL)
 				{
-					DebugDisplayInfoF("%s break at 0x%04X (Breakpoint '%s' / %s)",
-					                  Host ? "Host" : "Parasite",
-					                  Addr,
-					                  bp.name.c_str(),
-					                  Info.desc.c_str());
-				}
-				else
-				{
-					DebugDisplayInfoF("%s break at 0x%04X (Breakpoint '%s')",
-					                  Host ? "Host" : "Parasite",
-					                  Addr,
-					                  bp.name.c_str());
-				}
+					if (DebugLookupAddress(Addr, Host, &Info))
+					{
+						DebugDisplayInfoF("%s break at 0x%04X [Bank %d] (Breakpoint '%s' / %s)",
+						                  Host ? "Host" : "Parasite",
+						                  Addr,
+						                  ROMSEL,
+						                  bp.name.c_str(),
+						                  Info.desc.c_str());
+					}
+					else
+					{
+						DebugDisplayInfoF("%s break at 0x%04X [Bank %d] (Breakpoint '%s')",
+						                  Host ? "Host" : "Parasite",
+						                  Addr,
+						                  ROMSEL,
+						                  bp.name.c_str());
+					}
 
-				DebugDisplayPreviousAddress(PrevAddr, Host);
-				return;
+					DebugDisplayPreviousAddress(PrevAddr, Host);
+					return;
+				}
+			}
+			else
+			{
+				if (bp.start == Addr)
+				{
+					if (DebugLookupAddress(Addr, Host, &Info))
+					{
+						DebugDisplayInfoF("%s break at 0x%04X (Breakpoint '%s' / %s)",
+						                  Host ? "Host" : "Parasite",
+						                  Addr,
+						                  bp.name.c_str(),
+						                  Info.desc.c_str());
+					}
+					else
+					{
+						DebugDisplayInfoF("%s break at 0x%04X (Breakpoint '%s')",
+						                  Host ? "Host" : "Parasite",
+						                  Addr,
+						                  bp.name.c_str());
+					}
+
+					DebugDisplayPreviousAddress(PrevAddr, Host);
+					return;
+				}
 			}
 		}
 	}
@@ -1750,7 +1780,14 @@ void DebugDisplayTraceV(DebugType Type, bool Host, const char *Format, va_list A
 static int DebugFindBreakpoint(const Breakpoint& bp)
 {
 	char Info[64];
-	sprintf(Info, "%04X", bp.start);
+	char* psz = Info;
+
+	psz += sprintf(psz, "%04X", bp.start);
+
+	if (bp.SWRBank != -1)
+	{
+		sprintf(psz, " [Bank %d]", bp.SWRBank);
+	}
 
 	return (int)SendMessage(hwndBP, LB_FINDSTRING, 0, (LPARAM)Info);
 }
@@ -1760,14 +1797,20 @@ static int DebugFindBreakpoint(const Breakpoint& bp)
 static void DebugAddBreakpoint(const Breakpoint& bp)
 {
 	char Info[64];
+	char* psz = Info;
 
 	if (bp.end >= 0)
 	{
-		sprintf(Info, "%04X-%04X", bp.start, bp.end);
+		psz += sprintf(psz, "%04X-%04X", bp.start, bp.end);
 	}
 	else
 	{
-		sprintf(Info, "%04X", bp.start);
+		psz += sprintf(psz, "%04X", bp.start);
+	}
+
+	if (bp.SWRBank != -1)
+	{
+		psz += sprintf(psz, " [Bank %d]", bp.SWRBank);
 	}
 
 	std::string str = std::string(Info) + " " + bp.name;
@@ -1940,14 +1983,28 @@ bool DebugDisassembler(int Addr,
 
 			if (bp.end == -1)
 			{
-				if (Addr == bp.start)
+				if (Addr >= 0x8000 && Addr < 0xC000 &&
+				    Addr == bp.start &&
+				    ROMSEL == bp.SWRBank)
+				{
+					DebugBreakExecution(DebugType::Breakpoint);
+				}
+				else if ((Addr < 0x8000 || Addr >= 0xC000) &&
+				         Addr == bp.start)
 				{
 					DebugBreakExecution(DebugType::Breakpoint);
 				}
 			}
 			else
 			{
-				if (Addr >= bp.start && Addr <= bp.end)
+				if (Addr >= 0x8000 && Addr < 0xC000 &&
+				    Addr >= bp.start && Addr <= bp.end &&
+				    ROMSEL == bp.SWRBank)
+				{
+					DebugBreakExecution(DebugType::Breakpoint);
+				}
+				else if ((Addr < 0x8000 || Addr >= 0xC000) &&
+				         Addr >= bp.start && Addr <= bp.end)
 				{
 					DebugBreakExecution(DebugType::Breakpoint);
 				}
@@ -4058,18 +4115,56 @@ static bool DebugCmdToggleBreak(const char* args)
 		}
 	}
 
-	// Set breakpoint name. Default is address label, if there is one.
+	if (Args.size() == 3)
+	{
+		int Bank = 0;
 
-	if (Args.size() == 2)
-	{
-		bp.name = Args[1];
-	}
-	else
-	{
-		if (pszLabel != nullptr)
+		if (ParseNumber(Args[1], &Bank))
 		{
-			bp.name = pszLabel;
+			if (Bank >= 0 && Bank <= 15)
+			{
+				bp.SWRBank = Bank;
+			}
+			else
+			{
+				DebugDisplayInfoF("Invalid SWR bank value: %s", Args[1].c_str());
+				return false;
+			}
 		}
+
+		bp.name = Args[2];
+	}
+	else if (Args.size() == 2)
+	{
+		// Args[1] could be bank or label
+		int Bank = 0;
+		bool Label = false;
+
+		if (ParseNumber(Args[1], &Bank))
+		{
+			if (Bank >= 0 && Bank <= 15)
+			{
+				bp.SWRBank = Bank;
+			}
+			else
+			{
+				Label = true;
+			}
+		}
+		else
+		{
+			Label = true;
+		}
+
+		if (Label)
+		{
+			bp.name = Args[1];
+		}
+	}
+
+	if (bp.name.empty() && pszLabel != nullptr)
+	{
+		bp.name = pszLabel;
 	}
 
 	// Check if breakpoint already exists.
@@ -4082,8 +4177,10 @@ static bool DebugCmdToggleBreak(const char* args)
 		SendMessage(hwndBP, LB_DELETESTRING, Index, 0);
 
 		auto it = std::find_if(Breakpoints.begin(), Breakpoints.end(), [&bp](const Breakpoint& b) {
-			return b.start == bp.start;
+			return b.start == bp.start && b.SWRBank == bp.SWRBank;
 		});
+
+		assert(it != Breakpoints.end());
 
 		Breakpoints.erase(it);
 	}

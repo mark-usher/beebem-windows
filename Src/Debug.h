@@ -72,6 +72,7 @@ struct Breakpoint
 {
 	int start = -1;
 	int end = -1;
+	int SWRBank = -1;
 	std::string name;
 };
 
