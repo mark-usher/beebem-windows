@@ -43,7 +43,7 @@ Boston, MA  02110-1301, USA.
 #include "UefState.h"
 
 EightUChars FastTable[256];
-SixteenUChars FastTableDWidth[256]; /* For mode 4,5,6 */
+SixteenUChars FastTableDWidth[256]; // For mode 4, 5, 6.
 bool FastTable_Valid = false;
 
 typedef void (*LineRoutinePtr)();
@@ -97,31 +97,33 @@ int CurY=-1;
 
 int ova,ovn; // mem ptr buffers
 
-/* CharLine counts from the 'reference point' - i.e. the point at which we reset the address pointer - NOT
-the point of the sync. If it is -ve its actually in the adjust time */
+// CharLine counts from the 'reference point' - i.e. the point at which
+// we reset the address pointer - NOT the point of the sync. If it is negative
+// it's actually in the adjust time.
+
 struct VideoStateT {
   int Addr; // Address of start of next visible character line in Beeb memory  - raw
   int StartAddr; // Address of start of first character line in Beeb memory  - raw
-  int PixmapLine; /* Current line in the pixmap */
-  int FirstPixmapLine; /* The first pixmap line where something is visible.  Used to eliminate the
-                          blank vertical retrace lines at the top of the screen. */
-  int PreviousFirstPixmapLine; /* The first pixmap line on the previous frame */
-  int LastPixmapLine; /* The last pixmap line where something is visible.  Used to eliminate the
-                          blank vertical retrace lines at the bottom of the screen. */
-  int PreviousLastPixmapLine; /* The last pixmap line on the previous frame */
-  bool IsTeletext; /* This frame is a teletext frame - do things differently */
-  const unsigned char *DataPtr;  /* Pointer into host memory of video data */
+  int PixmapLine; // Current line in the pixmap
+  int FirstPixmapLine; // The first pixmap line where something is visible.  Used to eliminate the
+                       // blank vertical retrace lines at the top of the screen.
+  int PreviousFirstPixmapLine; // The first pixmap line on the previous frame.
+  int LastPixmapLine; // The last pixmap line where something is visible.  Used to eliminate the
+                      //  blank vertical retrace lines at the bottom of the screen.
+  int PreviousLastPixmapLine; // The last pixmap line on the previous frame.
+  bool IsTeletext; // This frame is a teletext frame - do things differently.
+  const unsigned char *DataPtr; // Pointer into host memory of video data.
 
   int CharLine; // 6845 counts in characters vertically - 0 at the top, incs by 1 - -1 means we are in the bit before the actual display starts
   int InCharLineUp; // Scanline within a character line - counts up
-  int VSyncState; // Cannot =0 in MSVC $NRM; /* When >0 VSync is high */
+  int VSyncState; // When > 0 VSync is high.
   bool IsNewTVFrame; // Specifies the start of a new TV frame, following VSync (used so we only calibrate speed once per frame)
   bool InterlaceFrame;
 };
 
 static VideoStateT VideoState;
 
-int VideoTriggerCount=9999; /* Number of cycles before next scanline service */
+int VideoTriggerCount = 9999; // Number of cycles before next scanline service.
 
 // First subscript is graphics flag (1 for graphics, 2 for separated graphics),
 // next is character, then scanline
@@ -134,7 +136,7 @@ static bool Mode7DoubleHeightFlags[80]; // Pessimistic size for this flags - if 
 static bool CurrentLineBottom = false;
 static bool NextLineBottom = false; // true if the next line of double height should be bottoms only
 
-/* Flash every half second(?) i.e. 25 x 50Hz fields */
+// Flash every half second(?) i.e. 25 x 50Hz fields.
 // No. On time is longer than off time. - according to my datasheet, its 0.75Hz with 3:1 ON:OFF ratio. - Richard Gellman
 // cant see that myself.. i think it means on for 0.75 secs, off for 0.25 secs
 constexpr int MODE7FLASHFREQUENCY = 25;
@@ -157,7 +159,7 @@ void VideoAddLEDs();
 
 #define ENABLE_LOG 0
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 // Build enhanced mode 7 font
 
@@ -301,7 +303,8 @@ bool BuildMode7Font(const char *filename)
 	return true;
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+
 static void DoFastTable16() {
   for(unsigned int beebpixvl = 0; beebpixvl < 16; beebpixvl++) {
     unsigned int bplvopen = ((beebpixvl & 8) ? 128 : 0) |
@@ -343,7 +346,8 @@ static void DoFastTable16() {
   }
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+
 static void DoFastTable16XStep8() {
   for (unsigned int beebpixvl = 0; beebpixvl < 16; beebpixvl++) {
     unsigned int bplvopen = ((beebpixvl & 8) ? 128 : 0) |
@@ -393,9 +397,12 @@ static void DoFastTable16XStep8() {
   }
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
-/* Some guess work and experimentation has determined that the left most pixel uses bits 7,5,3,1 for the       */
-/* palette address, the next uses 6,4,2,0, the next uses 5,3,1,H (H=High), then 5,2,0,H                        */
+/*--------------------------------------------------------------------------*/
+
+// Some guess work and experimentation has determined that the left most
+// pixel uses bits 7,5,3,1 for the palette address, the next uses 6,4,2,0,
+// the next uses 5,3,1,H (H=High), then 5,2,0,H.
+
 static void DoFastTable4() {
   for (unsigned long beebpixv = 0; beebpixv < 256; beebpixv++) {
     unsigned long pentry = ((beebpixv & 128) ? 8 : 0) |
@@ -460,9 +467,12 @@ static void DoFastTable4() {
   }
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
-/* Some guess work and experimentation has determined that the left most pixel uses bits 7,5,3,1 for the       */
-/* palette address, the next uses 6,4,2,0, the next uses 5,3,1,H (H=High), then 5,2,0,H                        */
+/*--------------------------------------------------------------------------*/
+
+// Some guess work and experimentation has determined that the left most
+// pixel uses bits 7,5,3,1 for the palette address, the next uses 6,4,2,0,
+// the next uses 5,3,1,H (H=High), then 5,2,0,H.
+
 static void DoFastTable4XStep4() {
   for (unsigned long beebpixv = 0; beebpixv < 256; beebpixv++) {
     unsigned long pentry = ((beebpixv & 128) ? 8 : 0) |
@@ -535,9 +545,12 @@ static void DoFastTable4XStep4() {
   }
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
-/* Some guess work and experimentation has determined that the left most pixel uses the same pattern as mode 1 */
-/* all the way upto the 5th pixel which uses 31hh then 20hh and then 1hhh then 0hhhh                           */
+/*--------------------------------------------------------------------------*/
+
+// Some guess work and experimentation has determined that the left most
+// pixel uses the same pattern as mode 1 all the way upto the 5th pixel which
+// uses 31hh then 20hh and then 1hhh then 0hhhh.
+
 static void DoFastTable2() {
   for (unsigned long beebpixv = 0; beebpixv < 256; beebpixv++) {
     unsigned long beebpixvt = beebpixv;
@@ -563,9 +576,12 @@ static void DoFastTable2() {
   }
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
-/* Some guess work and experimentation has determined that the left most pixel uses the same pattern as mode 1 */
-/* all the way upto the 5th pixel which uses 31hh then 20hh and then 1hhh then 0hhhh                           */
+/*--------------------------------------------------------------------------*/
+
+// Some guess work and experimentation has determined that the left most
+// pixel uses the same pattern as mode 1 all the way upto the 5th pixel which
+// uses 31hh then 20hh and then 1hhh then 0hhhh.
+
 static void DoFastTable2XStep2() {
   for(unsigned long beebpixv = 0; beebpixv < 256; beebpixv++) {
     unsigned long beebpixvt = beebpixv;
@@ -591,11 +607,10 @@ static void DoFastTable2XStep2() {
   }
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
-// Rebuild fast table.
-// The fast table accelerates the translation of Beeb video memory
-// values into X pixel values.
+// Rebuild fast table. The fast table accelerates the translation of Beeb
+// video memory values into bitmap pixel values.
 
 static void DoFastTable()
 {
@@ -666,11 +681,12 @@ static void DoFastTable()
   }
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 static void VideoStartOfFrame()
 {
-  /* FrameNum is determined by the window handler */
+  // FrameNum is determined by the window handler.
+
   if (VideoState.IsNewTVFrame)	// RTW - only calibrate timing once per frame
   {
     VideoState.IsNewTVFrame = false;
@@ -682,7 +698,8 @@ static void VideoStartOfFrame()
     VideoState.InterlaceFrame = !VideoState.InterlaceFrame;
   }
 
-  // Cursor update for blink. I thought I'd put it here, as this is where the mode 7 flash field thingy is too
+  // Cursor update for blink. I thought I'd put it here, as this is where
+  // the mode 7 flash field thingy is too.
   // - Richard Gellman
   if (CursorFieldCount<0) {
     int CurStart = CRTC_CursorStart & 0x60;
@@ -744,7 +761,9 @@ static void VideoStartOfFrame()
 }
 
 /*--------------------------------------------------------------------------*/
-/* Scanline processing for modes with fast 6845 clock - i.e. narrow pixels  */
+
+// Scanline processing for modes with fast 6845 clock - i.e. narrow pixels.
+
 static void LowLevelDoScanLineNarrow() {
   int BytesToGo=CRTC_HorizontalDisplayed;
   EightUChars *vidPtr=mainWin->GetLinePtr(VideoState.PixmapLine);
@@ -765,9 +784,11 @@ static void LowLevelDoScanLineNarrow() {
 }
 
 /*--------------------------------------------------------------------------*/
-/* Scanline processing for modes with fast 6845 clock - i.e. narrow pixels  */
-/* This version handles screen modes where there is not a multiple of 4     */
-/* bytes per scanline.                                                      */
+
+// Scanline processing for modes with fast 6845 clock - i.e. narrow pixels.
+// This version handles screen modes where there is not a multiple of 4
+// bytes per scanline.
+
 static void LowLevelDoScanLineNarrowNot4Bytes() {
   int BytesToGo=CRTC_HorizontalDisplayed;
   EightUChars *vidPtr=mainWin->GetLinePtr(VideoState.PixmapLine);
@@ -780,18 +801,20 @@ static void LowLevelDoScanLineNarrowNot4Bytes() {
     (vidPtr++)->eightbyte=FastTable[*CurrentPtr].eightbyte;
 }
 
-/*-----------------------------------------------------------------------------*/
-/* Scanline processing for the low clock rate modes                            */
+/*--------------------------------------------------------------------------*/
+
+// Scanline processing for the low clock rate modes.
+
 static void LowLevelDoScanLineWide() {
   int BytesToGo=CRTC_HorizontalDisplayed;
   SixteenUChars *vidPtr=mainWin->GetLinePtr16(VideoState.PixmapLine);
 
-  /* If the step is 4 then each byte corresponds to one entry in the fasttable
-     and thus we can copy it really easily (and fast!) */
+  // If the step is 4 then each byte corresponds to one entry in the fasttable
+  // and thus we can copy it really easily (and fast!)
   const unsigned char *CurrentPtr = VideoState.DataPtr + VideoState.InCharLineUp;
 
-  /* This should help the compiler - it doesn't need to test for end of loop
-     except every 4 entries */
+  // This should help the compiler - it doesn't need to test for end of loop
+  // except every 4 entries.
   BytesToGo/=4;
   for(;BytesToGo;CurrentPtr+=32,BytesToGo--) {
     *(vidPtr++)=FastTableDWidth[*CurrentPtr];
@@ -801,9 +824,11 @@ static void LowLevelDoScanLineWide() {
   }
 }
 
-/*-----------------------------------------------------------------------------*/
-/* Scanline processing for the low clock rate modes                            */
-/* This version handles cases where the screen width is not divisible by 4     */
+/*--------------------------------------------------------------------------*/
+
+// Scanline processing for the low clock rate modes. This version handles
+// cases where the screen width is not divisible by 4.
+
 static void LowLevelDoScanLineWideNot4Bytes() {
   int BytesToGo=CRTC_HorizontalDisplayed;
   SixteenUChars *vidPtr=mainWin->GetLinePtr16(VideoState.PixmapLine);
@@ -814,7 +839,7 @@ static void LowLevelDoScanLineWideNot4Bytes() {
     *(vidPtr++)=FastTableDWidth[*CurrentPtr];
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 // Do all the pixel rows for one row of teletext characters.
 
@@ -1152,7 +1177,7 @@ static void DoMode7Row()
   NextLineBottom = false;
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 // Actually does the work of decoding Beeb memory and plotting the line.
 
@@ -1220,10 +1245,11 @@ void VideoDoScanLine()
       }
     }
 
-    // RTW - Mode 7 emulation is rather broken, as we should be plotting it line-by-line instead
-    // of character block at a time.
-    // For now though, I leave it as it is, and plot an entire block when InCharLineUp is 0.
-    // The infrastructure now exists though to make DoMode7Row plot just a single scanline (from InCharLineUp 0..9).
+    // RTW - Mode 7 emulation is rather broken, as we should be plotting it
+	// line-by-line instead of character block at a time. For now though,
+	// I leave it as it is, and plot an entire block when InCharLineUp is 0.
+    // The infrastructure now exists though to make DoMode7Row plot just
+	// a single scanline (from InCharLineUp 0..9).
     if (VideoState.CharLine<CRTC_VerticalDisplayed && VideoState.InCharLineUp==0) {
       ova=VideoState.Addr; ovn=CRTC_HorizontalDisplayed;
       VideoState.DataPtr = BeebMemPtrWithWrapMode7(VideoState.Addr, CRTC_HorizontalDisplayed);
@@ -1237,7 +1263,7 @@ void VideoDoScanLine()
       VideoState.PixmapLine+=20;
     }
 
-    /* Move onto next physical scanline as far as timing is concerned */
+    // Move onto next physical scanline as far as timing is concerned.
     VideoState.InCharLineUp++;
 
     const int ScanLines = (CRTC_ScanLinesPerChar > 9) ? 10 : CRTC_ScanLinesPerChar + 1;
@@ -1250,7 +1276,8 @@ void VideoDoScanLine()
     }
 
     // RTW - check if we have reached the end of the PAL frame.
-    // This whole thing is a bit hardwired and kludged. Should really be emulating VSync position 'properly' like Modes 0-6.
+    // This whole thing is a bit hardwired and kludged. Should really be
+	// emulating VSync position 'properly' like Modes 0-6.
     if (VideoState.CharLine > CRTC_VerticalTotal && VideoState.InCharLineUp >= CRTC_VerticalTotalAdjust) {
       // Changed so that whole screen is still visible after *TV255
       VScreenAdjust=-100+(((CRTC_VerticalTotal+1)-(CRTC_VerticalSyncPos-1))*(20/TeletextStyle));
@@ -1321,7 +1348,8 @@ void VideoDoScanLine()
       memset(mainWin->GetLinePtr(VideoState.PixmapLine), 0, BEEBEM_BITMAP_WIDTH);
     }
 
-    // RTW - changed so we are even able to plot vertical total adjust region if CRTC_VerticalDisplayed is high enough
+    // RTW - changed so we are even able to plot vertical total adjust region
+	// if CRTC_VerticalDisplayed is high enough.
     if (VideoState.CharLine<CRTC_VerticalDisplayed) {
       // Visible char line, record first line
       if (VideoState.FirstPixmapLine==-1)
@@ -1329,7 +1357,7 @@ void VideoDoScanLine()
       // Always record the last line
       VideoState.LastPixmapLine=VideoState.PixmapLine;
 
-      /* If first row of character then get the data pointer from memory */
+      // If first row of character then get the data pointer from memory.
       if (VideoState.InCharLineUp==0) {
         ova=VideoState.Addr*8; ovn=CRTC_HorizontalDisplayed*8;
         VideoState.DataPtr=BeebMemPtrWithWrap(VideoState.Addr*8,CRTC_HorizontalDisplayed*8);
@@ -1345,27 +1373,28 @@ void VideoDoScanLine()
       }
     }
 
-    // See if we are at the cursor line
+    // See if we are at the cursor line.
     if (CurY == -1 && VideoState.Addr > (CRTC_CursorPosLow + (CRTC_CursorPosHigh << 8))) {
       CurY = VideoState.PixmapLine;
     }
 
-    // Screen line increment and wraparound
+    // Screen line increment and wraparound.
     if (++VideoState.PixmapLine == MAX_VIDEO_SCAN_LINES)
       VideoState.PixmapLine = 0;
 
-    /* Move onto next physical scanline as far as timing is concerned */
-    VideoState.InCharLineUp+=1;
+    // Move onto next physical scanline as far as timing is concerned.
+    VideoState.InCharLineUp++;
 
     // RTW - check whether we have reached a new character row.
-    // if CharLine>CRTC_VerticalTotal, we are in the vertical total adjust region so we don't wrap to a new row.
+    // if CharLine > CRTC_VerticalTotal, we are in the vertical total adjust
+	// region so we don't wrap to a new row.
     if (VideoState.CharLine<=CRTC_VerticalTotal && VideoState.InCharLineUp>CRTC_ScanLinesPerChar) {
       VideoState.CharLine++;
       VideoState.InCharLineUp=0;
     }
 
-    // RTW - neater way of detecting the end of the PAL frame, which doesn't require making a special case
-    // of the vertical total adjust period.
+    // RTW - neater way of detecting the end of the PAL frame, which doesn't
+	// require making a special case of the vertical total adjust period.
     if (VideoState.CharLine>CRTC_VerticalTotal && VideoState.InCharLineUp>=CRTC_VerticalTotalAdjust) {
       VScreenAdjust=0;
 
@@ -1381,9 +1410,8 @@ void VideoDoScanLine()
 
         int startLine = 32;
         if (n > 248 && VideoState.PreviousFirstPixmapLine >= 40) {
-          // RTW -
-          // This is a little hack which ensures that a fullscreen mode with *TV255 will always
-          // fit unclipped in the window in Modes 0-6
+          // RTW - This is a little hack which ensures that a fullscreen mode
+		  // with *TV255 will always fit unclipped in the window in Modes 0-6.
           startLine = 40;
         }
 
@@ -1401,7 +1429,8 @@ void VideoDoScanLine()
   }
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+
 void AdjustVideo() {
   ActualScreenWidth = CRTC_HorizontalDisplayed * HSyncModifier;
 
@@ -1421,12 +1450,13 @@ void AdjustVideo() {
   ScreenAdjust = HStart * HSyncModifier + (VScreenAdjust > 0 ? VScreenAdjust * BEEBEM_BITMAP_WIDTH : 0);
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+
 void VideoInit(void) {
   VideoStartOfFrame();
   ova=0x3000; ovn=640;
   VideoState.DataPtr=BeebMemPtrWithWrap(0x3000,640);
-  SetTrigger(99,VideoTriggerCount); /* Give time for OS to set mode up before doing anything silly */
+  SetTrigger(99, VideoTriggerCount); // Give time for OS to set mode up before doing anything silly.
   FastTable_Valid = false;
 
   RenderFrame = true;
@@ -1440,7 +1470,7 @@ void VideoInit(void) {
   //AdjustVideo();
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 void CRTCWrite(int Address, unsigned char Value)
 {
@@ -1547,14 +1577,14 @@ void CRTCWrite(int Address, unsigned char Value)
         break;
 
       case 14:
-        CRTC_CursorPosHigh = Value & 0x3f; /* Cursor high only has 6 bits */
+        CRTC_CursorPosHigh = Value & 0x3f; // Cursor high only has 6 bits.
         break;
 
       case 15:
         CRTC_CursorPosLow = Value;
         break;
 
-      default: /* In case the user wrote a duff control register value */
+      default: // In case the user wrote a duff control register value.
         break;
     }
 
@@ -1566,7 +1596,7 @@ void CRTCWrite(int Address, unsigned char Value)
   }
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 unsigned char CRTCRead(int Address)
 {
@@ -1585,18 +1615,18 @@ unsigned char CRTCRead(int Address)
       case 17:
         return CRTC_LightPenLow;
       default:
-        break;
+        return 0;
     }
   }
   else {
-    // Rockwell part has bits 5,6,7 used - bit 6 is set when LPEN is received, bit 5 when in vertical retrace
+    // Rockwell part has bits 5,6,7 used - bit 6 is set when LPEN is received,
+	// bit 5 when in vertical retrace.
     return 0;
   }
-
-  return 0; // Keep MSVC happy $NRM
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+
 void VideoULAWrite(int Address, unsigned char Value) {
   if (Address & 1) {
     VideoULA_Palette[(Value & 0xf0)>>4]=(Value & 0xf) ^ 7;
@@ -1621,14 +1651,14 @@ void VideoULAWrite(int Address, unsigned char Value) {
   }
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 unsigned char VideoULARead(int /* Address */)
 {
-	return 0xfe; // Read not defined from Video ULA
+	return 0xfe; // Read not defined from Video ULA.
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 static void VideoAddCursor()
 {
@@ -1638,7 +1668,7 @@ static void VideoAddCursor()
 	int CurSize;
 	int CurStart, CurEnd;
 
-	/* Check if cursor has been hidden */
+	// Check if cursor has been hidden.
 	if ((VideoULA_ControlReg & (VIDEOULA_MASTER_CURSOR_SIZE | VIDEOULA_CURSOR_WIDTH)) == 0 ||
 	    (CRTC_CursorStart & 0x60) == 0x20 ||
 	    (CRTC_InterlaceAndDelay & 0xc0) == 0xc0 ||
@@ -1679,10 +1709,10 @@ static void VideoAddCursor()
 	if (RelAddr < 0 || CRTC_HorizontalDisplayed == 0)
 		return;
 
-	/* Work out char positions */
+	// Work out char positions.
 	CurX = RelAddr % CRTC_HorizontalDisplayed;
 
-	/* Convert to pixel positions */
+	// Convert to pixel positions.
 	if (VideoState.IsTeletext) {
 		CurX = CurX * 12;
 		CurY = (RelAddr / CRTC_HorizontalDisplayed) * 20 + 9;
@@ -1691,7 +1721,7 @@ static void VideoAddCursor()
 		CurX = CurX * HSyncModifier;
 	}
 
-	/* Limit cursor size */ // This should be 11, not 9 - Richard Gellman
+	// Limit cursor size. This should be 11, not 9 - Richard Gellman
 	if (CurEnd > 11)
 		CurEnd = 11;
 
@@ -1717,6 +1747,8 @@ static void VideoAddCursor()
 	}
 }
 
+/*--------------------------------------------------------------------------*/
+
 // A low to high transition on the 6845 Light Pen Strobe (LPSTB) input
 // latches the current Refresh Address in the light pen register.
 
@@ -1728,9 +1760,12 @@ void VideoLightPenStrobe()
 	CRTC_LightPenLow  = VideoState.Addr & 0xff;
 }
 
+/*--------------------------------------------------------------------------*/
+
 void VideoAddLEDs()
 {
-	// now add some keyboard leds
+	// Now add some keyboard LEDs.
+
 	if (LEDs.ShowKB) {
 		if (MachineType == Model::Master128 || MachineType == Model::MasterET) {
 			mainWin->doLED(4, true);
@@ -1753,7 +1788,7 @@ void VideoAddLEDs()
 	}
 }
 
-/*-------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 void SaveVideoUEF(FILE *SUEF)
 {
@@ -1808,6 +1843,8 @@ void SaveVideoUEF(FILE *SUEF)
 	UEFWriteBool(Mode7FlashOn, SUEF);
 	UEFWrite32(VideoTriggerCount - TotalCycles, SUEF);
 }
+
+/*--------------------------------------------------------------------------*/
 
 void LoadVideoUEF(FILE *SUEF, int Version)
 {
@@ -1873,7 +1910,7 @@ void LoadVideoUEF(FILE *SUEF, int Version)
 	}
 }
 
-/*-------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 void DebugVideoState()
 {
@@ -1901,7 +1938,8 @@ void DebugVideoState()
 		(int)VideoULA_ControlReg);
 }
 
-/*-------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
+
 void VideoGetText(char *text, int line)
 {
 	int x;
@@ -1939,3 +1977,5 @@ void VideoGetText(char *text, int line)
 
 	text[x] = '\0';
 }
+
+/*--------------------------------------------------------------------------*/
