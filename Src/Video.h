@@ -56,13 +56,13 @@ extern char TeletextStyle;
 extern bool TeletextHalfMode;
 
 bool BuildMode7Font(const char *filename);
-void RedoMPTR(void);
+void RedoMPTR();
 void CRTCWrite(int Address, unsigned char Value);
 unsigned char CRTCRead(int Address);
 void VideoULAWrite(int Address, unsigned char Value);
 unsigned char VideoULARead(int Address);
-void VideoInit(void);
-void VideoDoScanLine(void);
+void VideoInit();
+void VideoDoScanLine();
 void VideoGetText(char *text, int line);
 void VideoLightPenStrobe();
 

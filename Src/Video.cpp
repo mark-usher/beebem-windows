@@ -764,22 +764,25 @@ static void VideoStartOfFrame()
 
 // Scanline processing for modes with fast 6845 clock - i.e. narrow pixels.
 
-static void LowLevelDoScanLineNarrow() {
-  int BytesToGo=CRTC_HorizontalDisplayed;
+static void LowLevelDoScanLineNarrow()
+{
   EightUChars* vidPtr = mainWin->GetLinePtr(VideoState.BitmapLine);
 
-  /* If the step is 4 then each byte corresponds to one entry in the fasttable
-     and thus we can copy it really easily (and fast!) */
-  const unsigned char *CurrentPtr = VideoState.DataPtr + VideoState.InCharLineUp;
+  // If the step is 4 then each byte corresponds to one entry in the fasttable
+  // and thus we can copy it really easily (and fast!).
+  const unsigned char* CurrentPtr = VideoState.DataPtr + VideoState.InCharLineUp;
 
-  /* This should help the compiler - it doesn't need to test for end of loop
-     except every 4 entries */
-  BytesToGo/=4;
-  for(;BytesToGo;CurrentPtr+=32,BytesToGo--) {
-    *(vidPtr++)=FastTable[*CurrentPtr];
-    *(vidPtr++)=FastTable[*(CurrentPtr+8)];
-    *(vidPtr++)=FastTable[*(CurrentPtr+16)];
-    *(vidPtr++)=FastTable[*(CurrentPtr+24)];
+  // This should help the compiler - it doesn't need to test for end of loop
+  // except every 4 entries.
+
+  int BytesToGo = CRTC_HorizontalDisplayed / 4;
+
+  for (; BytesToGo != 0; CurrentPtr += 32, BytesToGo--)
+  {
+    *vidPtr++ = FastTable[*CurrentPtr];
+    *vidPtr++ = FastTable[*(CurrentPtr + 8)];
+    *vidPtr++ = FastTable[*(CurrentPtr + 16)];
+    *vidPtr++ = FastTable[*(CurrentPtr + 24)];
   }
 }
 
@@ -789,38 +792,44 @@ static void LowLevelDoScanLineNarrow() {
 // This version handles screen modes where there is not a multiple of 4
 // bytes per scanline.
 
-static void LowLevelDoScanLineNarrowNot4Bytes() {
-  int BytesToGo=CRTC_HorizontalDisplayed;
+static void LowLevelDoScanLineNarrowNot4Bytes()
+{
   EightUChars* vidPtr = mainWin->GetLinePtr(VideoState.BitmapLine);
 
-  /* If the step is 4 then each byte corresponds to one entry in the fasttable
-     and thus we can copy it really easily (and fast!) */
-  const unsigned char *CurrentPtr = VideoState.DataPtr + VideoState.InCharLineUp;
+  // If the step is 4 then each byte corresponds to one entry in the fasttable
+  // and thus we can copy it really easily (and fast!).
+  const unsigned char* CurrentPtr = VideoState.DataPtr + VideoState.InCharLineUp;
 
-  for(;BytesToGo;CurrentPtr+=8,BytesToGo--)
-    (vidPtr++)->eightbyte=FastTable[*CurrentPtr].eightbyte;
+  int BytesToGo = CRTC_HorizontalDisplayed;
+
+  for (; BytesToGo != 0; CurrentPtr += 8, BytesToGo--)
+  {
+    (vidPtr++)->eightbyte = FastTable[*CurrentPtr].eightbyte;
+  }
 }
 
 /*--------------------------------------------------------------------------*/
 
 // Scanline processing for the low clock rate modes.
 
-static void LowLevelDoScanLineWide() {
-  int BytesToGo=CRTC_HorizontalDisplayed;
+static void LowLevelDoScanLineWide()
+{
   SixteenUChars* vidPtr = mainWin->GetLinePtr16(VideoState.BitmapLine);
 
   // If the step is 4 then each byte corresponds to one entry in the fasttable
   // and thus we can copy it really easily (and fast!)
-  const unsigned char *CurrentPtr = VideoState.DataPtr + VideoState.InCharLineUp;
+  const unsigned char* CurrentPtr = VideoState.DataPtr + VideoState.InCharLineUp;
 
   // This should help the compiler - it doesn't need to test for end of loop
   // except every 4 entries.
-  BytesToGo/=4;
-  for(;BytesToGo;CurrentPtr+=32,BytesToGo--) {
-    *(vidPtr++)=FastTableDWidth[*CurrentPtr];
-    *(vidPtr++)=FastTableDWidth[*(CurrentPtr+8)];
-    *(vidPtr++)=FastTableDWidth[*(CurrentPtr+16)];
-    *(vidPtr++)=FastTableDWidth[*(CurrentPtr+24)];
+  int BytesToGo = CRTC_HorizontalDisplayed / 4;
+
+  for (; BytesToGo != 0; CurrentPtr += 32, BytesToGo--)
+  {
+    *vidPtr++ = FastTableDWidth[*CurrentPtr];
+    *vidPtr++ = FastTableDWidth[*(CurrentPtr + 8)];
+    *vidPtr++ = FastTableDWidth[*(CurrentPtr + 16)];
+    *vidPtr++ = FastTableDWidth[*(CurrentPtr + 24)];
   }
 }
 
@@ -829,14 +838,18 @@ static void LowLevelDoScanLineWide() {
 // Scanline processing for the low clock rate modes. This version handles
 // cases where the screen width is not divisible by 4.
 
-static void LowLevelDoScanLineWideNot4Bytes() {
-  int BytesToGo=CRTC_HorizontalDisplayed;
+static void LowLevelDoScanLineWideNot4Bytes()
+{
   SixteenUChars* vidPtr = mainWin->GetLinePtr16(VideoState.BitmapLine);
 
-  const unsigned char *CurrentPtr = VideoState.DataPtr + VideoState.InCharLineUp;
+  const unsigned char* CurrentPtr = VideoState.DataPtr + VideoState.InCharLineUp;
 
-  for(;BytesToGo;CurrentPtr+=8,BytesToGo--)
-    *(vidPtr++)=FastTableDWidth[*CurrentPtr];
+  int BytesToGo = CRTC_HorizontalDisplayed;
+
+  for (; BytesToGo != 0; CurrentPtr += 8, BytesToGo--)
+  {
+    *vidPtr++ = FastTableDWidth[*CurrentPtr];
+  }
 }
 
 /*--------------------------------------------------------------------------*/
@@ -1183,21 +1196,28 @@ static void DoMode7Row()
 
 static void LowLevelDoScanLine()
 {
-  if (!FastTable_Valid) {
+  if (!FastTable_Valid)
+  {
     // Update acceleration tables
     DoFastTable();
   }
 
-  if (FastTable_Valid) {
+  if (FastTable_Valid)
+  {
     LineRoutine();
   }
 }
 
-void RedoMPTR(void) {
-	if (VideoState.IsTeletext) {
+/*--------------------------------------------------------------------------*/
+
+void RedoMPTR()
+{
+	if (VideoState.IsTeletext)
+	{
 		VideoState.DataPtr = BeebMemPtrWithWrapMode7(ova, ovn);
 	}
-	else {
+	else
+	{
 		VideoState.DataPtr = BeebMemPtrWithWrap(ova, ovn);
 	}
 
@@ -1208,7 +1228,6 @@ void RedoMPTR(void) {
 
 void VideoDoScanLine()
 {
-  // DebugTrace("CharLine=%d InCharLineUp=%d\n", VideoState.CharLine, VideoState.InCharLineUp);
   if (VideoState.IsTeletext)
   {
     // Handle VSync.
@@ -1228,9 +1247,9 @@ void VideoDoScanLine()
       VideoState.VSyncState = CRTC_SyncWidth >> 4;
     }
 
-    // Clear the next 20 scan lines
     if (RenderFrame)
     {
+      // Clear the next 20 scan lines.
       if (VScreenAdjust > 0 && VideoState.BitmapLine == 0)
       {
         for (int l = -VScreenAdjust; l < 0; ++l)
@@ -1250,10 +1269,11 @@ void VideoDoScanLine()
 	// I leave it as it is, and plot an entire block when InCharLineUp is 0.
     // The infrastructure now exists though to make DoMode7Row plot just
 	// a single scanline (from InCharLineUp 0..9).
-    if (VideoState.CharLine<CRTC_VerticalDisplayed && VideoState.InCharLineUp==0) {
+    if (VideoState.CharLine < CRTC_VerticalDisplayed && VideoState.InCharLineUp == 0)
+    {
       ova=VideoState.Addr; ovn=CRTC_HorizontalDisplayed;
       VideoState.DataPtr = BeebMemPtrWithWrapMode7(VideoState.Addr, CRTC_HorizontalDisplayed);
-      VideoState.Addr+=CRTC_HorizontalDisplayed;
+      VideoState.Addr += CRTC_HorizontalDisplayed;
 
       if (RenderFrame)
       {
@@ -1272,15 +1292,17 @@ void VideoDoScanLine()
         VideoState.InCharLineUp >= ScanLines)
     {
       VideoState.CharLine++;
-      VideoState.InCharLineUp=0;
+      VideoState.InCharLineUp = 0;
     }
 
     // RTW - check if we have reached the end of the PAL frame.
     // This whole thing is a bit hardwired and kludged. Should really be
 	// emulating VSync position 'properly' like Modes 0-6.
-    if (VideoState.CharLine > CRTC_VerticalTotal && VideoState.InCharLineUp >= CRTC_VerticalTotalAdjust) {
+    if (VideoState.CharLine > CRTC_VerticalTotal &&
+        VideoState.InCharLineUp >= CRTC_VerticalTotalAdjust)
+    {
       // Changed so that whole screen is still visible after *TV255
-      VScreenAdjust=-100+(((CRTC_VerticalTotal+1)-(CRTC_VerticalSyncPos-1))*(20/TeletextStyle));
+      VScreenAdjust = -100 + (((CRTC_VerticalTotal + 1) - (CRTC_VerticalSyncPos - 1)) * (20 / TeletextStyle));
       AdjustVideo();
 
       if (RenderFrame)
@@ -1346,7 +1368,7 @@ void VideoDoScanLine()
 
     if (RenderFrame)
     {
-      // Clear the scan line
+      // Clear the scan line.
       memset(mainWin->GetLinePtr(VideoState.BitmapLine), 0, BEEBEM_BITMAP_WIDTH);
     }
 
@@ -1364,7 +1386,8 @@ void VideoDoScanLine()
       VideoState.LastBitmapLine = VideoState.BitmapLine;
 
       // If first row of character then get the data pointer from memory.
-      if (VideoState.InCharLineUp==0) {
+      if (VideoState.InCharLineUp == 0)
+      {
         ova=VideoState.Addr*8; ovn=CRTC_HorizontalDisplayed*8;
         VideoState.DataPtr=BeebMemPtrWithWrap(VideoState.Addr*8,CRTC_HorizontalDisplayed*8);
         VideoState.Addr+=CRTC_HorizontalDisplayed;
@@ -1380,7 +1403,8 @@ void VideoDoScanLine()
     }
 
     // See if we are at the cursor line.
-    if (CurY == -1 && VideoState.Addr > (CRTC_CursorPosLow + (CRTC_CursorPosHigh << 8))) {
+    if (CurY == -1 && VideoState.Addr > (CRTC_CursorPosLow + (CRTC_CursorPosHigh << 8)))
+    {
       CurY = VideoState.BitmapLine;
     }
 
@@ -1396,35 +1420,46 @@ void VideoDoScanLine()
     // RTW - check whether we have reached a new character row.
     // if CharLine > CRTC_VerticalTotal, we are in the vertical total adjust
 	// region so we don't wrap to a new row.
-    if (VideoState.CharLine<=CRTC_VerticalTotal && VideoState.InCharLineUp>CRTC_ScanLinesPerChar) {
+    if (VideoState.CharLine <= CRTC_VerticalTotal &&
+        VideoState.InCharLineUp > CRTC_ScanLinesPerChar)
+    {
       VideoState.CharLine++;
-      VideoState.InCharLineUp=0;
+      VideoState.InCharLineUp = 0;
     }
 
     // RTW - neater way of detecting the end of the PAL frame, which doesn't
 	// require making a special case of the vertical total adjust period.
-    if (VideoState.CharLine>CRTC_VerticalTotal && VideoState.InCharLineUp>=CRTC_VerticalTotalAdjust) {
-      VScreenAdjust=0;
+    if (VideoState.CharLine > CRTC_VerticalTotal &&
+        VideoState.InCharLineUp >= CRTC_VerticalTotalAdjust)
+    {
+      VScreenAdjust = 0;
 
       if (RenderFrame && VideoState.IsNewTVFrame)
       {
         VideoAddCursor();
         VideoAddLEDs();
-        CurY=-1;
+
+        CurY = -1;
+
         int n = VideoState.PreviousLastBitmapLine - VideoState.PreviousFirstBitmapLine + 1;
-        if (n < 0) {
+
+        if (n < 0)
+        {
           n += MAX_VIDEO_SCAN_LINES;
         }
 
         int startLine = 32;
-        if (n > 248 && VideoState.PreviousFirstBitmapLine >= 40) {
+
+        if (n > 248 && VideoState.PreviousFirstBitmapLine >= 40)
+        {
           // RTW - This is a little hack which ensures that a fullscreen mode
-		  // with *TV255 will always fit unclipped in the window in Modes 0-6.
+          // with *TV255 will always fit unclipped in the window in Modes 0-6.
           startLine = 40;
         }
 
         mainWin->UpdateLines(startLine, 256);
       }
+
       VideoStartOfFrame();
       AdjustVideo();
     }
@@ -1460,7 +1495,8 @@ void AdjustVideo() {
 
 /*--------------------------------------------------------------------------*/
 
-void VideoInit(void) {
+void VideoInit()
+{
   VideoStartOfFrame();
   ova=0x3000; ovn=640;
   VideoState.DataPtr=BeebMemPtrWithWrap(0x3000,640);
