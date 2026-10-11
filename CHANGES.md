@@ -9,9 +9,11 @@ Contributors: Chris Needham, Greg Cook
 * Implemented Timer 2 PB6 pulse counting mode in the 6522
   System VIA. This is used to signal interrupts from the TMS5220
   speech chip.
+* Fixed VSync timing in teletext mode.
 * Fixed the .uef and .uefstate file type registrations in the
   BeebEm installer.
 * Fixed -Data and -CustomData command line option handling.
+* Fixed pasting text from the clipboard.
 
 Version 4.23 (6 April 2026)
 ------------
