@@ -117,7 +117,6 @@ struct VideoStateT {
   int VSyncState; // Cannot =0 in MSVC $NRM; /* When >0 VSync is high */
   bool IsNewTVFrame; // Specifies the start of a new TV frame, following VSync (used so we only calibrate speed once per frame)
   bool InterlaceFrame;
-  bool DoCA1Int;
 };
 
 static VideoStateT VideoState;
@@ -1399,7 +1398,7 @@ void VideoDoScanLine()
       // scanline needs doing.
       IncTrigger((CRTC_HorizontalTotal + 1) * ((VideoULA_ControlReg & VIDEOULA_CRTC_CLOCK_RATE_SELECT) ? 1 : 2), VideoTriggerCount);
     }
-  } /* Teletext if */
+  }
 }
 
 /*-------------------------------------------------------------------------------------------------------------*/
@@ -1799,7 +1798,7 @@ void SaveVideoUEF(FILE *SUEF)
 	UEFWrite32(VideoState.VSyncState, SUEF);
 	UEFWriteBool(VideoState.IsNewTVFrame, SUEF);
 	UEFWriteBool(VideoState.InterlaceFrame, SUEF);
-	UEFWriteBool(VideoState.DoCA1Int, SUEF);
+	UEFWriteBool(false, SUEF); // Was VideoState.DoCA1Int, now unused.
 	UEFWrite32(ova, SUEF);
 	UEFWrite32(ovn, SUEF);
 	UEFWrite32(CursorFieldCount, SUEF);
@@ -1862,7 +1861,7 @@ void LoadVideoUEF(FILE *SUEF, int Version)
 		VideoState.VSyncState = UEFRead32(SUEF);
 		VideoState.IsNewTVFrame = UEFReadBool(SUEF);
 		VideoState.InterlaceFrame = UEFReadBool(SUEF);
-		VideoState.DoCA1Int = UEFReadBool(SUEF);
+		UEFReadBool(SUEF); // Was VideoState.DoCA1Int, now unused.
 		ova = UEFRead32(SUEF);
 		ovn = UEFRead32(SUEF);
 		CursorFieldCount = UEFRead32(SUEF);
