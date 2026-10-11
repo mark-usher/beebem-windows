@@ -710,11 +710,12 @@ static void VideoStartOfFrame()
     }
   }
 
-  // RTW - The meaning of CharLine has changed: -1 no longer means that we are in the vertical
-  // total adjust period, and this is no longer handled as if it were at the beginning of a new CRTC cycle.
-  // Hence, here we always set CharLine to 0.
-  VideoState.CharLine=0;
-  VideoState.InCharLineUp=0;
+  // RTW - The meaning of CharLine has changed: -1 no longer means that we are
+  // in the vertical total adjust period, and this is no longer handled as if
+  // it were at the beginning of a new CRTC cycle. Hence, here we always set
+  // CharLine to 0.
+  VideoState.CharLine = 0;
+  VideoState.InCharLineUp = 0;
 
   VideoState.Addr = VideoState.StartAddr = CRTC_ScreenStartLow + (CRTC_ScreenStartHigh << 8);
 
@@ -1179,15 +1180,28 @@ void RedoMPTR(void) {
 	// FastTable_Valid = false;
 }
 
-/*-------------------------------------------------------------------------------------------------------------*/
+/*--------------------------------------------------------------------------*/
 
 void VideoDoScanLine()
 {
   // DebugTrace("CharLine=%d InCharLineUp=%d\n", VideoState.CharLine, VideoState.InCharLineUp);
-  if (VideoState.IsTeletext) {
-    if (VideoState.DoCA1Int) {
-      SysVIATriggerCA1Int(0);
-      VideoState.DoCA1Int = false;
+  if (VideoState.IsTeletext)
+  {
+    // Handle VSync.
+    if (VideoState.VSyncState > 0)
+    {
+      if (--VideoState.VSyncState == 0)
+      {
+        SysVIATriggerCA1Int(0);
+      }
+    }
+
+    if (VideoState.VSyncState == 0 &&
+        VideoState.CharLine == CRTC_VerticalSyncPos &&
+        VideoState.InCharLineUp == 0)
+    {
+      SysVIATriggerCA1Int(1);
+      VideoState.VSyncState = CRTC_SyncWidth >> 4;
     }
 
     // Clear the next 20 scan lines
@@ -1227,8 +1241,11 @@ void VideoDoScanLine()
     /* Move onto next physical scanline as far as timing is concerned */
     VideoState.InCharLineUp++;
 
-    // RTW - Mode 7 hardwired for now. Assume 10 scanlines per character regardless (actually 9.5 but god knows how that works)
-    if (VideoState.CharLine<=CRTC_VerticalTotal && VideoState.InCharLineUp>9) {
+    const int ScanLines = (CRTC_ScanLinesPerChar > 9) ? 10 : CRTC_ScanLinesPerChar + 1;
+
+    if (VideoState.CharLine <= CRTC_VerticalTotal &&
+        VideoState.InCharLineUp >= ScanLines)
+    {
       VideoState.CharLine++;
       VideoState.InCharLineUp=0;
     }
@@ -1244,7 +1261,8 @@ void VideoDoScanLine()
       {
         VideoAddCursor();
         VideoAddLEDs();
-        // Clear rest of screen below vertical total
+
+        // Clear rest of screen below vertical total.
         for (int l = VideoState.PixmapLine; l < 500 / TeletextStyle; ++l)
         {
           mainWin->doHorizLine(0, l, -36, BEEBEM_BITMAP_WIDTH);
@@ -1257,14 +1275,16 @@ void VideoDoScanLine()
       VideoStartOfFrame();
       VideoState.PreviousLastPixmapLine=VideoState.PixmapLine;
       VideoState.PixmapLine=0;
-      SysVIATriggerCA1Int(1);
-      VideoState.DoCA1Int = true;
-    } else {
+    }
+    else
+    {
       // RTW- set timer till the next scanline update (this is now nice and simple)
       IncTrigger((CRTC_HorizontalTotal + 1) * ((VideoULA_ControlReg & VIDEOULA_CRTC_CLOCK_RATE_SELECT) ? 1 : 2), VideoTriggerCount);
     }
-  } else {
-    /* Non teletext. */
+  }
+  else
+  {
+    // Non teletext.
 
     // Handle VSync
     // RTW - this was moved to the top so that we can correctly set R7=0,
@@ -1277,7 +1297,10 @@ void VideoDoScanLine()
       }
     }
 
-    if (VideoState.VSyncState == 0 && VideoState.CharLine == CRTC_VerticalSyncPos && VideoState.InCharLineUp == 0) {
+    if (VideoState.VSyncState == 0 &&
+        VideoState.CharLine == CRTC_VerticalSyncPos &&
+        VideoState.InCharLineUp == 0)
+    {
       // Nothing displayed?
       if (VideoState.FirstPixmapLine<0)
         VideoState.FirstPixmapLine=0;
@@ -1290,7 +1313,7 @@ void VideoDoScanLine()
       VideoState.IsNewTVFrame = true;
 
       SysVIATriggerCA1Int(1);
-      VideoState.VSyncState=(CRTC_SyncWidth>>4);
+      VideoState.VSyncState = CRTC_SyncWidth >> 4;
     }
 
     if (RenderFrame)
@@ -1414,7 +1437,7 @@ void VideoInit(void) {
   VideoState.LastPixmapLine=0;
   VideoState.PreviousLastPixmapLine=256;
   VideoState.IsNewTVFrame = false;
-  CurY=-1;
+  CurY = -1;
   //AdjustVideo();
 }
 
