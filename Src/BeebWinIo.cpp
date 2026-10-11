@@ -1649,19 +1649,19 @@ void BeebWin::OnPaste()
 
 	if (hClipboardData != nullptr)
 	{
-		size_t Size = GlobalSize(hClipboardData); // Includes NUL-terminator
-
 		LPTSTR pData = (LPTSTR)GlobalLock(hClipboardData);
 
 		if (pData != nullptr)
 		{
-			m_ClipboardBuffer.resize(Size);
-			memcpy(&m_ClipboardBuffer[0], pData, Size);
+			size_t Length = strlen(pData) + 1; // +1 to inlcude the NUL-terminator
+
+			m_ClipboardBuffer.resize(Length);
+			memcpy(&m_ClipboardBuffer[0], pData, Length);
 
 			GlobalUnlock(hClipboardData);
 
 			m_ClipboardIndex = 0;
-			m_ClipboardLength = Size - 1;
+			m_ClipboardLength = Length - 1;
 		}
 	}
 
