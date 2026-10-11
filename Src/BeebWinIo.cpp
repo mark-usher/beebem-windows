@@ -1653,7 +1653,7 @@ void BeebWin::OnPaste()
 
 		if (pData != nullptr)
 		{
-			size_t Length = strlen(pData) + 1; // +1 to inlcude the NUL-terminator
+			size_t Length = strlen(pData) + 1; // +1 to include the NUL-terminator
 
 			m_ClipboardBuffer.resize(Length);
 			memcpy(&m_ClipboardBuffer[0], pData, Length);

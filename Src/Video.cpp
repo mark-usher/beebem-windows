@@ -101,16 +101,16 @@ int ova,ovn; // mem ptr buffers
 // we reset the address pointer - NOT the point of the sync. If it is negative
 // it's actually in the adjust time.
 
-struct VideoStateT {
+struct VideoStateType {
   int Addr; // Address of start of next visible character line in Beeb memory  - raw
   int StartAddr; // Address of start of first character line in Beeb memory  - raw
-  int PixmapLine; // Current line in the pixmap
-  int FirstPixmapLine; // The first pixmap line where something is visible.  Used to eliminate the
+  int BitmapLine; // Current line in the bitmap.
+  int FirstBitmapLine; // The first bitmap line where something is visible. Used to eliminate the
                        // blank vertical retrace lines at the top of the screen.
-  int PreviousFirstPixmapLine; // The first pixmap line on the previous frame.
-  int LastPixmapLine; // The last pixmap line where something is visible.  Used to eliminate the
-                      //  blank vertical retrace lines at the bottom of the screen.
-  int PreviousLastPixmapLine; // The last pixmap line on the previous frame.
+  int PreviousFirstBitmapLine; // The first bitmap line on the previous frame.
+  int LastBitmapLine; // The last bitmap line where something is visible.  Used to eliminate the
+                      // blank vertical retrace lines at the bottom of the screen.
+  int PreviousLastBitmapLine; // The last bitmap line on the previous frame.
   bool IsTeletext; // This frame is a teletext frame - do things differently.
   const unsigned char *DataPtr; // Pointer into host memory of video data.
 
@@ -121,7 +121,7 @@ struct VideoStateT {
   bool InterlaceFrame;
 };
 
-static VideoStateT VideoState;
+static VideoStateType VideoState;
 
 int VideoTriggerCount = 9999; // Number of cycles before next scanline service.
 
@@ -766,7 +766,7 @@ static void VideoStartOfFrame()
 
 static void LowLevelDoScanLineNarrow() {
   int BytesToGo=CRTC_HorizontalDisplayed;
-  EightUChars *vidPtr=mainWin->GetLinePtr(VideoState.PixmapLine);
+  EightUChars* vidPtr = mainWin->GetLinePtr(VideoState.BitmapLine);
 
   /* If the step is 4 then each byte corresponds to one entry in the fasttable
      and thus we can copy it really easily (and fast!) */
@@ -791,7 +791,7 @@ static void LowLevelDoScanLineNarrow() {
 
 static void LowLevelDoScanLineNarrowNot4Bytes() {
   int BytesToGo=CRTC_HorizontalDisplayed;
-  EightUChars *vidPtr=mainWin->GetLinePtr(VideoState.PixmapLine);
+  EightUChars* vidPtr = mainWin->GetLinePtr(VideoState.BitmapLine);
 
   /* If the step is 4 then each byte corresponds to one entry in the fasttable
      and thus we can copy it really easily (and fast!) */
@@ -807,7 +807,7 @@ static void LowLevelDoScanLineNarrowNot4Bytes() {
 
 static void LowLevelDoScanLineWide() {
   int BytesToGo=CRTC_HorizontalDisplayed;
-  SixteenUChars *vidPtr=mainWin->GetLinePtr16(VideoState.PixmapLine);
+  SixteenUChars* vidPtr = mainWin->GetLinePtr16(VideoState.BitmapLine);
 
   // If the step is 4 then each byte corresponds to one entry in the fasttable
   // and thus we can copy it really easily (and fast!)
@@ -831,7 +831,7 @@ static void LowLevelDoScanLineWide() {
 
 static void LowLevelDoScanLineWideNot4Bytes() {
   int BytesToGo=CRTC_HorizontalDisplayed;
-  SixteenUChars *vidPtr=mainWin->GetLinePtr16(VideoState.PixmapLine);
+  SixteenUChars* vidPtr = mainWin->GetLinePtr16(VideoState.BitmapLine);
 
   const unsigned char *CurrentPtr = VideoState.DataPtr + VideoState.InCharLineUp;
 
@@ -1057,7 +1057,7 @@ static void DoMode7Row()
             {
               mainWin->doHorizLine(
                 CurrentCol[CurrentScanLine],             // Colour
-                VideoState.PixmapLine + CurrentScanLine, // y
+                VideoState.BitmapLine + CurrentScanLine, // y
                 CurrentStartX[CurrentScanLine],          // sx
                 CurrentLen[CurrentScanLine]              // width
               );
@@ -1087,7 +1087,7 @@ static void DoMode7Row()
               if (CurrentLen[CurrentScanLine] != 0) {
                 mainWin->doHorizLine(
                   CurrentCol[CurrentScanLine],             // Colour
-                  VideoState.PixmapLine + CurrentScanLine, // y
+                  VideoState.BitmapLine + CurrentScanLine, // y
                   CurrentStartX[CurrentScanLine],          // sx
                   CurrentLen[CurrentScanLine]              // width
                 );
@@ -1137,7 +1137,7 @@ static void DoMode7Row()
             {
               mainWin->doHorizLine(
                 CurrentCol[CurrentScanLine],             // Colour
-                VideoState.PixmapLine + CurrentScanLine, // y
+                VideoState.BitmapLine + CurrentScanLine, // y
                 CurrentStartX[CurrentScanLine],          // sx
                 CurrentLen[CurrentScanLine]              // width
               );
@@ -1166,7 +1166,7 @@ static void DoMode7Row()
     {
       mainWin->doHorizLine(
         CurrentCol[CurrentScanLine],             // Colour
-        VideoState.PixmapLine + CurrentScanLine, // y
+        VideoState.BitmapLine + CurrentScanLine, // y
         CurrentStartX[CurrentScanLine],          // sx
         CurrentLen[CurrentScanLine]              // width
       );
@@ -1231,7 +1231,7 @@ void VideoDoScanLine()
     // Clear the next 20 scan lines
     if (RenderFrame)
     {
-      if (VScreenAdjust > 0 && VideoState.PixmapLine == 0)
+      if (VScreenAdjust > 0 && VideoState.BitmapLine == 0)
       {
         for (int l = -VScreenAdjust; l < 0; ++l)
         {
@@ -1239,9 +1239,9 @@ void VideoDoScanLine()
         }
       }
 
-      for (int l = 0; l < 20 && VideoState.PixmapLine + l < BEEBEM_BITMAP_HEIGHT; ++l)
+      for (int l = 0; l < 20 && VideoState.BitmapLine + l < BEEBEM_BITMAP_HEIGHT; ++l)
       {
-        mainWin->doHorizLine(0, VideoState.PixmapLine + l, -36, BEEBEM_BITMAP_WIDTH);
+        mainWin->doHorizLine(0, VideoState.BitmapLine + l, -36, BEEBEM_BITMAP_WIDTH);
       }
     }
 
@@ -1260,7 +1260,7 @@ void VideoDoScanLine()
         DoMode7Row();
       }
 
-      VideoState.PixmapLine+=20;
+      VideoState.BitmapLine += 20;
     }
 
     // Move onto next physical scanline as far as timing is concerned.
@@ -1289,7 +1289,7 @@ void VideoDoScanLine()
         VideoAddLEDs();
 
         // Clear rest of screen below vertical total.
-        for (int l = VideoState.PixmapLine; l < 500 / TeletextStyle; ++l)
+        for (int l = VideoState.BitmapLine; l < 500 / TeletextStyle; ++l)
         {
           mainWin->doHorizLine(0, l, -36, BEEBEM_BITMAP_WIDTH);
         }
@@ -1299,8 +1299,8 @@ void VideoDoScanLine()
 
       VideoState.IsNewTVFrame = true;
       VideoStartOfFrame();
-      VideoState.PreviousLastPixmapLine=VideoState.PixmapLine;
-      VideoState.PixmapLine=0;
+      VideoState.PreviousLastBitmapLine = VideoState.BitmapLine;
+      VideoState.BitmapLine = 0;
     }
     else
     {
@@ -1328,14 +1328,16 @@ void VideoDoScanLine()
         VideoState.InCharLineUp == 0)
     {
       // Nothing displayed?
-      if (VideoState.FirstPixmapLine<0)
-        VideoState.FirstPixmapLine=0;
+      if (VideoState.FirstBitmapLine < 0)
+      {
+        VideoState.FirstBitmapLine = 0;
+      }
 
-      VideoState.PreviousFirstPixmapLine=VideoState.FirstPixmapLine;
-      VideoState.FirstPixmapLine=-1;
-      VideoState.PreviousLastPixmapLine=VideoState.LastPixmapLine;
-      VideoState.LastPixmapLine=0;
-      VideoState.PixmapLine=0;
+      VideoState.PreviousFirstBitmapLine = VideoState.FirstBitmapLine;
+      VideoState.FirstBitmapLine = -1;
+      VideoState.PreviousLastBitmapLine = VideoState.LastBitmapLine;
+      VideoState.LastBitmapLine = 0;
+      VideoState.BitmapLine = 0;
       VideoState.IsNewTVFrame = true;
 
       SysVIATriggerCA1Int(1);
@@ -1345,17 +1347,21 @@ void VideoDoScanLine()
     if (RenderFrame)
     {
       // Clear the scan line
-      memset(mainWin->GetLinePtr(VideoState.PixmapLine), 0, BEEBEM_BITMAP_WIDTH);
+      memset(mainWin->GetLinePtr(VideoState.BitmapLine), 0, BEEBEM_BITMAP_WIDTH);
     }
 
     // RTW - changed so we are even able to plot vertical total adjust region
 	// if CRTC_VerticalDisplayed is high enough.
-    if (VideoState.CharLine<CRTC_VerticalDisplayed) {
+    if (VideoState.CharLine < CRTC_VerticalDisplayed)
+    {
       // Visible char line, record first line
-      if (VideoState.FirstPixmapLine==-1)
-        VideoState.FirstPixmapLine=VideoState.PixmapLine;
-      // Always record the last line
-      VideoState.LastPixmapLine=VideoState.PixmapLine;
+      if (VideoState.FirstBitmapLine == -1)
+      {
+        VideoState.FirstBitmapLine = VideoState.BitmapLine;
+      }
+
+      // Always record the last line.
+      VideoState.LastBitmapLine = VideoState.BitmapLine;
 
       // If first row of character then get the data pointer from memory.
       if (VideoState.InCharLineUp==0) {
@@ -1375,12 +1381,14 @@ void VideoDoScanLine()
 
     // See if we are at the cursor line.
     if (CurY == -1 && VideoState.Addr > (CRTC_CursorPosLow + (CRTC_CursorPosHigh << 8))) {
-      CurY = VideoState.PixmapLine;
+      CurY = VideoState.BitmapLine;
     }
 
     // Screen line increment and wraparound.
-    if (++VideoState.PixmapLine == MAX_VIDEO_SCAN_LINES)
-      VideoState.PixmapLine = 0;
+    if (++VideoState.BitmapLine == MAX_VIDEO_SCAN_LINES)
+    {
+      VideoState.BitmapLine = 0;
+    }
 
     // Move onto next physical scanline as far as timing is concerned.
     VideoState.InCharLineUp++;
@@ -1403,13 +1411,13 @@ void VideoDoScanLine()
         VideoAddCursor();
         VideoAddLEDs();
         CurY=-1;
-        int n = VideoState.PreviousLastPixmapLine-VideoState.PreviousFirstPixmapLine+1;
+        int n = VideoState.PreviousLastBitmapLine - VideoState.PreviousFirstBitmapLine + 1;
         if (n < 0) {
           n += MAX_VIDEO_SCAN_LINES;
         }
 
         int startLine = 32;
-        if (n > 248 && VideoState.PreviousFirstPixmapLine >= 40) {
+        if (n > 248 && VideoState.PreviousFirstBitmapLine >= 40) {
           // RTW - This is a little hack which ensures that a fullscreen mode
 		  // with *TV255 will always fit unclipped in the window in Modes 0-6.
           startLine = 40;
@@ -1460,11 +1468,11 @@ void VideoInit(void) {
   FastTable_Valid = false;
 
   RenderFrame = true;
-  VideoState.PixmapLine=0;
-  VideoState.FirstPixmapLine=-1;
-  VideoState.PreviousFirstPixmapLine=0;
-  VideoState.LastPixmapLine=0;
-  VideoState.PreviousLastPixmapLine=256;
+  VideoState.BitmapLine = 0;
+  VideoState.FirstBitmapLine = -1;
+  VideoState.PreviousFirstBitmapLine = 0;
+  VideoState.LastBitmapLine = 0;
+  VideoState.PreviousLastBitmapLine = 256;
   VideoState.IsNewTVFrame = false;
   CurY = -1;
   //AdjustVideo();
@@ -1823,11 +1831,11 @@ void SaveVideoUEF(FILE *SUEF)
 
 	UEFWrite32(VideoState.Addr, SUEF);
 	UEFWrite32(VideoState.StartAddr, SUEF);
-	UEFWrite32(VideoState.PixmapLine, SUEF);
-	UEFWrite32(VideoState.FirstPixmapLine, SUEF);
-	UEFWrite32(VideoState.PreviousFirstPixmapLine, SUEF);
-	UEFWrite32(VideoState.LastPixmapLine, SUEF);
-	UEFWrite32(VideoState.PreviousLastPixmapLine, SUEF);
+	UEFWrite32(VideoState.BitmapLine, SUEF);
+	UEFWrite32(VideoState.FirstBitmapLine, SUEF);
+	UEFWrite32(VideoState.PreviousFirstBitmapLine, SUEF);
+	UEFWrite32(VideoState.LastBitmapLine, SUEF);
+	UEFWrite32(VideoState.PreviousLastBitmapLine, SUEF);
 	UEFWrite32(VideoState.CharLine, SUEF);
 	UEFWrite32(VideoState.InCharLineUp, SUEF);
 	UEFWrite32(VideoState.VSyncState, SUEF);
@@ -1886,11 +1894,11 @@ void LoadVideoUEF(FILE *SUEF, int Version)
 	{
 		VideoState.Addr = UEFRead32(SUEF);
 		VideoState.StartAddr = UEFRead32(SUEF);
-		VideoState.PixmapLine = UEFRead32(SUEF);
-		VideoState.FirstPixmapLine = UEFRead32(SUEF);
-		VideoState.PreviousFirstPixmapLine = UEFRead32(SUEF);
-		VideoState.LastPixmapLine = UEFRead32(SUEF);
-		VideoState.PreviousLastPixmapLine = UEFRead32(SUEF);
+		VideoState.BitmapLine = UEFRead32(SUEF);
+		VideoState.FirstBitmapLine = UEFRead32(SUEF);
+		VideoState.PreviousFirstBitmapLine = UEFRead32(SUEF);
+		VideoState.LastBitmapLine = UEFRead32(SUEF);
+		VideoState.PreviousLastBitmapLine = UEFRead32(SUEF);
 		// VideoState.IsTeletext - computed in VideoStartOfFrame(), called from VideoInit()
 		// VideoState.DataPtr - computed in VideoStartOfFrame(), called from VideoInit()
 		VideoState.CharLine = UEFRead32(SUEF);
