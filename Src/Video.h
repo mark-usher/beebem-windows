@@ -56,7 +56,7 @@ extern char TeletextStyle;
 extern bool TeletextHalfMode;
 
 bool BuildMode7Font(const char *filename);
-void RedoMPTR();
+void VideoUpdateMemPtr();
 void CRTCWrite(int Address, unsigned char Value);
 unsigned char CRTCRead(int Address);
 void VideoULAWrite(int Address, unsigned char Value);

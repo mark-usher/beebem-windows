@@ -2284,12 +2284,12 @@ static bool DebugLookupAddress(int Addr, bool Host, AddrInfo* addrInfo)
 				addrInfo->start = 0x3000;
 				addrInfo->end   = 0x7fff;
 
-				if (Sh_Display && PrePC >= 0xc000 && PrePC <= 0xdfff)
+				if (ShadowDisplay && PrePC >= 0xC000 && PrePC <= 0xDFFF)
 				{
 					addrInfo->desc = "Shadow RAM (PC in VDU driver)";
 					return true;
 				}
-				else if (Sh_Display && MemSel && PrePC >= 0xa000 && PrePC <= 0xafff)
+				else if (ShadowDisplay && MemSel && PrePC >= 0xA000 && PrePC <= 0xAFFF)
 				{
 					addrInfo->start = 0x3000;
 					addrInfo->end   = 0x7fff;

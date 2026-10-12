@@ -83,7 +83,7 @@ struct RomInfo {
 	int RelocationAddr;
 };
 
-extern bool Sh_Display;
+extern bool ShadowDisplay;
 /* End of Master 128 Specific Stuff, note initialised anyway regardless of Model Type in use */
 
 extern unsigned char InitialRAMValue;

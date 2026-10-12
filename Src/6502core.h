@@ -35,6 +35,7 @@ constexpr int IRQ_SERIAL   = 0x04;
 constexpr int IRQ_TUBE     = 0x08;
 constexpr int IRQ_TELETEXT = 0x10;
 constexpr int IRQ_HDC      = 0x20;
+constexpr int IRQ_ACCCON   = 0x80;
 
 constexpr int NMI_FLOPPY   = 0x01;
 constexpr int NMI_ECONET   = 0x02;

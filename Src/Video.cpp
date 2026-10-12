@@ -1210,7 +1210,7 @@ static void LowLevelDoScanLine()
 
 /*--------------------------------------------------------------------------*/
 
-void RedoMPTR()
+void VideoUpdateMemPtr()
 {
 	if (VideoState.IsTeletext)
 	{

@@ -87,6 +87,21 @@ unsigned char PagedRomReg;
 unsigned char ROMSEL;
 
 // Computech (&B+) Specific Stuff Added by K.Lowe 18/08/03
+constexpr unsigned char ROMSEL_ROMNUM  = 0x0F; // Sideways ROM/RAM select bits
+constexpr unsigned char ROMSEL_UNUSED0 = 0x10; // Not used
+constexpr unsigned char ROMSEL_UNUSED1 = 0x20; // Not used
+constexpr unsigned char ROMSEL_PRVEN   = 0x40; // Private RAM enable
+constexpr unsigned char ROMSEL_MEMSEL  = 0x80; // Shadow/Main RAM toggle
+
+constexpr unsigned char RAMSEL_AUX0    = 0x01; // Not used but must be preserved
+constexpr unsigned char RAMSEL_AUX1    = 0x02; // Not used but must be preserved
+constexpr unsigned char RAMSEL_UNUSED0 = 0x04; // Not used
+constexpr unsigned char RAMSEL_UNUSED1 = 0x08; // Not used
+constexpr unsigned char RAMSEL_PRVS1   = 0x10; // Private RAM 1K area select (&8000-&83FF)
+constexpr unsigned char RAMSEL_PRVS4   = 0x20; // Private RAM 4K area select (&8400-&8FFF)
+constexpr unsigned char RAMSEL_PRVS8   = 0x40; // Private RAM 8K area select (&9000-&AFFF)
+constexpr unsigned char RAMSEL_SHEN    = 0x80; // Shadow RAM enable bit
+
 bool MemSel = false; // Shadow/Main RAM Toggle
 bool PrvEn = false;  // Private RAM Enable
 bool ShEn = false;   // Shadow RAM Enable
@@ -132,12 +147,27 @@ static const unsigned char HiddenDefault[32] = {
 unsigned char FSRam[8192];       // 8K Filing System RAM
 unsigned char PrivateRAM[4096];  // 4K Private RAM (VDU Use mainly)
 unsigned char ShadowRAM[32768];  // 20K Shadow RAM
-unsigned char ACCCON;            // ACCess CONtrol register
 
-bool Sh_Display;
+constexpr unsigned char ACCCON_MASTER_IRR = 0x80;
+constexpr unsigned char ACCCON_MASTER_TST = 0x40;
+constexpr unsigned char ACCCON_MASTER_IFJ = 0x20;
+constexpr unsigned char ACCCON_MASTER_ITU = 0x10;
+constexpr unsigned char ACCCON_MASTER_Y   = 0x08;
+constexpr unsigned char ACCCON_MASTER_X   = 0x04;
+constexpr unsigned char ACCCON_MASTER_E   = 0x02;
+constexpr unsigned char ACCCON_MASTER_D   = 0x01;
+
+constexpr unsigned char ACCCON_BPLUS_SHADOW_SELECT = 0x80;
+
+unsigned char ACCCON; // ACCess CONtrol register
+
+// Controls whether the shadow or main memory is used by the 6845 CRTC
+// to generate the video image.
+bool ShadowDisplay;
 static bool PrivateRAMSelect;
 static bool FSRAMSelect;
-static bool Sh_CPUX, Sh_CPUE;
+static bool Sh_CPUX;
+static bool Sh_CPUE;
 /* End of Master 128 Specific Stuff, note initialised anyway regardless of Model Type in use */
 
 unsigned char InitialRAMValue = 0x00;
@@ -184,15 +214,18 @@ static int WrapAddr(int Address) {
 // 'n' must be less than 1K in length.
 // See 'BeebMemPtrWithWrapMo7' for use in Mode 7 - it's a special case.
 
-const unsigned char *BeebMemPtrWithWrap(int Address, int Length) {
+const unsigned char* BeebMemPtrWithWrap(int Address, int Length)
+{
   static unsigned char tmpBuf[1024];
   unsigned char *tmpBufPtr;
 
   Address = WrapAddr(Address);
   int EndAddress = WrapAddr(Address + Length - 1);
 
-  // On Master the FSRam area is displayed if start addr below shadow area
-  if ((MachineType == Model::Master128 || MachineType == Model::MasterET) && Address <= EndAddress && Sh_Display && Address < 0x3000) {
+  // On Master the FSRam area is displayed if start addr below shadow area.
+  if ((MachineType == Model::Master128 || MachineType == Model::MasterET) &&
+      Address <= EndAddress && ShadowDisplay && Address < 0x3000)
+  {
     if (0x3000 - Address < Length) {
       int toCopy = 0x3000 - Address;
       if (toCopy > Length) toCopy = Length;
@@ -210,38 +243,28 @@ const unsigned char *BeebMemPtrWithWrap(int Address, int Length) {
     }
   }
 
-  if (Address <= EndAddress) {
-    if (Sh_Display) {
-      return ShadowRAM + Address;
-    }
-    else {
-      return WholeRam + Address;
-    }
+  if (Address <= EndAddress)
+  {
+    return (ShadowDisplay ? ShadowRAM : WholeRam) + Address;
   }
 
   int toCopy = 0x8000 - Address;
 
   if (toCopy > Length) toCopy = Length;
 
-  if (toCopy > 0) {
-    if (Sh_Display) {
-      memcpy(tmpBuf, ShadowRAM + Address, toCopy);
-    }
-    else {
-      memcpy(tmpBuf, WholeRam + Address, toCopy);
-    }
+  if (toCopy > 0)
+  {
+    memcpy(tmpBuf, (ShadowDisplay ? ShadowRAM : WholeRam) + Address, toCopy);
   }
 
   tmpBufPtr = tmpBuf + toCopy;
   toCopy = Length - toCopy;
 
-  if (toCopy > 0) {
-    if (Sh_Display) {
-      memcpy(tmpBufPtr, ShadowRAM + EndAddress - (toCopy - 1), toCopy);
-    }
-    else {
-      memcpy(tmpBufPtr, WholeRam + EndAddress - (toCopy - 1), toCopy);
-    }
+  if (toCopy > 0)
+  {
+    memcpy(tmpBufPtr,
+           (ShadowDisplay ? ShadowRAM : WholeRam) + EndAddress - (toCopy - 1),
+           toCopy);
   }
 
   // Tripling is for Shadow RAM handling
@@ -279,14 +302,16 @@ static int WrapAddrMode7(int Address) {
 
 /*----------------------------------------------------------------------------*/
 
-// Special case of BeebMemPtrWithWrap for use in mode 7
+// Special case of BeebMemPtrWithWrap for use in Mode 7.
 
-const unsigned char *BeebMemPtrWithWrapMode7(int Address, int Length) {
+const unsigned char* BeebMemPtrWithWrapMode7(int Address, int Length)
+{
 	static unsigned char tmpBuf[1024];
 
-	const unsigned char *Memory = Sh_Display ? ShadowRAM : WholeRam;
+	const unsigned char* Memory = ShadowDisplay ? ShadowRAM : WholeRam;
 
-	for (int i = 0; i < Length; i++, Address++) {
+	for (int i = 0; i < Length; i++, Address++)
+	{
 		tmpBuf[i] = Memory[WrapAddrMode7(Address)];
 	}
 
@@ -376,8 +401,8 @@ unsigned char BeebReadMem(int Address) {
 	}
 	else if (MachineType == Model::BPlus) {
 		if (Address < 0x3000) return WholeRam[Address];
-		if (Address < 0x8000 && Sh_Display && PrePC >= 0xc000 && PrePC < 0xe000) return ShadowRAM[Address];
-		if (Address < 0x8000 && Sh_Display && MemSel && PrePC >= 0xa000 && PrePC < 0xb000) return ShadowRAM[Address];
+		if (Address < 0x8000 && ShadowDisplay && PrePC >= 0xC000 && PrePC < 0xE000) return ShadowRAM[Address];
+		if (Address < 0x8000 && ShadowDisplay && MemSel && PrePC >= 0xA000 && PrePC < 0xB000) return ShadowRAM[Address];
 		if (Address < 0x8000) return WholeRam[Address];
 		if (Address < 0xB000 && MemSel) return Private[Address-0x8000];
 		if (Address >= 0x8000 && Address < 0xc000) {
@@ -449,8 +474,13 @@ unsigned char BeebReadMem(int Address) {
 		case 0xe:
 			return(WholeRam[Address]);
 		case 0xf:
-			if (Address<0xfc00 || Address>=0xff00) { return(WholeRam[Address]); }
-			if ((ACCCON & 0x40) && Address>=0xfc00 && Address<0xff00) {
+			if (Address < 0xfc00 || Address >= 0xff00)
+			{
+				return WholeRam[Address];
+			}
+
+			if ((ACCCON & ACCCON_MASTER_TST) && Address >= 0xFC00 && Address < 0xFF00)
+			{
 				return WholeRam[Address];
 			}
 			break;
@@ -578,6 +608,7 @@ unsigned char BeebReadMem(int Address) {
 		return(PagedRomReg); // Report back ROMSEL - I'm sure the Beeb allows ROMSEL read.
 		                     // Correct me if I'm wrong. - Richard Gellman
 	}
+
 	// In the Master at least, ROMSEL/ACCCON seem to be duplicated over a 4 byte block.
 	if ((Address & ~3) == 0xfe34 && (MachineType == Model::Master128 || MachineType == Model::MasterET)) {
 		return(ACCCON);
@@ -676,27 +707,36 @@ void DebugMemoryState()
 			break;
 
 		case Model::IntegraB:
-			DebugDisplayInfoF("Shadow RAM: %s, %s",ShEn ? "enabled" : "disabled", !MemSel && ShEn ? "selected" : "not selected");
-			DebugDisplayInfoF("Private areas: %s; 1K %s, 4K %s, 8K %s",PrvEn ? "enabled" : "disabled", Prvs1 ? "on" : "off", Prvs4 ? "on" : "off", Prvs8 ? "on" : "off");
+			DebugDisplayInfoF("Shadow RAM: %s, %s",
+			                  ShEn ? "enabled" : "disabled",
+			                  !MemSel && ShEn ? "selected" : "not selected");
+			DebugDisplayInfoF("Private areas: %s; 1K %s, 4K %s, 8K %s",
+			                  PrvEn ? "enabled" : "disabled",
+			                  Prvs1 ? "on" : "off",
+			                  Prvs4 ? "on" : "off",
+			                  Prvs8 ? "on" : "off");
 			DebugDisplayInfoF("Hidden area address: 0x%01X", HidAdd);
 			break;
 
 		case Model::BPlus:
-			DebugDisplayInfoF("Shadow RAM: %s, %s", Sh_Display ? "enabled" : "disabled", Sh_Display && ((PrePC >= 0xC000 && PrePC < 0xE000) || (MemSel && PrePC >= 0xA000 && PrePC < 0xB000)) ? "selected" : "not selected");
+			DebugDisplayInfoF("Shadow RAM: %s, %s",
+			                  ShadowDisplay ? "enabled" : "disabled",
+			                  ShadowDisplay && ((PrePC >= 0xC000 && PrePC < 0xE000) ||
+			                                    (MemSel && PrePC >= 0xA000 && PrePC < 0xB000)) ? "selected" : "not selected");
 			DebugDisplayInfoF("Private RAM: %s", MemSel ? "enabled" : "disabled");
 			break;
 
 		case Model::Master128:
 		case Model::MasterET:
 			DebugDisplayInfoF("ACCCON: IRR:%s TST:%s IFJ:%s ITU:%s Y:%s X:%s E:%s D:%s",
-				(IntStatus & 0x80) != 0 ? "on" : "off",
-				(ACCCON & 0x40) != 0 ? "on" : "off",
-				(ACCCON & 0x20) != 0 ? "on" : "off",
-				(ACCCON & 0x10) != 0 ? "on" : "off",
-				(ACCCON & 0x08) != 0 ? "on" : "off",
-				(ACCCON & 0x04) != 0 ? "on" : "off",
-				(ACCCON & 0x02) != 0 ? "on" : "off",
-				(ACCCON & 0x01) != 0 ? "on" : "off");
+			                  (IntStatus & IRQ_ACCCON) != 0 ? "on" : "off",
+			                  (ACCCON & ACCCON_MASTER_TST) != 0 ? "on" : "off",
+			                  (ACCCON & ACCCON_MASTER_IFJ) != 0 ? "on" : "off",
+			                  (ACCCON & ACCCON_MASTER_ITU) != 0 ? "on" : "off",
+			                  (ACCCON & ACCCON_MASTER_Y) != 0 ? "on" : "off",
+			                  (ACCCON & ACCCON_MASTER_X) != 0 ? "on" : "off",
+			                  (ACCCON & ACCCON_MASTER_E) != 0 ? "on" : "off",
+			                  (ACCCON & ACCCON_MASTER_D) != 0 ? "on" : "off");
 			break;
 	}
 }
@@ -705,39 +745,51 @@ void DebugMemoryState()
 
 static void DoRomChange(unsigned char NewBank)
 {
-  ROMSEL = NewBank & 0xf;
+	ROMSEL = NewBank & 0x0F;
 
-  if (MachineType != Model::Master128 && MachineType != Model::MasterET) {
-    NewBank&=0xf; // strip top bit if Model B
-    PagedRomReg=NewBank;
-    return;
-  }
-
-  // Master Specific stuff
-  if (MachineType == Model::Master128 || MachineType == Model::MasterET) {
-    PagedRomReg = NewBank;
-    PrivateRAMSelect = (PagedRomReg & 0x80) != 0;
-  }
+	if (MachineType == Model::Master128 || MachineType == Model::MasterET)
+	{
+		PagedRomReg = NewBank;
+		PrivateRAMSelect = (PagedRomReg & 0x80) != 0;
+	}
+	else
+	{
+		NewBank &= 0xF; // Strip top bit if Model B
+		PagedRomReg = NewBank;
+	}
 }
 
 /*----------------------------------------------------------------------------*/
 
-static void FiddleACCCON(unsigned char newValue)
+static void FiddleACCCON(unsigned char Value)
 {
-	// Master specific, should only execute in Master128 mode
-	// ignore bits TST (6) IFJ (5) and ITU (4)
-//	newValue&=143;
-//	if ((newValue & 128)==128) DoInterrupt();
+	// Master specific, should only execute in Master 128 mode.
+	// Ignore bits TST (6) IFJ (5) and ITU (4).
 
 	// Mask out the IRR bit so that interrupts don't occur repeatedly.
-	ACCCON = newValue & 127;
-	if (newValue & 128) IntStatus |= 128; else IntStatus &= 127;
-	bool oldshd = Sh_Display;
-	Sh_Display = (ACCCON & 1) != 0;
-	if (Sh_Display != oldshd) RedoMPTR();
-	Sh_CPUX = (ACCCON & 4) != 0;
-	Sh_CPUE = (ACCCON & 2) != 0;
-	FSRAMSelect = (ACCCON & 8) != 0;
+	ACCCON = Value & ~ACCCON_MASTER_IRR;
+
+	if (Value & ACCCON_MASTER_IRR)
+	{
+		IntStatus |= IRQ_ACCCON;
+	}
+	else
+	{
+		IntStatus &= ~IRQ_ACCCON;
+	}
+
+	bool PrevShadowDisplay = ShadowDisplay;
+
+	ShadowDisplay = (ACCCON & ACCCON_MASTER_D) != 0;
+
+	if (ShadowDisplay != PrevShadowDisplay)
+	{
+		VideoUpdateMemPtr();
+	}
+
+	Sh_CPUX = (ACCCON & ACCCON_MASTER_X) != 0;
+	Sh_CPUE = (ACCCON & ACCCON_MASTER_E) != 0;
+	FSRAMSelect = (ACCCON & ACCCON_MASTER_Y) != 0;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -830,18 +882,20 @@ void BeebWriteMem(int Address, unsigned char Value)
 			return;
 		}
 
-		if (Address == 0xfe30) {
+		if (Address == 0xFE30)
+		{
 			DoRomChange(Value);
-			MemSel = (Value & 0x80) != 0;
-			PrvEn  = (Value & 0x40) != 0;
+			MemSel = (Value & ROMSEL_MEMSEL) != 0;
+			PrvEn  = (Value & ROMSEL_PRVEN) != 0;
 			return;
 		}
 
-		if (Address == 0xfe34) {
-			ShEn  = (Value & 0x80) != 0;
-			Prvs1 = (Value & 0x10) != 0;
-			Prvs4 = (Value & 0x20) != 0;
-			Prvs8 = (Value & 0x40) != 0;
+		if (Address == 0xFE34)
+		{
+			Prvs1 = (Value & RAMSEL_PRVS1) != 0;
+			Prvs4 = (Value & RAMSEL_PRVS4) != 0;
+			Prvs8 = (Value & RAMSEL_PRVS8) != 0;
+			ShEn  = (Value & RAMSEL_SHEN) != 0;
 			return;
 		}
 
@@ -862,15 +916,20 @@ void BeebWriteMem(int Address, unsigned char Value)
 			return;
 		}
 
-		if (Address<0x8000) {
-			if (Sh_Display && PrePC >= 0xC000 && PrePC < 0xE000) {
+		if (Address < 0x8000)
+		{
+			if (ShadowDisplay && PrePC >= 0xC000 && PrePC < 0xE000)
+			{
 				ShadowRAM[Address]=Value;
 				return;
 			}
-			else if (Sh_Display && MemSel && PrePC >= 0xA000 && PrePC < 0xB000) {
+			else if (ShadowDisplay && MemSel && PrePC >= 0xA000 && PrePC < 0xB000)
+			{
 				ShadowRAM[Address]=Value;
 				return;
-			} else {
+			}
+			else
+			{
 				WholeRam[Address]=Value;
 				return;
 			}
@@ -887,16 +946,23 @@ void BeebWriteMem(int Address, unsigned char Value)
 			return;
 		}
 
-		if (Address >= 0xfe30 && Address < 0xfe34) {
+		if (Address >= 0xFE30 && Address < 0xFE34)
+		{
 			DoRomChange(Value);
-			MemSel = (Value & 0x80) != 0;
+			MemSel = (Value & ROMSEL_MEMSEL) != 0;
 			return;
 		}
 
-		if (Address>=0xfe34 && Address<0xfe38) {
-			bool oldshd = Sh_Display;
-			Sh_Display = (Value & 0x80) != 0;
-			if (Sh_Display!=oldshd) RedoMPTR();
+		if (Address >= 0xFE34 && Address < 0xFE38)
+		{
+			bool PrevShadowDisplay = ShadowDisplay;
+
+			ShadowDisplay = (Value & 0x80) != 0;
+
+			if (ShadowDisplay != PrevShadowDisplay)
+			{
+				VideoUpdateMemPtr();
+			}
 			return;
 		}
 	}
@@ -1396,7 +1462,7 @@ void BeebMemInit(bool LoadRoms, bool SkipIntegraBConfig)
   memset(ShadowRAM, InitialRAMValue, 0x8000);
   memset(PrivateRAM, InitialRAMValue, 0x1000);
   ACCCON = 0;
-  Sh_Display = false;
+  ShadowDisplay = false;
   FSRAMSelect = false;
   PrivateRAMSelect = false;
   Sh_CPUE = false;
@@ -1409,7 +1475,12 @@ void BeebMemInit(bool LoadRoms, bool SkipIntegraBConfig)
   Private[0x3ba] = 0x90; // Default
   Private[0x3ff] = 0x0F; // Default RAM in bank locations 4, 5, 6 & 7
   memset(ShadowRam, InitialRAMValue, 0x5000);
-  MemSel = PrvEn = ShEn = Prvs1 = Prvs4 = Prvs8 = false;
+  MemSel = false;
+  PrvEn = false;
+  ShEn = false;
+  Prvs1 = false;
+  Prvs4 = false;
+  Prvs8 = false;
   HidAdd = 0;
 
   if (!SkipIntegraBConfig)
@@ -1445,20 +1516,55 @@ void SaveMemUEF(FILE *SUEF)
 			UEFWrite8(ACCCON, SUEF);
 			break;
 
-		case Model::IntegraB:
+		case Model::IntegraB: {
 			UEFWrite16(0x0461, SUEF); // Memory Control State
 			UEFWrite32(3, SUEF);
-			UEFWrite8(PagedRomReg | (static_cast<int>(MemSel) << 7) | (static_cast<int>(PrvEn) << 6), SUEF);
-			UEFWrite8((static_cast<int>(ShEn) << 7) | (static_cast<int>(Prvs8) << 6) |
-			          (static_cast<int>(Prvs4) << 5) | (static_cast<int>(Prvs1) << 4), SUEF);
+			unsigned char ROMSelectLatch = PagedRomReg;
+
+			if (PrvEn)
+			{
+				ROMSelectLatch |= ROMSEL_PRVEN;
+			}
+
+			if (MemSel)
+			{
+				ROMSelectLatch |= ROMSEL_MEMSEL;
+			}
+
+			UEFWrite8(ROMSelectLatch, SUEF);
+
+			unsigned char RAMSelectLatch = 0x00;
+
+			if (Prvs1)
+			{
+				RAMSelectLatch |= RAMSEL_PRVS1;
+			}
+
+			if (Prvs4)
+			{
+				RAMSelectLatch |= RAMSEL_PRVS4;
+			}
+
+			if (Prvs8)
+			{
+				RAMSelectLatch |= RAMSEL_PRVS8;
+			}
+
+			if (ShEn)
+			{
+				RAMSelectLatch |= RAMSEL_SHEN;
+			}
+
+			UEFWrite8(RAMSelectLatch, SUEF);
 			UEFWrite8(HidAdd, SUEF);
 			break;
+		}
 
 		case Model::BPlus:
 			UEFWrite16(0x0461, SUEF); // Memory Control State
 			UEFWrite32(2, SUEF);
 			UEFWrite8(PagedRomReg | (static_cast<int>(MemSel) << 7), SUEF);
-			UEFWrite8((static_cast<int>(Sh_Display) << 7), SUEF);
+			UEFWrite8(ShadowDisplay ? ACCCON_BPLUS_SHADOW_SELECT : 0x00, SUEF);
 			break;
 	}
 
@@ -1555,7 +1661,7 @@ void LoadRomRegsUEF(FILE *SUEF)
 {
 	PagedRomReg = UEFRead8(SUEF);
 	ROMSEL = PagedRomReg & 0xf;
-	ACCCON = UEFRead8(SUEF);
+	unsigned char AccessControl = UEFRead8(SUEF);
 
 	switch (MachineType)
 	{
@@ -1564,29 +1670,31 @@ void LoadRomRegsUEF(FILE *SUEF)
 			break;
 
 		case Model::IntegraB:
-			MemSel = (PagedRomReg & 0x80) != 0;
-			PrvEn = (PagedRomReg & 0x40) != 0;
+			MemSel = (PagedRomReg & ROMSEL_MEMSEL) != 0;
+			PrvEn = (PagedRomReg & ROMSEL_PRVEN) != 0;
 			PagedRomReg &= 0xf;
-			ShEn = (ACCCON & 0x80) != 0;
-			Prvs8 = (ACCCON & 0x40) != 0;
-			Prvs4 = (ACCCON & 0x20) != 0;
-			Prvs1 = (ACCCON & 0x10) != 0;
+			ShEn = (ACCCON & RAMSEL_SHEN) != 0;
+			Prvs8 = (ACCCON & RAMSEL_PRVS8) != 0;
+			Prvs4 = (ACCCON & RAMSEL_PRVS4) != 0;
+			Prvs1 = (ACCCON & RAMSEL_PRVS1) != 0;
 			HidAdd = UEFRead8(SUEF);
 			break;
 
 		case Model::BPlus:
-			MemSel = (PagedRomReg & 0x80) != 0;
+			MemSel = (PagedRomReg & ROMSEL_MEMSEL) != 0;
 			PagedRomReg &= 0xf;
-			Sh_Display = (ACCCON & 0x80) != 0;
+			ACCCON = AccessControl;
+			ShadowDisplay = (ACCCON & ACCCON_BPLUS_SHADOW_SELECT) != 0;
 			break;
 
 		case Model::Master128:
 		case Model::MasterET:
 			PrivateRAMSelect = (PagedRomReg & 0x80) != 0;
-			Sh_Display = (ACCCON & 1) != 0;
-			Sh_CPUX = (ACCCON & 4) != 0;
-			Sh_CPUE = (ACCCON & 2) != 0;
-			FSRAMSelect = (ACCCON & 8) != 0;
+			ACCCON = AccessControl;
+			ShadowDisplay = (ACCCON & ACCCON_MASTER_D) != 0;
+			Sh_CPUX = (ACCCON & ACCCON_MASTER_X) != 0;
+			Sh_CPUE = (ACCCON & ACCCON_MASTER_E) != 0;
+			FSRAMSelect = (ACCCON & ACCCON_MASTER_Y) != 0;
 			break;
 	}
 }
