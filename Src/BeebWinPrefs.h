@@ -156,6 +156,7 @@ const char* const CFG_IP232_ADDRESS                = "IP232Address";
 const char* const CFG_IP232_CUSTOM_IP_OLD          = "IP232customip"; // For BeebEm v4.18 and earlier.
 const char* const CFG_IP232_PORT                   = "IP232Port";
 const char* const CFG_IP232_CUSTOM_PORT_OLD        = "IP232customport"; // For BeebEm v4.18 and earlier.
+const char* const CFG_FIX_SERIAL_ULA_READ          = "FixSerialULARead";
 
 // Teletext adapter
 const char* const CFG_TELETEXT_ADAPTER_ENABLED     = "TeletextAdapterEnabled";

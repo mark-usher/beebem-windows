@@ -99,6 +99,7 @@ void SerialULAWrite(unsigned char Value);
 unsigned char SerialULARead();
 
 extern bool SerialPortEnabled;
+extern bool FixSerialULARead;
 
 bool SerialInit(const char* PortName);
 void SerialReset();

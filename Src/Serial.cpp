@@ -130,6 +130,8 @@ struct SerialULAType
 
 static SerialULAType SerialULA;
 
+bool FixSerialULARead = false;
+
 /*--------------------------------------------------------------------------*/
 
 // mm
@@ -405,7 +407,16 @@ unsigned char SerialULARead()
 	}
 
 	// See https://codeberg.org/chrisn/beebem-windows/issues/47
-	return SerialULA.Control;
+
+	if (FixSerialULARead)
+	{
+		SerialULAWrite(0xFE);
+		return 0;
+	}
+	else
+	{
+		return SerialULA.Control;
+	}
 }
 
 /*--------------------------------------------------------------------------*/

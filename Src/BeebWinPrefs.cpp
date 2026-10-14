@@ -1362,6 +1362,8 @@ void BeebWin::LoadSerialPortPreferences(int Version)
 	{
 		m_Preferences.GetBoolValue(CFG_IP232_RAW_OLD, IP232Raw, false);
 	}
+
+	m_Preferences.GetBoolValue(CFG_FIX_SERIAL_ULA_READ, FixSerialULARead, false);
 }
 
 /****************************************************************************/
