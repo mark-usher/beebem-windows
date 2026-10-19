@@ -40,16 +40,16 @@ interrupt and square wave generator and 50 bytes CMOS RAM
                                 Memory Map
                                                                   DM=0    =1
 +----+----+---------------------------------------------------+---------------+
-| 00 | 00 | Seconds                                           | Binary or BCD |
-| 01 | 01 | Seconds Alarm                                     | Binary or BCD |
-| 02 | 02 | Minutes                                           | Binary or BCD |
-| 03 | 03 | Minutes Alarm                                     | Binary or BCD |
-| 04 | 04 | Hours                                             | Binary or BCD |
-| 05 | 05 | Hours Alarm                                       | Binary or BCD |
-| 06 | 06 | Day of Week                                       | Binary or BCD |
-| 07 | 07 | Date of Month                                     | Binary or BCD |
-| 08 | 08 | Month                                             | Binary or BCD |
-| 09 | 09 | Year                                              | Binary or BCD |
+| 00 | 00 | Seconds (0 to 59)                                 | Binary or BCD |
+| 01 | 01 | Alarm Seconds (0 to 59)                           | Binary or BCD |
+| 02 | 02 | Minutes (0 to 59)                                 | Binary or BCD |
+| 03 | 03 | Alarm Minutes (0 to 59)                           | Binary or BCD |
+| 04 | 04 | Hours (0 to 23)                                   | Binary or BCD |
+| 05 | 05 | Alarm Hours (0 to 23)                             | Binary or BCD |
+| 06 | 06 | Day of week (1 = Sun, 7 = Sat)                    | Binary or BCD |
+| 07 | 07 | Day of month (1 to 31)                            | Binary or BCD |
+| 08 | 08 | Month (1 = Jan, 12 = Dec)                         | Binary or BCD |
+| 09 | 09 | Year (last 2 digits)                              | Binary or BCD |
 +----+----+---------------------------------------------------+---------------+
 | 10 | 0A | Register A    |  UIP | DV2 | DV1 | DV0 |  RS3 | RS2 |  RS1  | RS0 |
 | 11 | 0B | Register B    |  SET | PIE | AIE | UIE | SQWE |  DM | 24/12 | DSE |
@@ -227,7 +227,7 @@ unsigned char CMOSRAM_M128[64]; // 10 Bytes Clock, 4 bytes Control Registers, 50
 unsigned char CMOSRAM_E01[64];  // 10 Bytes Clock, 4 bytes Control Registers, 50 Bytes User RAM for FileStore E01
 unsigned char CMOSRAM_E01S[64]; // 10 Bytes Clock, 4 bytes Control Registers, 50 Bytes User RAM for FileStore E01S
 
-// Backup of Master 128 CMOS Defaults from byte 14
+// Backup of Master 128 CMOS Defaults from byte 14 (RAM bytes only)
 extern unsigned char CMOSDefault[50] = { 0,0xFE,0,0xFE,0,0xc9,0xff,0xfe,0x32,0,7,0xc1,0x1e,5,0,0x59,0xa2,0,0,0 }; 
 
 // Backup of FileStore CMOS Defaults from byte 14
@@ -448,7 +448,7 @@ void CMOSWrite(unsigned char CMOSAddr, unsigned char CMOSData) {
 			break;
 		case RegisterD: // do nothing, read only
 			break;
-		default:   // otherwise CMOS data
+		default:   // otherwise User RAM
 			if (CMOSAddr < 64) {
 				pCMOS[CMOSAddr] = CMOSData;
 			}
@@ -459,7 +459,7 @@ void CMOSWrite(unsigned char CMOSAddr, unsigned char CMOSData) {
 /*-------------------------------------------------------------------------*/
 unsigned char CMOSRead(unsigned char CMOSAddr)
 {
-	unsigned char tmp = 0x00;
+	unsigned char Value = 0x00;
 
 	// 0xc Register is a special case when reading as it clears after a read
 	// only appears to be used by Filestore
@@ -473,7 +473,7 @@ unsigned char CMOSRead(unsigned char CMOSAddr)
 			if (DebugEnabled)
 				DebugDisplayTrace(DebugType::RTC, true, "RTC: IRQF cleared. RegC Read");
 
-			tmp = 0x90; // return value before it was cleared
+			Value = 0x90; // return value before it was cleared
 		}
 		// else return 0x00 which is already set at initialisation
 
@@ -484,7 +484,7 @@ unsigned char CMOSRead(unsigned char CMOSAddr)
 		if (CMOSAddr < RegisterA)
 			RTCUpdateClock();  // update the clock before returning the value
 
-		tmp = (pCMOS[CMOSAddr]);
+		Value = (pCMOS[CMOSAddr]);
 	}
 
 	if (DebugEnabled) {
@@ -493,7 +493,7 @@ unsigned char CMOSRead(unsigned char CMOSAddr)
 		DebugDisplayTrace(DebugType::RTC, true, info);
 	}
 
-	return tmp;
+	return Value;
 }
 
 /*-------------------------------------------------------------------------
