@@ -213,9 +213,9 @@ static const COLORREF FS_CASE_HIGHLIGHT = RGB(238, 232, 214);
 static const COLORREF FS_CASE_SHADOW    = RGB(170, 160, 138);
 static const COLORREF FS_PLINTH         = RGB(212, 202, 176); // Recessed base
 static const COLORREF FS_PLINTH_SHADOW  = RGB(150, 141, 120);
-static const COLORREF FS_STRIPE         = RGB(244, 240, 230); // Stripes printed on the flap
-static const COLORREF FS_FLAP_TINT      = RGB(225, 140, 30);  // See-through amber flap
-static const COLORREF FS_FLAP_EDGE      = RGB(170, 90, 10);
+static const COLORREF FS_STRIPE         = RGB(236, 232, 214); // Stripes printed on the flap
+static const COLORREF FS_FLAP_TINT      = RGB(200, 95, 25);   // See-through amber flap
+static const COLORREF FS_FLAP_EDGE      = RGB(110, 40, 15);
 static const COLORREF FS_LABEL          = RGB(18, 18, 18);
 static const COLORREF FS_LABEL_TEXT     = RGB(235, 235, 235);
 static const COLORREF FS_FASCIA_E01     = RGB(88, 96, 92);    // Behind the flap
@@ -239,7 +239,7 @@ static const COLORREF FS_FLOPPY_LED_OFF = RGB(30, 60, 36);
 
 // Opacity (out of 256) of the flap tint, the flap edge, and the glow of a
 // lit LED seen through the flap
-constexpr int FS_FLAP_TINT_ALPHA = 140;
+constexpr int FS_FLAP_TINT_ALPHA = 170;
 constexpr int FS_FLAP_EDGE_ALPHA = 200;
 constexpr int FS_LED_GLOW_ALPHA  = 150;
 
@@ -314,13 +314,61 @@ static void DrawLED(HDC hDC, int x, int y, int Size, bool On, COLORREF OnColour,
 
 /****************************************************************************/
 
+// The model labels use a high contrast bold serif. Bodoni MT (installed
+// with Microsoft Office) is closest; otherwise Times New Roman.
+
+static int CALLBACK FontFoundCallback(const LOGFONT* /* pLogFont */,
+                                     const TEXTMETRIC* /* pTextMetric */,
+                                     DWORD /* FontType */,
+                                     LPARAM lParam)
+{
+	*reinterpret_cast<bool*>(lParam) = true;
+	return 0; // Stop enumerating
+}
+
+static bool IsFontInstalled(const char* FaceName)
+{
+	HDC hDC = GetDC(nullptr);
+
+	LOGFONT lf = {};
+	lf.lfCharSet = DEFAULT_CHARSET;
+	strcpy(lf.lfFaceName, FaceName);
+
+	bool Found = false;
+
+	EnumFontFamiliesEx(hDC, &lf, FontFoundCallback, reinterpret_cast<LPARAM>(&Found), 0);
+
+	ReleaseDC(nullptr, hDC);
+
+	return Found;
+}
+
 static HFONT CreatePanelFont(int Height, bool Serif, bool Bold)
 {
+	static const bool Bodoni = IsFontInstalled("Bodoni MT");
+
+	const char* FaceName = !Serif ? "Arial" :
+	                       Bold && Bodoni ? "Bodoni MT" : "Times New Roman";
+
 	return CreateFont(Height, 0, 0, 0, Bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
 	                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
 	                  ANTIALIASED_QUALITY,
 	                  VARIABLE_PITCH | (Serif ? FF_ROMAN : FF_SWISS),
-	                  Serif ? "Times New Roman" : "Arial");
+	                  FaceName);
+}
+
+static int GetTextWidth(HDC hDC, const char* Text, int Height, bool Serif, bool Bold)
+{
+	HFONT hFont = CreatePanelFont(Height, Serif, Bold);
+	HGDIOBJ hPrevFont = SelectObject(hDC, hFont);
+
+	SIZE Size;
+	GetTextExtentPoint32(hDC, Text, (int)strlen(Text), &Size);
+
+	SelectObject(hDC, hPrevFont);
+	DeleteObject(hFont);
+
+	return Size.cx;
 }
 
 /****************************************************************************/
@@ -349,16 +397,7 @@ static int GetFittedTextHeight(HDC hDC, const char* Text, int Width, int MaxHeig
 
 	for (; Height > 6; Height--)
 	{
-		HFONT hFont = CreatePanelFont(Height, Serif, Bold);
-		HGDIOBJ hPrevFont = SelectObject(hDC, hFont);
-
-		SIZE Size;
-		GetTextExtentPoint32(hDC, Text, (int)strlen(Text), &Size);
-
-		SelectObject(hDC, hPrevFont);
-		DeleteObject(hFont);
-
-		if (Size.cx <= Width)
+		if (GetTextWidth(hDC, Text, Height, Serif, Bold) <= Width)
 		{
 			break;
 		}
@@ -386,15 +425,21 @@ constexpr double FS_FLAP_RIGHT  = 0.988;
 constexpr double FS_FLAP_TOP    = 0.10;
 constexpr double FS_FLAP_BOTTOM = 0.60;
 
-// Labels on the flap
-constexpr double FS_LABEL_TOP    = 0.27;
-constexpr double FS_LABEL_BOTTOM = 0.45;
+// The flap has about 60 stripes. The black model label and Acorn badge each
+// cover 10 stripes, one stripe in from the ends, in a band across the
+// middle of the flap that the stripes are cut short around.
+constexpr int    FS_STRIPES            = 60;
+constexpr int    FS_LABEL_STRIPES      = 10;
+constexpr double FS_LABEL_BAND_TOP     = 0.36; // Fraction of the flap height
+constexpr double FS_LABEL_BAND_BOTTOM  = 0.64;
+constexpr double FS_STRIPE_MARGIN      = 0.06; // Above and below the stripes
 
 // The two LEDs (MODE/POWER on the FileStore, DRIVE/POWER on a hard drive
-// unit) are in the same place on every unit
+// unit) are in the same place on every unit, centred on the flap, just
+// left of the Acorn badge
 constexpr double FS_LED_RED_X   = 0.745;
-constexpr double FS_LED_GREEN_X = 0.79;
-constexpr double FS_LED_Y       = 0.27;
+constexpr double FS_LED_GREEN_X = 0.785;
+constexpr double FS_LED_Y       = 0.35; // Centre
 
 /****************************************************************************/
 
@@ -410,15 +455,21 @@ static void DrawUnitLEDs(HDC hDC, const FileStoreUnitLayout& Unit, const char* R
 	const int Size   = GetLEDSize(Unit);
 	const int RedX   = Unit.X(FS_LED_RED_X);
 	const int GreenX = Unit.X(FS_LED_GREEN_X);
-	const int y      = Unit.Y(FS_LED_Y);
+	const int y      = Unit.Y(FS_LED_Y) - Size / 2;
 
 	DrawLED(hDC, RedX, y, Size, RedOn, FS_RED_ON, FS_RED_OFF);
 	DrawLED(hDC, GreenX, y, Size, true, FS_GREEN_ON, FS_GREEN_OFF); // Power
 
-	const int TextHeight = (int)(Unit.Height * 0.07);
+	// Labels centred under the LEDs
+	const int TextHeight = std::max(6, (int)(Unit.Height * 0.055));
 
-	DrawPanelText(hDC, RedLabel, RedX - Size * 6 / 10, y + Size + 2, TextHeight, false, false, FS_FASCIA_TEXT);
-	DrawPanelText(hDC, "POWER", GreenX - Size * 6 / 10, y + Size + 2, TextHeight, false, false, FS_FASCIA_TEXT);
+	DrawPanelText(hDC, RedLabel,
+	              RedX + Size / 2 - GetTextWidth(hDC, RedLabel, TextHeight, false, false) / 2,
+	              y + Size + 2, TextHeight, false, false, FS_FASCIA_TEXT);
+
+	DrawPanelText(hDC, "POWER",
+	              GreenX + Size / 2 - GetTextWidth(hDC, "POWER", TextHeight, false, false) / 2,
+	              y + Size + 2, TextHeight, false, false, FS_FASCIA_TEXT);
 }
 
 /****************************************************************************/
@@ -462,7 +513,8 @@ static void DrawFloppyDrive(HDC hDC, const FileStoreUnitLayout& Unit, double Lef
 
 /****************************************************************************/
 
-// The Acorn logo: an acorn with its cap and stalk
+// The Acorn logo: an acorn with a domed cap and stalk, and below a small
+// gap, the nut
 
 static void DrawAcornLogo(HDC hDC, int cx, int cy, int Height)
 {
@@ -470,27 +522,27 @@ static void DrawAcornLogo(HDC hDC, int cx, int cy, int Height)
 	const double w = h * 0.62;
 
 	HBRUSH hBrush = CreateSolidBrush(FS_LABEL_TEXT);
-	HBRUSH hBackground = CreateSolidBrush(FS_LABEL);
 	HGDIOBJ hPrevBrush = SelectObject(hDC, hBrush);
 	HGDIOBJ hPrevPen = SelectObject(hDC, GetStockObject(NULL_PEN));
 
-	// Nut
-	Ellipse(hDC, cx - (int)(w * 0.42), cy - (int)(h * 0.18), cx + (int)(w * 0.42), cy + (int)(h * 0.50));
+	// Cap: the top half of an ellipse
+	const int CapLeft   = cx - (int)(w * 0.50);
+	const int CapRight  = cx + (int)(w * 0.50);
+	const int CapTop    = cy - (int)(h * 0.40);
+	const int CapBottom = cy + (int)(h * 0.16);
+	const int CapMiddle = (CapTop + CapBottom) / 2;
 
-	// Cap
-	Ellipse(hDC, cx - (int)(w * 0.50), cy - (int)(h * 0.42), cx + (int)(w * 0.50), cy + (int)(h * 0.02));
-
-	// Line between the cap and the nut
-	RECT Line = { cx - (int)(w * 0.50), cy - (int)(h * 0.08), cx + (int)(w * 0.50), cy - (int)(h * 0.02) };
-	FillRect(hDC, &Line, hBackground);
+	Chord(hDC, CapLeft, CapTop, CapRight, CapBottom, CapRight, CapMiddle, CapLeft, CapMiddle);
 
 	// Stalk
-	RECT Stalk = { cx - (int)(w * 0.06), cy - (int)(h * 0.55), cx + (int)(w * 0.06), cy - (int)(h * 0.38) };
+	RECT Stalk = { cx - std::max(1, (int)(w * 0.05)), cy - (int)(h * 0.52), cx + std::max(1, (int)(w * 0.05)), cy - (int)(h * 0.36) };
 	FillRect(hDC, &Stalk, hBrush);
+
+	// Nut
+	Ellipse(hDC, cx - (int)(w * 0.36), cy - (int)(h * 0.04), cx + (int)(w * 0.36), cy + (int)(h * 0.50));
 
 	SelectObject(hDC, hPrevPen);
 	SelectObject(hDC, hPrevBrush);
-	DeleteObject(hBackground);
 	DeleteObject(hBrush);
 }
 
@@ -535,33 +587,58 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 
 	DrawUnitLEDs(hDC, Unit, RedLabel, RedOn);
 
-	FillSolidRect(hDC, Unit.X(0.90), Unit.Y(0.22), Unit.X(0.94), Unit.Y(0.46), FS_SWITCH);
-	FillSolidRect(hDC, Unit.X(0.91), Unit.Y(0.26), Unit.X(0.93), Unit.Y(0.40), FS_SWITCH_ROCKER);
-
 	if (FlapOpen)
 	{
+		// Power switch
+		FillSolidRect(hDC, Unit.X(0.90), Unit.Y(0.22), Unit.X(0.94), Unit.Y(0.46), FS_SWITCH);
+		FillSolidRect(hDC, Unit.X(0.91), Unit.Y(0.26), Unit.X(0.93), Unit.Y(0.40), FS_SWITCH_ROCKER);
 		return;
 	}
 
 	// The flap is see-through amber plastic...
 	BlendRect(Canvas, FlapLeft, FlapTop, FlapRight, FlapBottom, FS_FLAP_TINT, FS_FLAP_TINT_ALPHA);
 
-	// ...with evenly spaced stripes printed on it, all the same width...
-	const int FlapWidth = FlapRight - FlapLeft;
-	const int Pitch = std::max(4, FlapWidth / 72);
-	const int StripeWidth = std::max(2, Pitch * 45 / 100);
-	const int Stripes = FlapWidth / Pitch;
-	const int FirstStripe = FlapLeft + (FlapWidth - Stripes * Pitch + (Pitch - StripeWidth)) / 2;
+	// ...with evenly spaced stripes printed on it, all the same whole number
+	// of pixels wide. The stripes are cut short around the label band where
+	// the model label and Acorn badge are.
+	const int FlapWidth   = FlapRight - FlapLeft;
+	const int FlapHeight  = FlapBottom - FlapTop;
+	const int Pitch       = std::max(4, FlapWidth / FS_STRIPES);
+	const int Stripes     = FlapWidth / Pitch;
+	const int StripeWidth = Pitch / 2;
+	const int FirstStripe = FlapLeft + (FlapWidth - Stripes * Pitch) / 2;
+
+	const int StripeTop    = FlapTop + std::max(1, (int)(FlapHeight * FS_STRIPE_MARGIN));
+	const int StripeBottom = FlapBottom - std::max(1, (int)(FlapHeight * FS_STRIPE_MARGIN));
+	const int BandTop      = FlapTop + (int)(FlapHeight * FS_LABEL_BAND_TOP);
+	const int BandBottom   = FlapTop + (int)(FlapHeight * FS_LABEL_BAND_BOTTOM);
+	const int BandGap      = std::max(1, Pitch / 2);
+
+	// Label positions, in stripes
+	const int ModelLabelFirst = 1;
+	const int ModelLabelLast  = ModelLabelFirst + FS_LABEL_STRIPES;
+	const int AcornLabelLast  = Stripes - 1;
+	const int AcornLabelFirst = AcornLabelLast - FS_LABEL_STRIPES;
 
 	for (int i = 0; i < Stripes; i++)
 	{
-		const int x = FirstStripe + i * Pitch;
-		FillSolidRect(hDC, x, FlapTop, x + StripeWidth, FlapBottom, FS_STRIPE);
+		const int x = FirstStripe + i * Pitch + (Pitch - StripeWidth) / 2;
+
+		if ((i >= ModelLabelFirst && i < ModelLabelLast) ||
+		    (i >= AcornLabelFirst && i < AcornLabelLast))
+		{
+			FillSolidRect(hDC, x, StripeTop, x + StripeWidth, BandTop - BandGap, FS_STRIPE);
+			FillSolidRect(hDC, x, BandBottom + BandGap, x + StripeWidth, StripeBottom, FS_STRIPE);
+		}
+		else
+		{
+			FillSolidRect(hDC, x, StripeTop, x + StripeWidth, StripeBottom, FS_STRIPE);
+		}
 	}
 
 	// ...and the lit LEDs glow through it
 	const int LEDSize = GetLEDSize(Unit);
-	const int LEDy = Unit.Y(FS_LED_Y);
+	const int LEDy = Unit.Y(FS_LED_Y) - LEDSize / 2;
 
 	if (RedOn)
 	{
@@ -574,33 +651,48 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 	BlendRect(Canvas, GreenX - LEDSize / 2, LEDy - LEDSize / 2, GreenX + LEDSize + LEDSize / 2, LEDy + LEDSize + LEDSize / 2,
 	          FS_GREEN_ON, FS_LED_GLOW_ALPHA);
 
-	// Darker moulded edges along the top and bottom of the flap
-	const int EdgeHeight = std::max(2, (int)(Unit.Height * 0.025));
+	// Darker moulded edges around the flap
+	const int Edge = std::max(2, (int)(Unit.Height * 0.02));
 
-	BlendRect(Canvas, FlapLeft, FlapTop, FlapRight, FlapTop + EdgeHeight, FS_FLAP_EDGE, FS_FLAP_EDGE_ALPHA);
-	BlendRect(Canvas, FlapLeft, FlapBottom - EdgeHeight, FlapRight, FlapBottom, FS_FLAP_EDGE, FS_FLAP_EDGE_ALPHA);
+	BlendRect(Canvas, FlapLeft, FlapTop, FlapRight, FlapTop + Edge, FS_FLAP_EDGE, FS_FLAP_EDGE_ALPHA);
+	BlendRect(Canvas, FlapLeft, FlapBottom - Edge, FlapRight, FlapBottom, FS_FLAP_EDGE, FS_FLAP_EDGE_ALPHA);
+	BlendRect(Canvas, FlapLeft, FlapTop, FlapLeft + Edge, FlapBottom, FS_FLAP_EDGE, FS_FLAP_EDGE_ALPHA);
+	BlendRect(Canvas, FlapRight - Edge, FlapTop, FlapRight, FlapBottom, FS_FLAP_EDGE, FS_FLAP_EDGE_ALPHA);
 
-	// Model label on the left, Acorn badge on the right
-	const int LabelTop    = Unit.Y(FS_LABEL_TOP);
-	const int LabelBottom = Unit.Y(FS_LABEL_BOTTOM);
-	const int LabelHeight = LabelBottom - LabelTop;
+	// Model label
+	const int BandHeight = BandBottom - BandTop;
 
 	char Label[40];
 	sprintf(Label, "FILESTORE %s", Name);
 
-	FillSolidRect(hDC, Unit.X(0.025), LabelTop, Unit.X(0.235), LabelBottom, FS_LABEL);
-	DrawPanelText(hDC, Label, Unit.X(0.035), LabelTop + (LabelHeight - LabelTextHeight) / 2 - 1,
+	const int ModelLeft  = FirstStripe + ModelLabelFirst * Pitch;
+	const int ModelRight = FirstStripe + ModelLabelLast * Pitch;
+	const int LabelWidth = GetTextWidth(hDC, Label, LabelTextHeight, true, true);
+
+	FillSolidRect(hDC, ModelLeft, BandTop, ModelRight, BandBottom, FS_LABEL);
+	DrawPanelText(hDC, Label,
+	              ModelLeft + (ModelRight - ModelLeft - LabelWidth) / 2,
+	              BandTop + (BandHeight - LabelTextHeight) / 2 - 1,
 	              LabelTextHeight, true, true, FS_LABEL_TEXT);
 
-	FillSolidRect(hDC, Unit.X(0.81), LabelTop, Unit.X(0.975), LabelBottom, FS_LABEL);
+	// Acorn badge: "Acorn" and the logo, centred on the badge
+	const int AcornLeft  = FirstStripe + AcornLabelFirst * Pitch;
+	const int AcornRight = FirstStripe + AcornLabelLast * Pitch;
 
-	const int AcornTextHeight = GetFittedTextHeight(hDC, "Acorn", Unit.X(0.935) - Unit.X(0.855),
-	                                                LabelHeight * 7 / 10, true, false);
+	FillSolidRect(hDC, AcornLeft, BandTop, AcornRight, BandBottom, FS_LABEL);
 
-	DrawPanelText(hDC, "Acorn", Unit.X(0.855), LabelTop + (LabelHeight - AcornTextHeight) / 2 - 1,
+	const int AcornTextHeight = GetFittedTextHeight(hDC, "Acorn", (AcornRight - AcornLeft) * 62 / 100,
+	                                                BandHeight * 7 / 10, true, false);
+	const int AcornTextWidth = GetTextWidth(hDC, "Acorn", AcornTextHeight, true, false);
+	const int LogoWidth = BandHeight / 2;
+	const int LogoGap = std::max(2, LogoWidth / 3);
+	const int AcornTextX = AcornLeft + (AcornRight - AcornLeft - AcornTextWidth - LogoGap - LogoWidth) / 2;
+
+	DrawPanelText(hDC, "Acorn", AcornTextX, BandTop + (BandHeight - AcornTextHeight) / 2 - 1,
 	              AcornTextHeight, true, false, FS_LABEL_TEXT);
 
-	DrawAcornLogo(hDC, Unit.X(0.952), Unit.Y(0.36), LabelHeight * 62 / 100);
+	DrawAcornLogo(hDC, AcornTextX + AcornTextWidth + LogoGap + LogoWidth / 2,
+	              (BandTop + BandBottom) / 2, BandHeight * 7 / 10);
 }
 
 /****************************************************************************/
@@ -689,10 +781,14 @@ void BeebWin::PaintFileStore(HDC hDC)
 
 	// The same label text size on every unit: the largest that fits the
 	// longest label
+	const int FlapWidth = Unit.X(FS_FLAP_RIGHT) - Unit.X(FS_FLAP_LEFT);
+	const int FlapHeight = Unit.Y(FS_FLAP_BOTTOM) - Unit.Y(FS_FLAP_TOP);
+	const int Pitch = std::max(4, FlapWidth / FS_STRIPES);
+
 	const int LabelTextHeight = GetFittedTextHeight(
 		Canvas.hDC, "FILESTORE E01S",
-		Unit.X(0.225) - Unit.X(0.035),
-		(Unit.Y(FS_LABEL_BOTTOM) - Unit.Y(FS_LABEL_TOP)) * 7 / 10,
+		FS_LABEL_STRIPES * Pitch * 88 / 100,
+		(int)(FlapHeight * (FS_LABEL_BAND_BOTTOM - FS_LABEL_BAND_TOP) * 0.75),
 		true, true);
 
 	// FileStore E01 or E01S
