@@ -21,6 +21,7 @@ Boston, MA  02110-1301, USA.
 // BeebWin preferences support
 
 #include <algorithm>
+#include <ctype.h>
 #include <stdio.h>
 
 #include "BeebWin.h"
@@ -136,9 +137,36 @@ static const char* const FileStoreDriveTypeStr[] =
 	"E20",
 	"E40S",
 	"E60S",
-	"Custom",
 	nullptr
 };
+
+/****************************************************************************/
+
+// A custom FileStore hard drive unit label: up to 4 of the characters in
+// the front panel lettering, after removing leading and trailing spaces.
+// Returns false if Value isn't a valid label.
+
+static bool GetFileStoreDriveLabel(const std::string& Value, std::string& Label)
+{
+	const size_t First = Value.find_first_not_of(' ');
+
+	if (First == std::string::npos)
+	{
+		return false;
+	}
+
+	const size_t Last = Value.find_last_not_of(' ');
+
+	Label = Value.substr(First, Last - First + 1);
+
+	for (char& c : Label)
+	{
+		c = (char)toupper((unsigned char)c);
+	}
+
+	return Label.size() <= FILESTORE_DRIVE_LABEL_LENGTH &&
+	       Label.find_first_not_of(FILESTORE_DRIVE_LABEL_CHARS) == std::string::npos;
+}
 
 static const char* const JoystickOptionStr[] =
 {
@@ -1628,18 +1656,32 @@ void BeebWin::LoadDiskPreferences()
 	m_Preferences.GetBoolValue(CFG_SCSI_DRIVE_ENABLED, SCSIDriveEnabled, false);
 	m_Preferences.GetBoolValue(CFG_IDE_DRIVE_ENABLED, IDEDriveEnabled, false);
 
-	// FileStore hard drive units
+	// FileStore hard drive units: None, Auto, E20, E40S, E60S, or a custom
+	// label of up to 4 characters
 	for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
 	{
 		char Key[50];
-		std::string Value;
-
 		sprintf(Key, CFG_FILESTORE_DRIVE, Drive);
-		m_Preferences.GetStringValue(Key, Value, FileStoreDriveTypeStr[(int)FileStoreDriveType::Auto]);
-		FileStoreDrive[Drive] = static_cast<FileStoreDriveType>(FindEnum(Value, FileStoreDriveTypeStr, (int)FileStoreDriveType::Auto));
 
-		sprintf(Key, CFG_FILESTORE_DRIVE_LABEL, Drive);
-		m_Preferences.GetStringValue(Key, m_FileStoreDriveLabel[Drive], "");
+		std::string Value;
+		m_Preferences.GetStringValue(Key, Value, FileStoreDriveTypeStr[(int)FileStoreDriveType::Auto]);
+
+		const int Type = FindEnum(Value, FileStoreDriveTypeStr, -1);
+
+		m_FileStoreDriveLabel[Drive].clear();
+
+		if (Type >= 0)
+		{
+			FileStoreDrive[Drive] = static_cast<FileStoreDriveType>(Type);
+		}
+		else if (GetFileStoreDriveLabel(Value, m_FileStoreDriveLabel[Drive]))
+		{
+			FileStoreDrive[Drive] = FileStoreDriveType::Custom;
+		}
+		else
+		{
+			FileStoreDrive[Drive] = FileStoreDriveType::Auto;
+		}
 	}
 }
 
@@ -2040,19 +2082,15 @@ void BeebWin::SavePreferences(bool saveAll)
 		for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
 		{
 			char Key[50];
-
 			sprintf(Key, CFG_FILESTORE_DRIVE, Drive);
-			m_Preferences.SetStringValue(Key, FileStoreDriveTypeStr[(int)FileStoreDrive[Drive]]);
 
-			sprintf(Key, CFG_FILESTORE_DRIVE_LABEL, Drive);
-
-			if (m_FileStoreDriveLabel[Drive].empty())
+			if (FileStoreDrive[Drive] == FileStoreDriveType::Custom)
 			{
-				m_Preferences.EraseValue(Key);
+				m_Preferences.SetStringValue(Key, m_FileStoreDriveLabel[Drive]);
 			}
 			else
 			{
-				m_Preferences.SetStringValue(Key, m_FileStoreDriveLabel[Drive]);
+				m_Preferences.SetStringValue(Key, FileStoreDriveTypeStr[(int)FileStoreDrive[Drive]]);
 			}
 		}
 

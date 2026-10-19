@@ -181,8 +181,7 @@ const char* const CFG_WRITE_PROTECT_ON_LOAD        = "WriteProtectOnLoad";
 const char* const CFG_FLOPPY_DRIVE_ENABLED         = "FloppyDriveEnabled";
 const char* const CFG_SCSI_DRIVE_ENABLED           = "SCSIDriveEnabled";
 const char* const CFG_IDE_DRIVE_ENABLED            = "IDEDriveEnabled";
-const char* const CFG_FILESTORE_DRIVE              = "FileStoreDrive%d";      // %d = 0 to 3
-const char* const CFG_FILESTORE_DRIVE_LABEL        = "FileStoreDrive%dLabel";
+const char* const CFG_FILESTORE_DRIVE              = "FileStoreDrive%d"; // %d = 0 to 3
 
 // User port RTC
 const char* const CFG_USER_PORT_RTC_ENABLED        = "UserPortRTCEnabled";

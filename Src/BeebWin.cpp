@@ -1483,6 +1483,97 @@ void BeebWin::EnableMenuItem(UINT id, bool Enabled)
 	::EnableMenuItem(m_hMenu, id, Enabled ? MF_ENABLED : MF_GRAYED);
 }
 
+// Returns the menu or sub-menu that directly contains the menu item id
+
+static HMENU FindMenuContaining(HMENU hMenu, UINT id)
+{
+	const int Count = GetMenuItemCount(hMenu);
+
+	for (int i = 0; i < Count; i++)
+	{
+		if (GetMenuItemID(hMenu, i) == id)
+		{
+			return hMenu;
+		}
+
+		HMENU hSubMenu = GetSubMenu(hMenu, i);
+
+		if (hSubMenu != nullptr)
+		{
+			HMENU hFound = FindMenuContaining(hSubMenu, id);
+
+			if (hFound != nullptr)
+			{
+				return hFound;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+// Finds the menu that hSubMenu belongs to, and its position in that menu
+
+static bool FindSubMenuPosition(HMENU hMenu, HMENU hSubMenu, HMENU* phParentMenu, int* pPosition)
+{
+	const int Count = GetMenuItemCount(hMenu);
+
+	for (int i = 0; i < Count; i++)
+	{
+		HMENU hChildMenu = GetSubMenu(hMenu, i);
+
+		if (hChildMenu == nullptr)
+		{
+			continue;
+		}
+
+		if (hChildMenu == hSubMenu)
+		{
+			*phParentMenu = hMenu;
+			*pPosition = i;
+			return true;
+		}
+
+		if (FindSubMenuPosition(hChildMenu, hSubMenu, phParentMenu, pPosition))
+		{
+			return true;
+		}
+	}
+
+	return false;
+}
+
+// Enables or disables (greys out) the sub-menu that contains the menu item
+// id, or with Levels = 2, the sub-menu that contains that one. Sub-menus
+// have no command ID, so they can only be disabled by their position in
+// the menu above them.
+
+void BeebWin::EnableSubMenu(UINT id, bool Enabled, int Levels)
+{
+	HMENU hSubMenu = FindMenuContaining(m_hMenu, id);
+	HMENU hParentMenu = nullptr;
+	int Position = 0;
+
+	for (int Level = 0; Level < Levels; Level++)
+	{
+		if (hSubMenu == nullptr ||
+		    !FindSubMenuPosition(m_hMenu, hSubMenu, &hParentMenu, &Position))
+		{
+			return;
+		}
+
+		hSubMenu = hParentMenu;
+	}
+
+	::EnableMenuItem(hParentMenu, Position, MF_BYPOSITION | (Enabled ? MF_ENABLED : MF_GRAYED));
+
+	// Menus on the menu bar need the menu bar to be redrawn
+	if (hParentMenu == m_hMenu)
+	{
+		DrawMenuBar(m_hWnd);
+	}
+}
+
 /****************************************************************************/
 
 void BeebWin::InitMenu(void)
@@ -1495,7 +1586,6 @@ void BeebWin::InitMenu(void)
 	CheckMenuItem(IDM_WRITE_PROTECT_DISC1, m_WriteProtectDisc[1]);
 	CheckMenuItem(IDM_WRITE_PROTECT_ON_LOAD, m_WriteProtectOnLoad);
 	CheckMenuItem(IDM_FILESTORE_DOOR_OPEN, FileStoreDoorOpen);
-	CheckMenuItem(IDM_FILESTORE_COMMAND_MODE, FileStoreCommandMode);
 
 	// File -> Capture Options
 	UpdateBitmapCaptureFormatMenu();
@@ -1970,7 +2060,6 @@ void BeebWin::UpdateModelMenu()
 	UpdateFileStoreDriveMenu();
 	EnableMenuItem(IDM_FILESTORE_DOOR_OPEN, IsFS && m_FileStoreShutdownAction == FileStoreShutdownAction::None);
 	EnableMenuItem(IDM_ECONET, !IsFS);
-	EnableMenuItem(IDM_FILESTORE_COMMAND_MODE, MachineType == Model::FileStoreE01);
 
 	// Saved state files don't include the FileStore hardware
 	EnableMenuItem(IDM_LOADSTATE, !IsFS);
@@ -2001,6 +2090,17 @@ void BeebWin::UpdateModelMenu()
 	EnableMenuItem(IDM_TUBE_TORCHZ80, !IsFS);
 	EnableMenuItem(IDM_TUBE_ACORNARM, !IsFS);
 	EnableMenuItem(IDM_TUBE_SPROWARM, !IsFS);
+
+	// Grey out the sub-menus whose items are all disabled
+	EnableSubMenu(IDM_CAPTURERES_DISPLAY, !IsFS);              // File -> Screen Capture Options
+	EnableSubMenu(IDM_VIDEORES1, !IsFS);                       // File -> Video Options
+	EnableSubMenu(IDM_DISC_IMPORT_0, !IsMasterET && !IsFS);    // Edit -> Import Files to Disc
+	EnableSubMenu(IDM_DISC_EXPORT_0, !IsMasterET && !IsFS);    // Edit -> Export Files from Disc
+	EnableSubMenu(IDM_TAPE_FAST, !IsMasterET && !IsFS);        // Comms -> Tape Speed
+	EnableSubMenu(IDM_AMXONOFF, !IsMasterET && !IsFS);         // AMX
+	EnableSubMenu(IDM_8271, IsModelB);                         // Hardware -> Model B Floppy Controller
+	EnableSubMenu(IDM_TUBE_NONE, !IsFS);                       // Hardware -> Second Processor
+	EnableSubMenu(IDM_FILESTORE_DRIVE0_NONE, IsFS, 2);         // Hardware -> FileStore Hard Drive Units
 }
 
 void BeebWin::UpdateSFXMenu()
@@ -4912,11 +5012,6 @@ void BeebWin::HandleCommand(UINT MenuID)
 
 	case IDM_FILESTORE_DOOR_OPEN:
 		SetFileStoreDoorOpen(!FileStoreDoorOpen);
-		break;
-
-	case IDM_FILESTORE_COMMAND_MODE:
-		FileStoreCommandMode = !FileStoreCommandMode;
-		CheckMenuItem(IDM_FILESTORE_COMMAND_MODE, FileStoreCommandMode);
 		break;
 
 	case IDM_REWINDTAPE:

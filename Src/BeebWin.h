@@ -475,6 +475,7 @@ public:
 	void CheckMenuItem(UINT id, bool Checked);
 	void CheckMenuRadioItem(UINT FirstID, UINT LastID, UINT SelectedID);
 	void EnableMenuItem(UINT id, bool Enabled);
+	void EnableSubMenu(UINT id, bool Enabled, int Levels = 1);
 
 	// DirectX - calls DDraw or DX9 fn
 	void InitDX();

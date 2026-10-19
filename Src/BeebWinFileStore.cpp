@@ -42,7 +42,6 @@ using std::max;
 #include "DiscInfo.h"
 #include "FileUtils.h"
 #include "FileStore.h"
-#include "FileStoreDriveLabelDialog.h"
 #include "FileStorePanelArt.h"
 #include "Main.h"
 #include "Messages.h"
@@ -182,18 +181,15 @@ void BeebWin::UpdateFileStoreDriveMenu()
 {
 	for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
 	{
+		// A custom label can only be set in the preferences file
 		const UINT CustomID = GetFileStoreDriveMenuID(Drive, FileStoreDriveType::Custom);
+		const bool HasLabel = !m_FileStoreDriveLabel[Drive].empty();
 
-		std::string Text = "Custom Label";
-
-		if (!m_FileStoreDriveLabel[Drive].empty())
-		{
-			Text += " (" + m_FileStoreDriveLabel[Drive] + ")";
-		}
-
-		Text += "...";
+		const std::string Text = HasLabel ? "Custom: " + m_FileStoreDriveLabel[Drive]
+		                                  : "Custom (set in the .cfg file)";
 
 		ModifyMenu(m_hMenu, CustomID, MF_BYCOMMAND | MF_STRING, CustomID, Text.c_str());
+		EnableMenuItem(CustomID, HasLabel);
 
 		CheckMenuRadioItem(GetFileStoreDriveMenuID(Drive, FileStoreDriveType::None),
 		                   CustomID,
@@ -212,18 +208,6 @@ bool BeebWin::HandleFileStoreDriveCommand(UINT MenuID)
 
 	const int Drive = (MenuID - IDM_FILESTORE_DRIVE0_NONE) / FS_DRIVE_MENU_ITEMS;
 	const FileStoreDriveType Type = static_cast<FileStoreDriveType>((MenuID - IDM_FILESTORE_DRIVE0_NONE) % FS_DRIVE_MENU_ITEMS);
-
-	if (Type == FileStoreDriveType::Custom)
-	{
-		FileStoreDriveLabelDialog Dialog(hInst, m_hWnd, Drive, m_FileStoreDriveLabel[Drive]);
-
-		if (!Dialog.DoModal())
-		{
-			return true;
-		}
-
-		m_FileStoreDriveLabel[Drive] = Dialog.GetLabel();
-	}
 
 	FileStoreDrive[Drive] = Type;
 	UpdateFileStoreDriveMenu();
@@ -1286,12 +1270,10 @@ void BeebWin::CompleteFileStoreShutdown()
 	const FileStoreShutdownAction Action = m_FileStoreShutdownAction;
 	m_FileStoreShutdownAction = FileStoreShutdownAction::None;
 
-	// Close the door and leave command mode, ready for the next start
+	// Close the door, ready for the next start
 	FileStoreDoorOpen = false;
 	CheckMenuItem(IDM_FILESTORE_DOOR_OPEN, false);
 	EnableMenuItem(IDM_FILESTORE_DOOR_OPEN, IsFileStore(MachineType));
-	FileStoreCommandMode = false;
-	CheckMenuItem(IDM_FILESTORE_COMMAND_MODE, false);
 
 	switch (Action)
 	{

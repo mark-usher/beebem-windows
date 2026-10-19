@@ -86,20 +86,34 @@
           to 45 MB, otherwise E60 S.</li>
         <li><b>E20</b>, <b>E40 S</b> or <b>E60 S</b>: the drive is attached
           and shown with that label.</li>
-        <li><b>Custom Label</b>: the drive is attached and shown with your own
-          label of up to 4 characters (letters, digits, spaces, '-', '.' and
-          '/') after &quot;FILESTORE&quot;.</li>
+        <li><b>Custom</b>: the drive is attached and shown with your own
+          label of up to 4 characters after &quot;FILESTORE&quot;. A custom
+          label is set in the preferences file (see below), and then appears
+          in the menu.</li>
       </ul>
 
       <p>
         Each attached drive is shown as a unit below the FileStore, and the
         window is sized to fit. Changing a drive restarts the FileStore, after
-        letting it write its buffers to disc. The settings are saved in the
-        preferences file as <span class="file">FileStoreDrive0</span> to
-        <span class="file">FileStoreDrive3</span>, with custom labels in
-        <span class="file">FileStoreDrive0Label</span> to
-        <span class="file">FileStoreDrive3Label</span>.
+        letting it write its buffers to disc.
       </p>
+
+      <p>
+        The settings are saved in the preferences file as
+        <span class="file">FileStoreDrive0</span> to
+        <span class="file">FileStoreDrive3</span>, each set to
+        <span class="file">None</span>, <span class="file">Auto</span>,
+        <span class="file">E20</span>, <span class="file">E40S</span>,
+        <span class="file">E60S</span>, or a custom label of up to 4
+        letters, digits, spaces, '-', '.' or '/', for example:
+      </p>
+
+      <pre>
+FileStoreDrive0=E40S
+FileStoreDrive1=E60S
+FileStoreDrive2=CUST
+FileStoreDrive3=None
+</pre>
 
       <h2>Front panel controls</h2>
 
@@ -107,8 +121,6 @@
         <span class="ui">File &rarr; FileStore Door Open</span> opens or closes
         the drive door flap. Opening the door puts the FileStore into
         maintenance mode, which writes its buffers to disc.
-        <span class="ui">File &rarr; FileStore Command Mode</span> sets the
-        command mode switch (E01 only).
       </p>
 
       <p>

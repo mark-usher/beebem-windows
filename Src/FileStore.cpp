@@ -54,7 +54,6 @@ Boston, MA  02110-1301, USA.
 /****************************************************************************/
 
 bool FileStoreDoorOpen = false;
-bool FileStoreCommandMode = false;
 bool FileStoreModeLED = false;
 
 FileStoreDriveType FileStoreDrive[FILESTORE_MAX_DRIVES] = {
@@ -76,7 +75,7 @@ constexpr unsigned char FS_CONTROL_MODE_LED     = 0x80; // Front panel MODE LED
 
 // Front panel switches at &FC2C (read only)
 constexpr unsigned char FS_SWITCH_DOOR_OPEN     = 0x40; // Drive door open
-constexpr unsigned char FS_SWITCH_COMMAND_MODE  = 0x80; // Command mode (E01 only)
+constexpr unsigned char FS_SWITCH_COMMAND_MODE  = 0x80; // Command mode (E01 only), always off
 
 // The FileStore has no video, but the CPU speed is regulated by counting
 // video frames, so a frame is signalled every 20ms (40000 2MHz cycles).
@@ -181,11 +180,6 @@ unsigned char FileStoreReadMem(int Address)
 		if (FileStoreDoorOpen)
 		{
 			Value |= FS_SWITCH_DOOR_OPEN;
-		}
-
-		if (MachineType == Model::FileStoreE01 && FileStoreCommandMode)
-		{
-			Value |= FS_SWITCH_COMMAND_MODE;
 		}
 
 		return Value;

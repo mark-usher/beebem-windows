@@ -25,7 +25,6 @@ Boston, MA  02110-1301, USA.
 #define FILESTORE_HEADER
 
 extern bool FileStoreDoorOpen;    // Front panel door switch
-extern bool FileStoreCommandMode; // Front panel command mode switch (E01 only)
 extern bool FileStoreModeLED;     // Front panel MODE LED
 
 // Hard drive unit attached as each of SCSI drives 0-3. Auto attaches the
