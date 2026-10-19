@@ -497,7 +497,8 @@ void RTCWriteAddress(unsigned char Address)
 	DebugTrace("RTC: Write address %02X\n", Address);
 	#endif
 
-	CMOS.Address = Address;
+	// The 146818 has 64 registers
+	CMOS.Address = Address & 0x3f;
 }
 
 /*-------------------------------------------------------------------------*/

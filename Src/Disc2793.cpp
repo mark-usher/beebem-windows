@@ -1140,6 +1140,10 @@ Disc2793Result Load2793DiscImage(const char *DscFileName, int DscDrive, DiscType
 
 	if (DscDrive == 0) {
 		if (Disc0 != nullptr) {
+			if (CurrentDisc == Disc0) {
+				CurrentDisc = nullptr;
+			}
+
 			fclose(Disc0);
 		}
 
@@ -1166,6 +1170,10 @@ Disc2793Result Load2793DiscImage(const char *DscFileName, int DscDrive, DiscType
 	}
 	else if (DscDrive == 1) {
 		if (Disc1 != nullptr) {
+			if (CurrentDisc == Disc1) {
+				CurrentDisc = nullptr;
+			}
+
 			fclose(Disc1);
 		}
 

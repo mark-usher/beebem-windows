@@ -206,6 +206,8 @@ BeebWin::BeebWin()
 	m_FileStoreLEDState = -1;
 	m_FileStoreShutdownAction = FileStoreShutdownAction::None;
 	m_FileStoreShutdownModel = Model::FileStoreE01;
+	m_FileStoreEconetForced = false;
+	m_EconetEnabledSetting = false;
 	ZeroMemory(&m_BitmapInfo, sizeof(m_BitmapInfo));
 	m_MonitorType = MonitorType::RGB;
 	m_screen = nullptr;
@@ -818,6 +820,16 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 
 	MachineType = NewModelType;
 
+	if (!IsFileStore(MachineType) && m_FileStoreShutdownAction != FileStoreShutdownAction::None)
+	{
+		// The model was changed some other way while a FileStore was
+		// shutting down
+		KillTimer(m_hWnd, TIMER_FILESTORE_SHUTDOWN);
+		m_FileStoreShutdownAction = FileStoreShutdownAction::None;
+		FileStoreDoorOpen = false;
+		CheckMenuItem(IDM_FILESTORE_DOOR_OPEN, false);
+	}
+
 	if (IsFileStore(MachineType))
 	{
 		// The FileStore ROMs are loaded directly into RAM and the code is
@@ -891,10 +903,22 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 	SetDiscWriteProtects();
 	Disc8271Reset();
 
-	// The FileStore is an Econet file server, so always enable Econet
+	// The FileStore is an Econet file server, so always enable Econet,
+	// restoring the user's setting for other models
 	if (IsFileStore(MachineType))
 	{
+		if (!m_FileStoreEconetForced)
+		{
+			m_EconetEnabledSetting = EconetEnabled;
+			m_FileStoreEconetForced = true;
+		}
+
 		EconetEnabled = true;
+	}
+	else if (m_FileStoreEconetForced)
+	{
+		EconetEnabled = m_EconetEnabledSetting;
+		m_FileStoreEconetForced = false;
 	}
 
 	EconetReset();
@@ -1030,6 +1054,13 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 
 void BeebWin::Break()
 {
+	// The FileStore has no Break key: do a reset, letting it flush its
+	// buffers first
+	if (BeginFileStoreShutdown(FileStoreShutdownAction::Reset, MachineType))
+	{
+		return;
+	}
+
 	// Must do a reset!
 	Init6502Core();
 
@@ -1938,7 +1969,8 @@ void BeebWin::UpdateModelMenu()
 
 	// FileStore front panel
 	UpdateFileStoreDiscMenu();
-	EnableMenuItem(IDM_FILESTORE_DOOR_OPEN, IsFS);
+	EnableMenuItem(IDM_FILESTORE_DOOR_OPEN, IsFS && m_FileStoreShutdownAction == FileStoreShutdownAction::None);
+	EnableMenuItem(IDM_ECONET, !IsFS);
 	EnableMenuItem(IDM_FILESTORE_COMMAND_MODE, MachineType == Model::FileStoreE01);
 
 	// Saved state files don't include the FileStore hardware
@@ -2458,7 +2490,7 @@ void BeebWin::ScaleMousestick(unsigned int x, unsigned int y)
 /****************************************************************************/
 void BeebWin::SetAMXPosition(unsigned int x, unsigned int y)
 {
-	if (AMXMouseEnabled && (MachineType != Model::MasterET))
+	if (AMXMouseEnabled && MachineType != Model::MasterET && !IsFileStore(MachineType))
 	{
 		// Scale the window coords to the Beeb screen coords
 		AMXTargetX = x * m_AMXXSize * (100 + m_AMXAdjust) / 100 / m_XWinSize;
@@ -2471,7 +2503,7 @@ void BeebWin::SetAMXPosition(unsigned int x, unsigned int y)
 /****************************************************************************/
 void BeebWin::ChangeAMXPosition(int deltaX, int deltaY)
 {
-	if (AMXMouseEnabled && (MachineType != Model::MasterET))
+	if (AMXMouseEnabled && MachineType != Model::MasterET && !IsFileStore(MachineType))
 	{
 		static int remX = 0;
 		static int remY = 0;
@@ -4095,6 +4127,12 @@ void BeebWin::OnIP232Error(int Error)
 
 void BeebWin::ToggleEconet()
 {
+	// Econet is always enabled for the FileStore
+	if (IsFileStore(MachineType))
+	{
+		return;
+	}
+
 	EconetEnabled = !EconetEnabled;
 
 	if (EconetEnabled)

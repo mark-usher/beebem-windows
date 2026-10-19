@@ -1829,7 +1829,8 @@ void BeebWin::SavePreferences(bool saveAll)
 		m_Preferences.SetBoolValue(CFG_BASIC_HARDWARE_ONLY, BasicHardwareOnly);
 		m_Preferences.EraseValue(CFG_BASIC_HARDWARE_ONLY_OLD);
 
-		m_Preferences.SetBoolValue(CFG_ECONET_ENABLED, EconetEnabled); // Rob
+		// Econet is forced on in FileStore mode; save the user's own setting
+		m_Preferences.SetBoolValue(CFG_ECONET_ENABLED, m_FileStoreEconetForced ? m_EconetEnabledSetting : EconetEnabled); // Rob
 		m_Preferences.SetBinaryValue(CFG_KEYBOARD_LINKS, &KeyboardLinks, sizeof(KeyboardLinks));
 
 		// Second processors

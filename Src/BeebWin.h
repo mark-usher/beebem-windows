@@ -736,6 +736,8 @@ public:
 	int m_FileStoreLEDState; // FileStore LED state last drawn
 	FileStoreShutdownAction m_FileStoreShutdownAction; // What to do once the FileStore has flushed its buffers
 	Model m_FileStoreShutdownModel; // Model to change to after FileStore shutdown
+	bool m_FileStoreEconetForced; // Econet forced on for the FileStore
+	bool m_EconetEnabledSetting; // User's Econet setting while forced on
 	BitmapInfo m_BitmapInfo;
 	MonitorType m_MonitorType;
 	char* m_screen;

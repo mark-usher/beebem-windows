@@ -339,12 +339,16 @@ bool BeebWin::Load2793DiscImage(const char *FileName, int Drive, DiscType Type)
 		SetImageName(FileName, Drive, Type);
 		EnableMenuItem(Drive == 0 ? IDM_WRITE_PROTECT_DISC0 : IDM_WRITE_PROTECT_DISC1, true);
 
+		// The FileStore writes to its discs
+		SetDiscWriteProtect(Drive, false);
+
 		return true;
 	}
 	else if (Result == Disc2793Result::OpenedReadOnly)
 	{
 		SetImageName(FileName, Drive, Type);
 		EnableMenuItem(Drive == 0 ? IDM_WRITE_PROTECT_DISC0 : IDM_WRITE_PROTECT_DISC1, false);
+		SetDiscWriteProtect(Drive, true);
 
 		return true;
 	}
@@ -1227,6 +1231,12 @@ void BeebWin::SaveState()
 
 void BeebWin::QuickLoad()
 {
+	// Saved state files don't include the FileStore hardware
+	if (IsFileStore(MachineType))
+	{
+		return;
+	}
+
 	char FileName[MAX_PATH];
 	strcpy(FileName, m_UserDataPath);
 	AppendPath(FileName, "BeebState");
@@ -1250,6 +1260,12 @@ void BeebWin::QuickLoad()
 
 void BeebWin::QuickSave()
 {
+	// Saved state files don't include the FileStore hardware
+	if (IsFileStore(MachineType))
+	{
+		return;
+	}
+
 	char FileName1[MAX_PATH];
 	char FileName2[MAX_PATH];
 
@@ -1288,6 +1304,14 @@ void BeebWin::QuickSave()
 
 void BeebWin::LoadUEFState(const char *FileName)
 {
+	// Saved state files don't include the FileStore hardware, and loading
+	// one would reset the FileStore without flushing its buffers
+	if (IsFileStore(MachineType))
+	{
+		Report(MessageType::Error, "Saved state files are not supported for the FileStore");
+		return;
+	}
+
 	UEFStateResult Result = ::LoadUEFState(FileName);
 
 	switch (Result)
@@ -1327,6 +1351,13 @@ void BeebWin::LoadUEFState(const char *FileName)
 
 void BeebWin::SaveUEFState(const char *FileName)
 {
+	// Saved state files don't include the FileStore hardware
+	if (IsFileStore(MachineType))
+	{
+		Report(MessageType::Error, "Saved state files are not supported for the FileStore");
+		return;
+	}
+
 	UEFStateResult Result = ::SaveUEFState(FileName);
 
 	switch (Result)
@@ -2057,7 +2088,11 @@ void BeebWin::SelectHardDriveFolder()
 
 		if (Result == MessageResult::Yes)
 		{
-			ResetBeebSystem(MachineType, false);
+			// Let the FileStore flush its buffers before resetting
+			if (!BeginFileStoreShutdown(FileStoreShutdownAction::Reset, MachineType))
+			{
+				ResetBeebSystem(MachineType, false);
+			}
 		}
 	}
 }

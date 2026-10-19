@@ -113,12 +113,12 @@ void UserVIAWrite(int Address, unsigned char Value)
 				UpdateIFRTopBit();
 			}
 
-			if (g_pUserPortBreakoutDialog != nullptr)
+			if (g_pUserPortBreakoutDialog != nullptr && !IsFileStore(MachineType))
 			{
 				g_pUserPortBreakoutDialog->ShowOutputs(UserVIAState.orb);
 			}
 
-			if (UserPortRTCEnabled)
+			if (UserPortRTCEnabled && !IsFileStore(MachineType))
 			{
 				UserPortRTCWrite(Value);
 			}
@@ -139,7 +139,7 @@ void UserVIAWrite(int Address, unsigned char Value)
 		case VIA_REG_DDRB:
 			UserVIAState.ddrb = Value;
 
-			if (UserPortRTCEnabled)
+			if (UserPortRTCEnabled && !IsFileStore(MachineType))
 			{
 				if ((Value & 0x07) == 0x07)
 				{
@@ -267,17 +267,17 @@ unsigned char UserVIARead(int Address)
 		case VIA_REG_IRB:
 			Value = (UserVIAState.orb & UserVIAState.ddrb) | (UserVIAState.irb & ~UserVIAState.ddrb);
 
-			if (UserPortRTCEnabled)
+			if (UserPortRTCEnabled && !IsFileStore(MachineType))
 			{
 				Value = (Value & 0xfe) | (unsigned char)UserPortRTCReadBit();
 			}
 
-			if (g_pUserPortBreakoutDialog != nullptr)
+			if (g_pUserPortBreakoutDialog != nullptr && !IsFileStore(MachineType))
 			{
 				g_pUserPortBreakoutDialog->ShowInputs(Value);
 			}
 
-			if (AMXMouseEnabled)
+			if (AMXMouseEnabled && !IsFileStore(MachineType))
 			{
 				if (AMXLRForMiddle)
 				{
@@ -494,7 +494,7 @@ void UserVIAPoll(unsigned int Cycles)
 		UserVIAPollReal();
 	}
 
-	if (AMXMouseEnabled && AMXTrigger <= TotalCycles)
+	if (AMXMouseEnabled && !IsFileStore(MachineType) && AMXTrigger <= TotalCycles)
 	{
 		AMXMouseMovement();
 	}
@@ -576,7 +576,7 @@ void AMXMouseMovement()
 	ClearTrigger(AMXTrigger);
 
 	// Check if there is an outstanding interrupt.
-	if (AMXMouseEnabled && (UserVIAState.ifr & (IFR_CB1 | IFR_CB2)) == 0)
+	if (AMXMouseEnabled && !IsFileStore(MachineType) && (UserVIAState.ifr & (IFR_CB1 | IFR_CB2)) == 0)
 	{
 		int deltaX = AMXDeltaX == 0 ? AMXTargetX - AMXCurrentX : AMXDeltaX;
 		int deltaY = AMXDeltaY == 0 ? AMXTargetY - AMXCurrentY : AMXDeltaY;
