@@ -165,7 +165,7 @@ static bool CurrentDiscOpen()
 	return CurrentDisc != nullptr;
 }
 
-// Read 1770 Register. Note - NOT the FDC Control register at &FE24.
+// Read 2793 Register. Note - NOT the FDC Control register at &FE24.
 
 unsigned char Read2793Register(unsigned char Register) {
 	if (!Disc2793Enabled)

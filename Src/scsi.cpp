@@ -105,6 +105,8 @@ FILE *SCSIDisc[4] = { nullptr, nullptr, nullptr, nullptr };
 int SCSISize[4];
 
 bool SCSIDriveEnabled = false;
+uint8_t HostIdentifier;
+
 
 void SCSIReset(void)
 {
@@ -119,6 +121,8 @@ void SCSIReset(void)
 	{
 		return;
 	}
+
+	WriteLog("SCSI State: Resetting SCSI emulation\n");
 
 	for (int i = 0; i < 4; ++i)
 	{
@@ -163,7 +167,7 @@ void SCSIWrite(int Address, int Value)
 	if (!SCSIDriveEnabled)
 		return;
 
-	// WriteLog("SCSIWrite Address = 0x%02x, Value = 0x%02x, Phase = %d, PC = 0x%04x\n", Address, Value, scsi.phase, ProgramCounter);
+//	WriteLog("SCSIWrite Address = 0x%02x, Value = 0x%02x, Phase = %d, PC = 0x%04x\n", Address, Value, scsi.phase, ProgramCounter);
 
 	switch (Address)
 	{
@@ -407,12 +411,18 @@ static void BusFree()
 
 	if (MachineType == Model::FileStoreE01 || MachineType == Model::FileStoreE01S)
 		mainWin->DrawFSLEDs(mainWin->m_hDC, 2);
+
+	WriteLog("SCSI State: Information transfer phase: Data out\n");
 }
 
 static void Selection(int data)
 {
 	scsi.bsy = true;
 	scsi.phase = selection;
+
+	HostIdentifier = data;
+
+	WriteLog("SCSI State: Selection by host ID %d\n", HostIdentifier);
 }
 
 static void Command(void)
@@ -425,26 +435,86 @@ static void Command(void)
 
 	scsi.offset = 0;
 	scsi.length = 6;
+
+	WriteLog("SCSI State: Information transfer phase: Command\n");
 }
 
 static void Execute(void)
 {
 	scsi.phase = execute;
 
+
+	WriteLog("SCSI State: Execute\n");
+
 	// if (scsi.cmd[0] <= 0x1f) {
-	// 		WriteLog("Execute 0x%02x, Param 1=0x%02x, Param 2=0x%02x, Param 3=0x%02x, Param 4=0x%02x, Param 5=0x%02x, Phase = %d, PC = 0x%04x\n",
-	// 				scsi.cmd[0], scsi.cmd[1], scsi.cmd[2], scsi.cmd[3], scsi.cmd[4], scsi.cmd[5], scsi.phase, ProgramCounter);
+	//	 		WriteLog("Execute 0x%02x, Param 1=0x%02x, Param 2=0x%02x, Param 3=0x%02x, Param 4=0x%02x, Param 5=0x%02x, Phase = %d, PC = 0x%04x\n",
+//	 				scsi.cmd[0], scsi.cmd[1], scsi.cmd[2], scsi.cmd[3], scsi.cmd[4], scsi.cmd[5], scsi.phase, ProgramCounter);
 	// } else {
 	// 		WriteLog("Execute 0x%02x, Param 1=0x%02x, Param 2=0x%02x, Param 3=0x%02x, Param 4=0x%02x, Param 5=0x%02x, Param 6=0x%02x, Param 7=0x%02x, Param 8=0x%02x, Param 9=0x%02x, Phase = %d, PC = 0x%04x\n",
 	// 				scsi.cmd[0], scsi.cmd[1], scsi.cmd[2], scsi.cmd[3], scsi.cmd[4], scsi.cmd[5], scsi.cmd[6], scsi.cmd[7], scsi.cmd[8], scsi.cmd[9], scsi.phase, ProgramCounter);
 	// }
 
-	scsi.lun = (scsi.cmd[1]) >> 5;
+	if (MachineType == Model::FileStoreE01 || MachineType == Model::FileStoreE01S)
+	{
+		switch (HostIdentifier) {
+		case 2:
+			scsi.lun = 1;
+			break;
+		case 4:
+			scsi.lun = 2;
+			break;
+		case 8:
+			scsi.lun = 3;
+			break;
+		default:
+			scsi.lun = 0;
+		}
+	}
+	else
+		scsi.lun = (scsi.cmd[1]) >> 5;
 
 	LEDs.HDisc[scsi.lun] = 1;
 
 	if (MachineType == Model::FileStoreE01 || MachineType == Model::FileStoreE01S)
 		mainWin->DrawFSLEDs(mainWin->m_hDC, 2);
+
+
+
+	// Decode the CDB 1st byte
+	uint8_t group = (scsi.cmd[0] & 0xE0) >> 5;
+	uint8_t opCode = (scsi.cmd[0] & 0x1F);
+	uint8_t length;
+
+	// Set the length of the CDB based on the command group
+	switch (group) {
+	case 0:
+		length = 6;
+		break;
+
+	case 1:
+		length = 10;
+		break;
+
+	case 6:
+		length = 6;
+		break;
+
+	default:
+		length = 6; // guess at a length !
+		WriteLog("SCSI Commands: ERROR: BAD command group received\n");
+		break;
+	}
+
+	WriteLog("SCSI Commands: CDB byte 0 decode: Command group %d (%d bytes) opcode %d\n", group, length, opCode);
+	// Show received byte value
+	if (length == 6)
+		WriteLog("SCSI Commands: Received command operand bytes: %d %d %d %d %d %d \n",
+			scsi.cmd[0], scsi.cmd[1], scsi.cmd[2], scsi.cmd[3], scsi.cmd[4], scsi.cmd[5]);
+	else
+		WriteLog("SCSI Commands: Received command operand bytes: %d %d %d %d %d %d %d %d %d %d\n",
+			scsi.cmd[0], scsi.cmd[1], scsi.cmd[2], scsi.cmd[3], scsi.cmd[4], scsi.cmd[5],
+			scsi.cmd[6], scsi.cmd[7], scsi.cmd[8], scsi.cmd[9]);
+
 
 	switch (scsi.cmd[0]) {
 		case 0x00:
@@ -491,6 +561,10 @@ static void Status()
 	scsi.io = true;
 	scsi.cd = true;
 	scsi.req = true;
+
+	WriteLog("SCSI State: Information transfer phase: Status\n");
+	WriteLog("SCSI State: Status.  Status byte = %d\n", scsi.status);
+
 }
 
 static void Message()
@@ -499,6 +573,9 @@ static void Message()
 
 	scsi.msg = true;
 	scsi.req = true;
+
+	WriteLog("SCSI State: Message in\n");
+	WriteLog("SCSI State: Message In.  Message byte = %d\n", 0x00);
 }
 
 static bool DiscTestUnitReady(unsigned char *buf)
@@ -511,12 +588,16 @@ static void TestUnitReady()
 {
 	bool status = DiscTestUnitReady(scsi.cmd);
 
+	WriteLog("SCSI Commands: TESTUNITREADY command (0x00) received\n");
+	WriteLog("SCSI Commands: Target LUN = %d\n", (scsi.lun << 5));
+
 	if (status) {
 		scsi.status = (scsi.lun << 5) | 0x00;
 		scsi.message = 0x00;
 	} else {
 		scsi.status = (scsi.lun << 5) | 0x02;
 		scsi.message = 0x00;
+		WriteLog("SCSI Commands: Unavailable LUN %d\n", (scsi.lun << 5), true);
 	}
 
 	Status();
@@ -535,12 +616,18 @@ static void StartStop()
 {
 	bool status = DiscStartStop(scsi.cmd);
 
+	WriteLog("SCSI Commands: STARTSTOP command (0x1B) received\n");
+	WriteLog("SCSI Commands: Target LUN = %d", (scsi.lun << 5));
+
 	if (status) {
 		scsi.status = (scsi.lun << 5) | 0x00;
 		scsi.message = 0x00;
+		WriteLog("SCSI Commands: Stopping LUN\n");
+
 	} else {
 		scsi.status = (scsi.lun << 5) | 0x02;
 		scsi.message = 0x00;
+		WriteLog("SCSI Commands: Starting LUN\n");
 	}
 
 	Status();
@@ -548,6 +635,9 @@ static void StartStop()
 
 static void RequestSense()
 {
+	WriteLog("SCSI Commands: REQUESTSENSE command (0x03) received\n");
+	WriteLog("SCSI Commands: Target LUN = %d", (scsi.lun << 5));
+
 	scsi.length = DiscRequestSense(scsi.cmd, scsi.buffer);
 
 	if (scsi.length > 0) {
@@ -573,6 +663,8 @@ static void RequestSense()
 static int DiscRequestSense(unsigned char *cdb, unsigned char *buf)
 {
 	int size = cdb[4];
+
+	WriteLog("SCSI Commands: Sense bytes = %02X %02X %02X %02X", (cdb[4] < 4) ? 4 : cdb[4]);
 
 	if (size == 0)
 		size = 4;
@@ -600,17 +692,28 @@ static int DiscRequestSense(unsigned char *cdb, unsigned char *buf)
 
 static void Read6()
 {
+	WriteLog("SCSI Commands: READ command (0x08) received\n");
+
+	// Get the starting logical block address from the CDB
 	int record = scsi.cmd[1] & 0x1f;
 	record <<= 8;
 	record |= scsi.cmd[2];
 	record <<= 8;
 	record |= scsi.cmd[3];
+
+	// Get the requested number of blocks from the CDB
 	scsi.blocks = scsi.cmd[4];
+
 	if (scsi.blocks == 0)
-		scsi.blocks = 0x100;
+		scsi.blocks = 0x100; // 0 = 256 blocks according to the SCSI specification
+
+	// Show the command debug information
+	WriteLog("SCSI Commands : Target LUN = %d, LBA = %d, Blocks = %d\n", (scsi.lun << 5), record, scsi.blocks);
+	
 	scsi.length = ReadSector(scsi.buffer, record);
 
 	if (scsi.length <= 0) {
+		WriteLog("SCSI Commands : ERROR: Open LUN image failed!\n");
 		scsi.status = (scsi.lun << 5) | 0x02;
 		scsi.message = 0x00;
 		Status();
@@ -654,6 +757,8 @@ static bool WriteSector(unsigned char *buf, int block)
 
 static void Write6()
 {
+	WriteLog("SCSI Commands: WRITE command (0x0A) received\n");
+
 	int record = scsi.cmd[1] & 0x1f;
 	record <<= 8;
 	record |= scsi.cmd[2];
@@ -662,6 +767,9 @@ static void Write6()
 	scsi.blocks = scsi.cmd[4];
 	if (scsi.blocks == 0)
 		scsi.blocks = 0x100;
+
+	// Show the command debug information
+	WriteLog("SCSI Commands : Target LUN = %d, LBA = %d, Blocks = %d\n", (scsi.lun << 5), record, scsi.blocks);
 
 	scsi.length = 256;
 
@@ -679,6 +787,9 @@ static void Write6()
 
 static void ModeSense()
 {
+	WriteLog("SCSI Commands: MODESENSE command (0x1A) received\n");
+	WriteLog("SCSI Commands: Target LUN = %d\n", (scsi.lun << 5));
+
 	scsi.length = DiscModeSense(scsi.cmd, scsi.buffer);
 
 	if (scsi.length > 0) {
@@ -726,16 +837,23 @@ static int DiscModeSense(unsigned char *cdb, unsigned char *buf)
 
 	fclose(f);
 
+	WriteLog("SCSI Commands: List length = %d\n", cdb[4]);
+	WriteLog("SCSI Commands: Mode Sense Page = &d\n", cdb[2]);
+
 	return size;
 }
 
 static void ModeSelect()
 {
+	WriteLog("SCSI Commands: MODESELECT command (0x15) received\n");
+
 	scsi.length = scsi.cmd[4];
 	scsi.blocks = 1;
 
 	scsi.status = (scsi.lun << 5) | 0x00;
 	scsi.message = 0x00;
+
+	WriteLog("SCSI Commands: Target LUN = %d", (scsi.lun << 5));
 
 	scsi.next = 0;
 	scsi.offset = 0;
