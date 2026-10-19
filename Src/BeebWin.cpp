@@ -64,6 +64,7 @@ using std::max;
 #include "Debug.h"
 #include "DebugTrace.h"
 #include "Disc1770.h"
+#include "Disc2793.h"
 #include "Disc8271.h"
 #include "DiscInfo.h"
 #include "Econet.h" // Rob O'Donnell Christmas 2004.
@@ -767,6 +768,23 @@ void BeebWin::SetFileStoreDoorOpen(bool Open)
 {
 	FileStoreDoorOpen = Open;
 	CheckMenuItem(IDM_FILESTORE_DOOR_OPEN, FileStoreDoorOpen);
+
+	// Only allow floppy discs to be changed when the door is open
+	UpdateFileStoreDiscMenu();
+}
+
+/****************************************************************************/
+
+void BeebWin::UpdateFileStoreDiscMenu()
+{
+	const bool Enabled = !IsFileStore(MachineType) || FileStoreDoorOpen;
+
+	EnableMenuItem(IDM_LOADDISC0, Enabled && MachineType != Model::MasterET);
+	EnableMenuItem(IDM_LOADDISC1, Enabled && MachineType != Model::MasterET);
+	EnableMenuItem(IDM_NEWDISC0, Enabled && MachineType != Model::MasterET);
+	EnableMenuItem(IDM_NEWDISC1, Enabled && MachineType != Model::MasterET);
+	EnableMenuItem(IDM_EJECTDISC0, Enabled && MachineType != Model::MasterET);
+	EnableMenuItem(IDM_EJECTDISC1, Enabled && MachineType != Model::MasterET);
 }
 
 /****************************************************************************/
@@ -947,6 +965,11 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 	{
 		InvertTR00 = false;
 	}
+	else if (IsFileStore(MachineType))
+	{
+		// The FileStore has its own 2793 FDC
+		Reset2793();
+	}
 	else
 	{
 		LoadFDC(NULL, false);
@@ -954,7 +977,18 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 
 	// Keep the disc images loaded
 
-	if (MachineType != Model::Master128 && MachineType != Model::MasterET && NativeFDC)
+	if (IsFileStore(MachineType))
+	{
+		// 2793 disc. The FileStore only uses ADFS format floppy discs
+		for (int Drive = 0; Drive < 2; Drive++)
+		{
+			if (szDiscName[Drive][0] != '\0' && Type[Drive] == DiscType::ADFS)
+			{
+				Load2793DiscImage(szDiscName[Drive], Drive, Type[Drive]);
+			}
+		}
+	}
+	else if (MachineType != Model::Master128 && MachineType != Model::MasterET && NativeFDC)
 	{
 		// 8271 disc
 		if (szDiscName[0][0] != '\0')
@@ -974,7 +1008,7 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 		}
 	}
 
-	if ((MachineType != Model::Master128 && !NativeFDC) || (MachineType == Model::Master128))
+	else if ((MachineType != Model::Master128 && !NativeFDC) || (MachineType == Model::Master128))
 	{
 		// 1770 Disc
 		if (szDiscName[0][0] != '\0')
@@ -1841,14 +1875,14 @@ void BeebWin::UpdateModelMenu()
 	EnableMenuItem(IDM_LOADTAPE, !IsMasterET && !IsFS);
 
 	// Edit Menu Item
-	EnableMenuItem(IDM_DISC_IMPORT_0 , !IsMasterET);
-	EnableMenuItem(IDM_DISC_IMPORT_1, !IsMasterET);
-	EnableMenuItem(IDM_DISC_IMPORT_2, !IsMasterET);
-	EnableMenuItem(IDM_DISC_IMPORT_3, !IsMasterET);
-	EnableMenuItem(IDM_DISC_EXPORT_0, !IsMasterET);
-	EnableMenuItem(IDM_DISC_EXPORT_1, !IsMasterET);
-	EnableMenuItem(IDM_DISC_EXPORT_2, !IsMasterET);
-	EnableMenuItem(IDM_DISC_EXPORT_3, !IsMasterET);
+	EnableMenuItem(IDM_DISC_IMPORT_0, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_DISC_IMPORT_1, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_DISC_IMPORT_2, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_DISC_IMPORT_3, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_DISC_EXPORT_0, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_DISC_EXPORT_1, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_DISC_EXPORT_2, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_DISC_EXPORT_3, !IsMasterET && !IsFS);
 
 	// Comms Menu Item
 	// Tape speed sub-menu
@@ -1908,6 +1942,7 @@ void BeebWin::UpdateModelMenu()
 	EnableMenuItem(IDM_CONFIGURE_JOYSTICK, !IsMasterET && !IsFS);
 
 	// FileStore front panel
+	UpdateFileStoreDiscMenu();
 	EnableMenuItem(IDM_FILESTORE_DOOR_OPEN, IsFS);
 	EnableMenuItem(IDM_FILESTORE_COMMAND_MODE, MachineType == Model::FileStoreE01);
 
@@ -5138,6 +5173,7 @@ void BeebWin::HandleCommand(UINT MenuID)
 	case IDM_FLOPPY_DRIVE:
 		Disc8271Enabled = !Disc8271Enabled;
 		Disc1770Enabled = !Disc1770Enabled;
+		Disc2793Enabled = !Disc2793Enabled;
 		CheckMenuItem(IDM_FLOPPY_DRIVE, Disc8271Enabled);
 		break;
 
@@ -5885,7 +5921,20 @@ void BeebWin::HandleCommandLineFile(int Drive, const char *FileName)
 
 	// Handle disc image types
 
-	if (MachineType != Model::Master128 && MachineType != Model::MasterET)
+	if (IsFileStore(MachineType))
+	{
+		// The FileStore 2793 FDC only uses ADFS format floppy discs
+		if (Type == FileType::ADFS)
+		{
+			Load2793DiscImage(FileName, Drive, DiscType::ADFS);
+		}
+		else
+		{
+			Report(MessageType::Error, "The FileStore can only use ADFS discs");
+			return;
+		}
+	}
+	else if (MachineType != Model::Master128 && MachineType != Model::MasterET)
 	{
 		if (Type == FileType::DSD)
 		{
@@ -5970,13 +6019,14 @@ void BeebWin::HandleCommandLineFile(int Drive, const char *FileName)
 		}
 	}
 
-	// Write protect the disc
-	if (m_WriteProtectOnLoad)
+	// Write protect the disc (not for the FileStore, which writes to its discs)
+	if (m_WriteProtectOnLoad && !IsFileStore(MachineType))
 	{
 		SetDiscWriteProtect(Drive, true);
 	}
 
-	if (!m_NoAutoBoot && Drive == 0)
+	// The FileStore has no keyboard to boot with
+	if (!m_NoAutoBoot && Drive == 0 && !IsFileStore(MachineType))
 	{
 		m_AutoBootDisc = true;
 

@@ -347,6 +347,7 @@ public:
 
 	void SetModel(Model NewModelType);
 	void SetFileStoreDoorOpen(bool Open);
+	void UpdateFileStoreDiscMenu();
 	void ResetBeebSystem(Model NewModelType, bool LoadRoms);
 	void Break();
 	bool RebootSystem();
@@ -538,6 +539,7 @@ public:
 	// Disks
 	bool ReadDisc(int Drive, bool bCheckForPrefs);
 	bool Load1770DiscImage(const char *FileName, int Drive, DiscType Type);
+	bool Load2793DiscImage(const char *FileName, int Drive, DiscType Type);
 	bool Load8271DiscImage(const char *FileName, int Drive, int Tracks, DiscType Type);
 	void NewDiscImage(int Drive);
 	void CreateDFSDiscImage(const char *FileName, int Drive, int Heads, int Tracks);

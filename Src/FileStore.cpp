@@ -28,6 +28,7 @@ Boston, MA  02110-1301, USA.
 // &FC00        146818 RTC address register (write only)
 // &FC04        146818 RTC data register (when enabled by &FC08 bit 3)
 // &FC08        Control latch (write), EPROM/RAM latch (read)
+// &FC0C-&FC0F  WD2793 FDC registers
 // &FC10-&FC1F  System VIA (emulated using BeebEm's user VIA)
 // &FC2C        Front panel switches (read)
 // &FD00-&FFFF  RAM
@@ -37,6 +38,7 @@ Boston, MA  02110-1301, USA.
 #include "FileStore.h"
 #include "6502core.h"
 #include "BeebMem.h"
+#include "Disc2793.h"
 #include "Rtc.h"
 #include "UserVia.h"
 #include "Video.h"
@@ -68,12 +70,16 @@ constexpr int FS_FRAME_CYCLES = 40000;
 
 static int FrameCycles = FS_FRAME_CYCLES;
 
+// FDC master reset line from the control latch: false = held in reset
+static bool FDCResetLine = false;
+
 /****************************************************************************/
 
 void FileStoreReset()
 {
 	FileStoreModeLED = false;
 	FrameCycles = FS_FRAME_CYCLES;
+	FDCResetLine = false;
 
 	RTCChipEnable(false);
 }
@@ -93,6 +99,12 @@ unsigned char FileStoreReadMem(int Address)
 	if (Address == 0xfc08)
 	{
 		return 0xff;
+	}
+
+	// FDC registers
+	if (Address >= 0xfc0c && Address <= 0xfc0f)
+	{
+		return Read2793Register(static_cast<unsigned char>(Address - 0xfc0c));
 	}
 
 	// System VIA
@@ -161,6 +173,13 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 		return;
 	}
 
+	// FDC registers
+	if (Address >= 0xfc0c && Address <= 0xfc0f)
+	{
+		Write2793Register(static_cast<unsigned char>(Address - 0xfc0c), Value);
+		return;
+	}
+
 	// RTC address register
 	if (Address == 0xfc00)
 	{
@@ -186,6 +205,34 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 
 		FileStoreModeLED = (Value & FS_CONTROL_MODE_LED) != 0;
 
+		// Releasing the FDC master reset (active low) resets the FDC
+		const bool Reset = (Value & FS_CONTROL_FDC_RESET) != 0;
+
+		if (!FDCResetLine && Reset)
+		{
+			Reset2793();
+		}
+
+		FDCResetLine = Reset;
+
+		// The FDC drive control register has the bits in a different order
+		if (FDCResetLine)
+		{
+			unsigned char Control = Value & (FS_CONTROL_FLOPPY_0 | FS_CONTROL_FLOPPY_1);
+
+			if (Value & FS_CONTROL_FLOPPY_SIDE)
+			{
+				Control |= 0x10;
+			}
+
+			if (Value & FS_CONTROL_FDC_DENSITY)
+			{
+				Control |= 0x20;
+			}
+
+			WriteFDC2793ControlReg(Control);
+		}
+
 		return;
 	}
 }
@@ -194,7 +241,7 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 
 // Called from PollHardware() in place of the video, A/D, serial, 8271,
 // 1770, Music 5000, speech and teletext polling, none of which the
-// FileStore has.
+// FileStore has. Also polls the 2793 FDC.
 
 void FileStorePoll(int Cycles)
 {
@@ -207,6 +254,8 @@ void FileStorePoll(int Cycles)
 	}
 
 	RTCPoll(Cycles);
+
+	Poll2793(Cycles);
 }
 
 /****************************************************************************/

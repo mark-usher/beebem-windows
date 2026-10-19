@@ -102,6 +102,9 @@
     <ClCompile Include="Disc1770.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Disc2793.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="Disc8271.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -408,6 +411,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Disc1770.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Disc2793.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Disc8271.h">

@@ -44,6 +44,7 @@ using std::max;
 #include "BeebMem.h"
 #include "BeebWinPrefs.h"
 #include "Disc1770.h"
+#include "Disc2793.h"
 #include "Disc8271.h"
 #include "DiscEdit.h"
 #include "DiscInfo.h"
@@ -99,6 +100,7 @@ void BeebWin::EjectDiscImage(int Drive)
 {
 	FreeDiscImage(Drive);
 	Close1770Disc(Drive);
+	Close2793Disc(Drive);
 
 	DiscInfo[Drive].FileName[0] = '\0';
 	DiscInfo[Drive].Type = DiscType::SSD;
@@ -187,8 +189,21 @@ bool BeebWin::ReadDisc(int Drive, bool bCheckForPrefs)
 				break;
 		}
 
+		if (IsFileStore(MachineType))
+		{
+			// The FileStore 2793 FDC only uses ADFS format floppy discs
+			if (Type == FileType::ADFS)
+			{
+				Load2793DiscImage(FileName, Drive, DiscType::ADFS);
+			}
+			else
+			{
+				Report(MessageType::Error, "The FileStore can only use ADFS discs");
+				return false;
+			}
+		}
 		// Another Master 128 Update, brought to you by Richard Gellman
-		if (MachineType != Model::Master128 && MachineType != Model::MasterET)
+		else if (MachineType != Model::Master128 && MachineType != Model::MasterET)
 		{
 			if (Type == FileType::SSD)
 			{
@@ -272,8 +287,9 @@ bool BeebWin::ReadDisc(int Drive, bool bCheckForPrefs)
 			}
 		}
 
-		// Write protect the disc
-		if (m_WriteProtectOnLoad)
+		// Write protect the disc. The FileStore needs to write to its
+		// discs, so this isn't done for the FileStore, as before.
+		if (m_WriteProtectOnLoad && !IsFileStore(MachineType))
 		{
 			SetDiscWriteProtect(Drive, true);
 		}
@@ -305,6 +321,36 @@ bool BeebWin::Load1770DiscImage(const char *FileName, int Drive, DiscType Type)
 	else
 	{
 		// Disc1770Result::Failed
+		Report(MessageType::Error, "Could not open disc file:\n  %s",
+		       FileName);
+
+		return false;
+	}
+}
+
+/****************************************************************************/
+
+bool BeebWin::Load2793DiscImage(const char *FileName, int Drive, DiscType Type)
+{
+	Disc2793Result Result = ::Load2793DiscImage(FileName, Drive, Type);
+
+	if (Result == Disc2793Result::OpenedReadWrite)
+	{
+		SetImageName(FileName, Drive, Type);
+		EnableMenuItem(Drive == 0 ? IDM_WRITE_PROTECT_DISC0 : IDM_WRITE_PROTECT_DISC1, true);
+
+		return true;
+	}
+	else if (Result == Disc2793Result::OpenedReadOnly)
+	{
+		SetImageName(FileName, Drive, Type);
+		EnableMenuItem(Drive == 0 ? IDM_WRITE_PROTECT_DISC0 : IDM_WRITE_PROTECT_DISC1, false);
+
+		return true;
+	}
+	else
+	{
+		// Disc2793Result::Failed
 		Report(MessageType::Error, "Could not open disc file:\n  %s",
 		       FileName);
 
@@ -507,8 +553,13 @@ void BeebWin::NewDiscImage(int Drive)
 	int FilterIndex;
 	m_Preferences.GetDecimalValue(CFG_DISCS_FILTER, FilterIndex, 1);
 
-	if ((MachineType != Model::Master128 && MachineType != Model::MasterET) && NativeFDC && FilterIndex >= 5)
+	if ((MachineType != Model::Master128 && MachineType != Model::MasterET) && NativeFDC && FilterIndex >= 5 &&
+	    !IsFileStore(MachineType))
 		FilterIndex = 1;
+
+	// The FileStore only uses ADFS discs
+	if (IsFileStore(MachineType) && FilterIndex < 5)
+		FilterIndex = 6;
 
 	char FileName[MAX_PATH];
 	FileName[0] = '\0';
@@ -541,7 +592,12 @@ void BeebWin::NewDiscImage(int Drive)
 				strcat(FileName, ".adl");
 		}
 
-		if (FilterIndex == 1 || FilterIndex == 3)
+		if (IsFileStore(MachineType) && FilterIndex < 5)
+		{
+			Report(MessageType::Error, "The FileStore can only use ADFS discs");
+			return;
+		}
+		else if (FilterIndex == 1 || FilterIndex == 3)
 		{
 			CreateDFSDiscImage(FileName, Drive, 1, 80);
 		}
@@ -555,7 +611,14 @@ void BeebWin::NewDiscImage(int Drive)
 			bool Success = CreateADFSImage(FileName, Tracks);
 			if (Success)
 			{
-				Load1770DiscImage(FileName, Drive, DiscType::ADFS);
+				if (IsFileStore(MachineType))
+				{
+					Load2793DiscImage(FileName, Drive, DiscType::ADFS);
+				}
+				else
+				{
+					Load1770DiscImage(FileName, Drive, DiscType::ADFS);
+				}
 			}
 		}
 
@@ -649,7 +712,8 @@ void BeebWin::SetDiscWriteProtect(int Drive, bool WriteProtect)
 
 void BeebWin::SetDiscWriteProtects()
 {
-	if ((MachineType != Model::Master128 && MachineType != Model::MasterET) && NativeFDC)
+	if ((MachineType != Model::Master128 && MachineType != Model::MasterET) && NativeFDC &&
+	    !IsFileStore(MachineType))
 	{
 		m_WriteProtectDisc[0] = !IsDiscWritable(0);
 		m_WriteProtectDisc[1] = !IsDiscWritable(1);
