@@ -27,6 +27,9 @@ Boston, MA  02110-1301, USA.
 #include <stdio.h>
 
 #include <algorithm>
+#include <string>
+
+#include <gdiplus.h>
 
 #include "BeebWin.h"
 #include "BeebMem.h"
@@ -207,48 +210,64 @@ void BeebWin::FitFileStoreWindow()
 
 // Colours, taken from photos of the real units
 
-static const COLORREF FS_BACKGROUND     = RGB(40, 40, 44);
-static const COLORREF FS_CASE           = RGB(222, 213, 190); // Cream case
-static const COLORREF FS_CASE_HIGHLIGHT = RGB(238, 232, 214);
-static const COLORREF FS_CASE_SHADOW    = RGB(170, 160, 138);
-static const COLORREF FS_PLINTH         = RGB(212, 202, 176); // Recessed base
-static const COLORREF FS_PLINTH_SHADOW  = RGB(150, 141, 120);
-static const COLORREF FS_STRIPE         = RGB(236, 232, 214); // Stripes printed on the flap
-static const COLORREF FS_FLAP_TINT      = RGB(200, 95, 25);   // See-through amber flap
-static const COLORREF FS_FLAP_EDGE      = RGB(110, 40, 15);
-static const COLORREF FS_LABEL          = RGB(18, 18, 18);
-static const COLORREF FS_LABEL_TEXT     = RGB(235, 235, 235);
-static const COLORREF FS_FASCIA_E01     = RGB(88, 96, 92);    // Behind the flap
-static const COLORREF FS_FASCIA_E01S    = RGB(30, 30, 32);
-static const COLORREF FS_LED_PANEL      = RGB(44, 34, 32);    // Behind MODE/POWER
-static const COLORREF FS_LED_PANEL_TEXT = RGB(205, 185, 130);
-static const COLORREF FS_FLOPPY         = RGB(22, 22, 24);    // 3.5" drive bezel
-static const COLORREF FS_SLOT           = RGB(6, 6, 6);
-static const COLORREF FS_SHUTTER        = RGB(28, 28, 30);    // Black shutter, empty drive
-static const COLORREF FS_SHUTTER_EDGE   = RGB(58, 58, 62);
-static const COLORREF FS_DISC           = RGB(2, 2, 2);       // Disc in the drive
-static const COLORREF FS_DISC_EDGE      = RGB(130, 130, 136);
-static const COLORREF FS_EJECT          = RGB(26, 26, 28);
-static const COLORREF FS_EJECT_OUT      = RGB(96, 96, 102);
-static const COLORREF FS_SWITCH         = RGB(220, 214, 200);
-static const COLORREF FS_SWITCH_ROCKER  = RGB(120, 116, 108);
-static const COLORREF FS_RED_ON         = RGB(255, 40, 30);
-static const COLORREF FS_RED_OFF        = RGB(90, 20, 16);
-static const COLORREF FS_GREEN_ON       = RGB(40, 240, 90);
-static const COLORREF FS_GREEN_OFF      = RGB(20, 70, 36);
-static const COLORREF FS_FLOPPY_LED_ON  = RGB(170, 255, 40);  // Lime
-static const COLORREF FS_FLOPPY_LED_OFF = RGB(52, 56, 50);
+static const COLORREF FS_BACKGROUND      = RGB(40, 40, 44);
+static const COLORREF FS_CASE            = RGB(222, 213, 190); // Cream case
+static const COLORREF FS_CASE_HIGHLIGHT  = RGB(238, 232, 214);
+static const COLORREF FS_CASE_SHADOW     = RGB(170, 160, 138);
+static const COLORREF FS_PLINTH          = RGB(212, 202, 176); // Recessed base
+static const COLORREF FS_PLINTH_SHADOW   = RGB(150, 141, 120);
+static const COLORREF FS_FASCIA          = RGB(30, 24, 22);    // Very dark black-brown
+static const COLORREF FS_STRIPE          = RGB(236, 232, 214); // Stripes printed on the flap
+static const COLORREF FS_FLAP_TINT       = RGB(200, 95, 25);   // See-through amber flap
+static const COLORREF FS_BEVEL_LIT       = RGB(205, 140, 60);  // Bevelled edge of the flap
+static const COLORREF FS_BEVEL_DARK      = RGB(140, 72, 22);
+static const COLORREF FS_BEVEL_LIGHT     = RGB(255, 200, 120);
+static const COLORREF FS_BEVEL_OUTLINE   = RGB(70, 25, 8);
+static const COLORREF FS_LABEL           = RGB(18, 18, 18);
+static const COLORREF FS_LABEL_TEXT      = RGB(232, 230, 215);
 
-// Opacity (out of 256) of the flap tint, the flap edge, and the glow of a
-// lit LED seen through the flap
-constexpr int FS_FLAP_TINT_ALPHA = 170;
-constexpr int FS_FLAP_EDGE_ALPHA = 200;
+// Floppy drive
+static const COLORREF FS_DRIVE_BEZEL     = RGB(20, 20, 22);
+static const COLORREF FS_DRIVE_BAND      = RGB(30, 30, 32);    // Raised band above the slot
+static const COLORREF FS_DRIVE_EDGE      = RGB(70, 70, 74);
+static const COLORREF FS_DRIVE_SLOT_RIM  = RGB(60, 60, 64);
+static const COLORREF FS_DRIVE_SLOT      = RGB(8, 8, 9);
+static const COLORREF FS_DRIVE_SHUTTER   = RGB(26, 26, 28);    // Black shutter, no disc
+static const COLORREF FS_DRIVE_SHUTTER_EDGE = RGB(48, 48, 52);
+static const COLORREF FS_DRIVE_DISC      = RGB(3, 3, 3);       // Disc in the drive
+static const COLORREF FS_DRIVE_DISC_EDGE = RGB(85, 85, 90);
+static const COLORREF FS_DRIVE_STEP      = RGB(24, 24, 26);
+static const COLORREF FS_DRIVE_EJECT     = RGB(18, 18, 20);
+static const COLORREF FS_DRIVE_EJECT_RIM = RGB(55, 55, 58);
+static const COLORREF FS_DRIVE_EJECT_RIM_DISC = RGB(95, 95, 100);
+static const COLORREF FS_DRIVE_LED_ON    = RGB(170, 255, 40);  // Lime
+static const COLORREF FS_DRIVE_LED_OFF   = RGB(66, 68, 64);
+
+// MODE/DRIVE and POWER LEDs
+static const COLORREF FS_LED_HOUSING     = RGB(42, 36, 34);
+static const COLORREF FS_LED_HOUSING_EDGE = RGB(80, 74, 70);
+static const COLORREF FS_RED_ON          = RGB(255, 45, 35);
+static const COLORREF FS_RED_ON_RIM      = RGB(255, 170, 160);
+static const COLORREF FS_RED_OFF         = RGB(115, 18, 20);
+static const COLORREF FS_RED_OFF_RIM     = RGB(180, 140, 140);
+static const COLORREF FS_GREEN_ON        = RGB(150, 245, 40);
+static const COLORREF FS_GREEN_ON_RIM    = RGB(200, 255, 150);
+static const COLORREF FS_GREEN_OFF       = RGB(40, 60, 30);
+static const COLORREF FS_GREEN_OFF_RIM   = RGB(90, 110, 80);
+static const COLORREF FS_LED_TEXT        = RGB(185, 160, 95);  // Tan lettering
+static const COLORREF FS_SWITCH          = RGB(225, 218, 200);
+static const COLORREF FS_SWITCH_SHADOW   = RGB(150, 144, 130);
+
+// Opacity (out of 256) of the flap tint, and of the glow of a lit LED seen
+// through the flap
+constexpr int FS_FLAP_TINT_ALPHA = 70;
 constexpr int FS_LED_GLOW_ALPHA  = 150;
 
 /****************************************************************************/
 
 // The panel is drawn into a 32-bit DIB section, so that the see-through
-// flap can be drawn by blending pixels
+// flap can be drawn by blending pixels. Text and the Acorn logo are drawn
+// with GDI+, for evenly spaced, anti-aliased text.
 
 struct FileStoreCanvas
 {
@@ -262,10 +281,13 @@ struct FileStoreCanvas
 
 static void FillSolidRect(HDC hDC, int Left, int Top, int Right, int Bottom, COLORREF Colour)
 {
-	RECT Rect = { Left, Top, Right, Bottom };
-	HBRUSH hBrush = CreateSolidBrush(Colour);
-	FillRect(hDC, &Rect, hBrush);
-	DeleteObject(hBrush);
+	if (Right > Left && Bottom > Top)
+	{
+		RECT Rect = { Left, Top, Right, Bottom };
+		HBRUSH hBrush = CreateSolidBrush(Colour);
+		FillRect(hDC, &Rect, hBrush);
+		DeleteObject(hBrush);
+	}
 }
 
 /****************************************************************************/
@@ -308,104 +330,149 @@ static void BlendRect(const FileStoreCanvas& Canvas, int Left, int Top, int Righ
 
 /****************************************************************************/
 
-static void DrawLED(HDC hDC, int x, int y, int Size, bool On, COLORREF OnColour, COLORREF OffColour)
+// Text, drawn with GDI+. The model labels use a high contrast bold serif:
+// Bodoni MT (installed with Microsoft Office) if available, otherwise
+// Times New Roman. The Acorn badge uses Times New Roman, and the LED labels
+// Arial Bold.
+
+enum class PanelFont
 {
-	FillSolidRect(hDC, x - 1, y - 1, x + Size + 1, y + Size + 1, RGB(0, 0, 0));
-	FillSolidRect(hDC, x, y, x + Size, y + Size, On ? OnColour : OffColour);
+	ModelLabel,
+	Acorn,
+	LEDLabel
+};
+
+static Gdiplus::Color ToGdiplusColor(COLORREF Colour)
+{
+	return Gdiplus::Color(255, GetRValue(Colour), GetGValue(Colour), GetBValue(Colour));
 }
 
-/****************************************************************************/
-
-// The model labels use a high contrast bold serif. Bodoni MT (installed
-// with Microsoft Office) is closest; otherwise Times New Roman.
-
-static int CALLBACK FontFoundCallback(const LOGFONT* /* pLogFont */,
-                                     const TEXTMETRIC* /* pTextMetric */,
-                                     DWORD /* FontType */,
-                                     LPARAM lParam)
+static std::wstring ToWide(const char* Text)
 {
-	*reinterpret_cast<bool*>(lParam) = true;
-	return 0; // Stop enumerating
+	return std::wstring(Text, Text + strlen(Text));
 }
 
-static bool IsFontInstalled(const char* FaceName)
+static Gdiplus::Font* CreatePanelFont(PanelFont Font, float Size)
 {
-	HDC hDC = GetDC(nullptr);
+	static Gdiplus::FontFamily* pModelFamily = nullptr;
+	static Gdiplus::FontFamily* pSerifFamily = nullptr;
+	static Gdiplus::FontFamily* pSansFamily = nullptr;
 
-	LOGFONT lf = {};
-	lf.lfCharSet = DEFAULT_CHARSET;
-	strcpy(lf.lfFaceName, FaceName);
-
-	bool Found = false;
-
-	EnumFontFamiliesEx(hDC, &lf, FontFoundCallback, reinterpret_cast<LPARAM>(&Found), 0);
-
-	ReleaseDC(nullptr, hDC);
-
-	return Found;
-}
-
-static HFONT CreatePanelFont(int Height, bool Serif, bool Bold)
-{
-	static const bool Bodoni = IsFontInstalled("Bodoni MT");
-
-	const char* FaceName = !Serif ? "Arial" :
-	                       Bold && Bodoni ? "Bodoni MT" : "Times New Roman";
-
-	return CreateFont(Height, 0, 0, 0, Bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
-	                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-	                  ANTIALIASED_QUALITY,
-	                  VARIABLE_PITCH | (Serif ? FF_ROMAN : FF_SWISS),
-	                  FaceName);
-}
-
-static int GetTextWidth(HDC hDC, const char* Text, int Height, bool Serif, bool Bold)
-{
-	HFONT hFont = CreatePanelFont(Height, Serif, Bold);
-	HGDIOBJ hPrevFont = SelectObject(hDC, hFont);
-
-	SIZE Size;
-	GetTextExtentPoint32(hDC, Text, (int)strlen(Text), &Size);
-
-	SelectObject(hDC, hPrevFont);
-	DeleteObject(hFont);
-
-	return Size.cx;
-}
-
-/****************************************************************************/
-
-static void DrawPanelText(HDC hDC, const char* Text, int x, int y, int Height, bool Serif, bool Bold, COLORREF Colour)
-{
-	HFONT hFont = CreatePanelFont(std::max(6, Height), Serif, Bold);
-	HGDIOBJ hPrevFont = SelectObject(hDC, hFont);
-
-	SetBkMode(hDC, TRANSPARENT);
-	SetTextColor(hDC, Colour);
-	TextOut(hDC, x, y, Text, (int)strlen(Text));
-
-	SelectObject(hDC, hPrevFont);
-	DeleteObject(hFont);
-}
-
-/****************************************************************************/
-
-// Returns the largest font height, up to MaxHeight, at which Text fits in
-// Width pixels
-
-static int GetFittedTextHeight(HDC hDC, const char* Text, int Width, int MaxHeight, bool Serif, bool Bold)
-{
-	int Height = MaxHeight;
-
-	for (; Height > 6; Height--)
+	if (pModelFamily == nullptr)
 	{
-		if (GetTextWidth(hDC, Text, Height, Serif, Bold) <= Width)
+		pModelFamily = new Gdiplus::FontFamily(L"Bodoni MT");
+
+		if (!pModelFamily->IsAvailable())
 		{
-			break;
+			delete pModelFamily;
+			pModelFamily = new Gdiplus::FontFamily(L"Times New Roman");
 		}
+
+		pSerifFamily = new Gdiplus::FontFamily(L"Times New Roman");
+		pSansFamily = new Gdiplus::FontFamily(L"Arial");
 	}
 
-	return Height;
+	switch (Font)
+	{
+		case PanelFont::ModelLabel:
+		default:
+			return new Gdiplus::Font(pModelFamily, Size, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+
+		case PanelFont::Acorn:
+			return new Gdiplus::Font(pSerifFamily, Size, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+
+		case PanelFont::LEDLabel:
+			return new Gdiplus::Font(pSansFamily, Size, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+	}
+}
+
+// Capital letter height as a fraction of the font size
+static float GetCapHeight(PanelFont Font)
+{
+	return Font == PanelFont::LEDLabel ? 0.716f : 0.662f;
+}
+
+static float GetTextWidth(Gdiplus::Graphics& Graphics, PanelFont Font, float Size, const char* Text)
+{
+	Gdiplus::Font* pFont = CreatePanelFont(Font, Size);
+
+	const std::wstring WideText = ToWide(Text);
+	Gdiplus::RectF Bounds;
+	Graphics.MeasureString(WideText.c_str(), -1, pFont, Gdiplus::PointF(0.0f, 0.0f),
+	                       Gdiplus::StringFormat::GenericTypographic(), &Bounds);
+
+	delete pFont;
+
+	return Bounds.Width;
+}
+
+// Largest font size, up to MaxSize, at which Text fits in Width pixels
+static float GetFittedTextSize(Gdiplus::Graphics& Graphics, PanelFont Font, const char* Text, float Width, float MaxSize)
+{
+	float Size = MaxSize;
+
+	while (Size > 5.0f && GetTextWidth(Graphics, Font, Size, Text) > Width)
+	{
+		Size -= 0.5f;
+	}
+
+	return Size;
+}
+
+// Draw text with its capitals centred vertically on CentreY, starting at x
+static void DrawPanelText(Gdiplus::Graphics& Graphics, PanelFont Font, float Size, const char* Text,
+                          float x, float CentreY, COLORREF Colour)
+{
+	Gdiplus::Font* pFont = CreatePanelFont(Font, Size);
+
+	Gdiplus::FontFamily Family;
+	pFont->GetFamily(&Family);
+	const INT Style = pFont->GetStyle();
+	const float Ascent = Size * Family.GetCellAscent(Style) / Family.GetEmHeight(Style);
+	const float Baseline = CentreY + Size * GetCapHeight(Font) / 2.0f;
+
+	const std::wstring WideText = ToWide(Text);
+	Gdiplus::SolidBrush Brush(ToGdiplusColor(Colour));
+	Graphics.DrawString(WideText.c_str(), -1, pFont, Gdiplus::PointF(x, Baseline - Ascent),
+	                    Gdiplus::StringFormat::GenericTypographic(), &Brush);
+
+	delete pFont;
+}
+
+/****************************************************************************/
+
+// The Acorn logo, Height pixels high and 0.68 x Height wide: an upright
+// egg-shaped nut, a narrow gap, the cup, and below the cup a stalk running
+// out to the right.
+
+static void DrawAcornLogo(Gdiplus::Graphics& Graphics, float x, float y, float Height, COLORREF Colour)
+{
+	const float L = Height;
+	const float cx = x + 0.32f * L;
+	const float rx = 0.29f * L;
+	const float Cut = y + 0.52f * L;
+
+	Gdiplus::SolidBrush Brush(ToGdiplusColor(Colour));
+
+	// Nut
+	Gdiplus::GraphicsPath Nut;
+	Nut.AddBezier(cx - rx, Cut, cx - rx, y + 0.20f * L, cx - 0.55f * rx, y, cx, y);
+	Nut.AddBezier(cx, y, cx + 0.55f * rx, y, cx + rx, y + 0.20f * L, cx + rx, Cut);
+	Nut.CloseFigure();
+	Graphics.FillPath(&Brush, &Nut);
+
+	// Cup: the lower half of an ellipse
+	Graphics.FillPie(&Brush, cx - 0.28f * L, y + 0.33f * L, 0.56f * L, 0.44f * L, 0.0f, 180.0f);
+
+	// Stalk
+	const Gdiplus::PointF Stalk[] = {
+		Gdiplus::PointF(x,             y + 0.785f * L),
+		Gdiplus::PointF(x + 0.12f * L, y + 0.785f * L),
+		Gdiplus::PointF(x + 0.68f * L, y + 0.965f * L),
+		Gdiplus::PointF(x + 0.64f * L, y + 1.00f * L)
+	};
+
+	Graphics.FillPolygon(&Brush, Stalk, 4);
 }
 
 /****************************************************************************/
@@ -421,144 +488,114 @@ struct FileStoreUnitLayout
 	int Y(double f) const { return Top + (int)(f * Height); }
 };
 
-// Front flap area
+// Front flap area, which is also the fascia behind it
 constexpr double FS_FLAP_LEFT   = 0.012;
 constexpr double FS_FLAP_RIGHT  = 0.988;
 constexpr double FS_FLAP_TOP    = 0.10;
 constexpr double FS_FLAP_BOTTOM = 0.60;
 
-// The flap has about 60 stripes. The black model label and Acorn badge each
-// cover 10 stripes, one stripe in from the ends, in a band across the
-// middle of the flap that the stripes are cut short around.
+// The flap has a bevelled edge, and about 60 stripes. The black model
+// label (10 stripes) and Acorn badge (9 stripes) are one stripe in from the
+// ends, in a band across the middle of the flap that the stripes are cut
+// short around.
+constexpr double FS_FLAP_BEVEL         = 0.07; // Fraction of the flap height
 constexpr int    FS_STRIPES            = 60;
-constexpr int    FS_LABEL_STRIPES      = 10;
+constexpr int    FS_MODEL_LABEL_STRIPES = 10;
+constexpr int    FS_ACORN_LABEL_STRIPES = 8;
 constexpr double FS_LABEL_BAND_TOP     = 0.36; // Fraction of the flap height
 constexpr double FS_LABEL_BAND_BOTTOM  = 0.64;
-constexpr double FS_STRIPE_MARGIN      = 0.06; // Above and below the stripes
 
-// The two LEDs (MODE/POWER on the FileStore, DRIVE/POWER on a hard drive
-// unit) are in the same place on every unit, centred on the flap, just
-// left of the Acorn badge
+// The MODE/DRIVE and POWER LEDs are in the same place on every unit:
+// centred on the flap, just left of the Acorn badge
 constexpr double FS_LED_RED_X   = 0.745;
-constexpr double FS_LED_GREEN_X = 0.785;
-constexpr double FS_LED_Y       = 0.35; // Centre
+constexpr double FS_LED_GREEN_X = 0.808;
+constexpr double FS_LED_Y       = 0.54; // Fraction of the flap height
 
 /****************************************************************************/
 
-static int GetLEDSize(const FileStoreUnitLayout& Unit)
-{
-	return std::max(4, (int)(Unit.Height * 0.07));
-}
-
-/****************************************************************************/
-
-static void DrawUnitLEDs(HDC hDC, const FileStoreUnitLayout& Unit, const char* RedLabel, bool RedOn)
-{
-	const int Size   = GetLEDSize(Unit);
-	const int RedX   = Unit.X(FS_LED_RED_X);
-	const int GreenX = Unit.X(FS_LED_GREEN_X);
-	const int y      = Unit.Y(FS_LED_Y) - Size / 2;
-
-	DrawLED(hDC, RedX, y, Size, RedOn, FS_RED_ON, FS_RED_OFF);
-	DrawLED(hDC, GreenX, y, Size, true, FS_GREEN_ON, FS_GREEN_OFF); // Power
-
-	// Labels centred under the LEDs
-	const int TextHeight = std::max(6, (int)(Unit.Height * 0.055));
-
-	DrawPanelText(hDC, RedLabel,
-	              RedX + Size / 2 - GetTextWidth(hDC, RedLabel, TextHeight, false, true) / 2,
-	              y + Size + 2, TextHeight, false, true, FS_LED_PANEL_TEXT);
-
-	DrawPanelText(hDC, "POWER",
-	              GreenX + Size / 2 - GetTextWidth(hDC, "POWER", TextHeight, false, true) / 2,
-	              y + Size + 2, TextHeight, false, true, FS_LED_PANEL_TEXT);
-}
-
-/****************************************************************************/
-
-// A 3.5" floppy drive, as on the real FileStore: black bezel, a stepped
-// slot with a raised shutter in the middle, the activity LED at the bottom
-// left and the eject button at the bottom right. Left and Right are
-// fractions of the unit's width.
+// A 3.5" floppy drive, measured from photos of the real FileStore: black
+// bezel, a raised band above the slot, the slot (closed by a black shutter
+// when empty), a lower step, the activity LED at the bottom left and the
+// eject button at the bottom right. Left and Right are fractions of the
+// unit's width.
 
 static void DrawFloppyDrive(HDC hDC, const FileStoreUnitLayout& Unit, double Left, double Right,
                             bool DiscInserted, bool LED)
 {
-	// Position across the drive, as a fraction of the drive's width
-	auto DX = [&](double f) { return Unit.X(Left + (Right - Left) * f); };
+	const int BezelLeft   = Unit.X(Left);
+	const int BezelRight  = Unit.X(Right);
+	const int BezelTop    = Unit.Y(0.11);
+	const int BezelBottom = Unit.Y(0.59);
+	const int BezelWidth  = BezelRight - BezelLeft;
+	const int BezelHeight = BezelBottom - BezelTop;
 
-	FillSolidRect(hDC, DX(0.0), Unit.Y(0.16), DX(1.0), Unit.Y(0.54), FS_FLOPPY);
+	// Positions within the drive bezel
+	auto DX = [&](double f) { return BezelLeft + (int)(f * BezelWidth); };
+	auto DY = [&](double f) { return BezelTop + (int)(f * BezelHeight); };
 
-	// Slot opening, with the lips at each side
-	FillSolidRect(hDC, DX(0.06), Unit.Y(0.28), DX(0.94), Unit.Y(0.34), FS_SLOT);
+	FillSolidRect(hDC, BezelLeft, BezelTop, BezelRight, BezelBottom, FS_DRIVE_BEZEL);
 
-	const int ShutterLeft   = DX(0.30);
-	const int ShutterRight  = DX(0.75);
-	const int ShutterTop    = Unit.Y(0.25);
-	const int ShutterBottom = Unit.Y(0.37);
+	// Raised band above the slot
+	FillSolidRect(hDC, DX(0.26), DY(0.07), DX(0.77), DY(0.18), FS_DRIVE_BAND);
+	FillSolidRect(hDC, DX(0.26), DY(0.07), DX(0.77), DY(0.07) + 1, FS_DRIVE_EDGE);
+
+	// Slot
+	FillSolidRect(hDC, DX(0.05), DY(0.20), DX(0.96), DY(0.43), FS_DRIVE_SLOT_RIM);
+	FillSolidRect(hDC, DX(0.05) + 1, DY(0.20) + 1, DX(0.96) - 1, DY(0.43) - 1, FS_DRIVE_SLOT);
 
 	if (DiscInserted)
 	{
-		// Black disc in the slot, outlined so it stands out from the drive,
-		// and the eject button out
-		FillSolidRect(hDC, ShutterLeft, ShutterTop, ShutterRight, ShutterBottom, FS_DISC);
-		FillSolidRect(hDC, ShutterLeft, ShutterTop, ShutterRight, ShutterTop + 1, FS_DISC_EDGE);
-		FillSolidRect(hDC, ShutterLeft, ShutterBottom - 1, ShutterRight, ShutterBottom, FS_DISC_EDGE);
-		FillSolidRect(hDC, ShutterLeft, ShutterTop, ShutterLeft + 1, ShutterBottom, FS_DISC_EDGE);
-		FillSolidRect(hDC, ShutterRight - 1, ShutterTop, ShutterRight, ShutterBottom, FS_DISC_EDGE);
-
-		FillSolidRect(hDC, DX(0.76), Unit.Y(0.43), DX(0.89), Unit.Y(0.50), FS_EJECT_OUT);
+		// A thin, filled-in disc in the slot
+		FillSolidRect(hDC, DX(0.08), DY(0.27), DX(0.94), DY(0.36), FS_DRIVE_DISC);
+		FillSolidRect(hDC, DX(0.08), DY(0.27), DX(0.94), DY(0.27) + 1, FS_DRIVE_DISC_EDGE);
 	}
 	else
 	{
-		// Empty: the black shutter, with a faint top edge
-		FillSolidRect(hDC, ShutterLeft, ShutterTop, ShutterRight, ShutterBottom, FS_SHUTTER);
-		FillSolidRect(hDC, ShutterLeft, ShutterTop, ShutterRight, ShutterTop + 1, FS_SHUTTER_EDGE);
-
-		FillSolidRect(hDC, DX(0.76), Unit.Y(0.43), DX(0.89), Unit.Y(0.50), FS_EJECT);
-		FillSolidRect(hDC, DX(0.76), Unit.Y(0.43), DX(0.89), Unit.Y(0.43) + 1, FS_SHUTTER_EDGE);
+		// The black shutter, flush in the slot
+		FillSolidRect(hDC, DX(0.26), DY(0.20) + 1, DX(0.77), DY(0.43) - 1, FS_DRIVE_SHUTTER);
+		FillSolidRect(hDC, DX(0.26), DY(0.20) + 1, DX(0.77), DY(0.20) + 2, FS_DRIVE_SHUTTER_EDGE);
 	}
 
-	// Lower lip of the slot
-	FillSolidRect(hDC, DX(0.30), Unit.Y(0.405), DX(0.88), Unit.Y(0.405) + 1, FS_SHUTTER_EDGE);
+	// Lower step
+	FillSolidRect(hDC, DX(0.26), DY(0.46), DX(0.96), DY(0.60), FS_DRIVE_STEP);
+	FillSolidRect(hDC, DX(0.26), DY(0.46), DX(0.96), DY(0.46) + 1, FS_DRIVE_SHUTTER_EDGE);
 
 	// Activity LED
-	FillSolidRect(hDC, DX(0.18), Unit.Y(0.45), DX(0.24), Unit.Y(0.48), LED ? FS_FLOPPY_LED_ON : FS_FLOPPY_LED_OFF);
+	FillSolidRect(hDC, DX(0.17), DY(0.79), DX(0.22), DY(0.85), LED ? FS_DRIVE_LED_ON : FS_DRIVE_LED_OFF);
+
+	// Eject button
+	FillSolidRect(hDC, DX(0.78), DY(0.69), DX(0.95), DY(0.85), DiscInserted ? FS_DRIVE_EJECT_RIM_DISC : FS_DRIVE_EJECT_RIM);
+	FillSolidRect(hDC, DX(0.78) + 1, DY(0.69) + 1, DX(0.95) - 1, DY(0.85) - 1, FS_DRIVE_EJECT);
 }
 
 /****************************************************************************/
 
-// The Acorn logo: an acorn with a domed cap and stalk, and below a small
-// gap, the nut
-
-static void DrawAcornLogo(HDC hDC, int cx, int cy, int Height)
+static void GetLEDPosition(const FileStoreUnitLayout& Unit, int* pPanelHeight, int* pCentreY, int* pRedX, int* pGreenX)
 {
-	const double h = Height;
-	const double w = h * 0.62;
+	*pPanelHeight = Unit.Y(FS_FLAP_BOTTOM) - Unit.Y(FS_FLAP_TOP);
+	*pCentreY     = Unit.Y(FS_FLAP_TOP) + (int)(*pPanelHeight * FS_LED_Y);
+	*pRedX        = Unit.X(FS_LED_RED_X);
+	*pGreenX      = Unit.X(FS_LED_GREEN_X);
+}
 
-	HBRUSH hBrush = CreateSolidBrush(FS_LABEL_TEXT);
-	HGDIOBJ hPrevBrush = SelectObject(hDC, hBrush);
-	HGDIOBJ hPrevPen = SelectObject(hDC, GetStockObject(NULL_PEN));
+/****************************************************************************/
 
-	// Cap: the top half of an ellipse
-	const int CapLeft   = cx - (int)(w * 0.50);
-	const int CapRight  = cx + (int)(w * 0.50);
-	const int CapTop    = cy - (int)(h * 0.40);
-	const int CapBottom = cy + (int)(h * 0.16);
-	const int CapMiddle = (CapTop + CapBottom) / 2;
+// A rectangular LED with a light rim, in a slightly lighter housing
 
-	Chord(hDC, CapLeft, CapTop, CapRight, CapBottom, CapRight, CapMiddle, CapLeft, CapMiddle);
+static void DrawLED(HDC hDC, int cx, int cy, int PanelHeight, bool On,
+                    COLORREF OnColour, COLORREF OnRim, COLORREF OffColour, COLORREF OffRim)
+{
+	const int HousingHalfWidth  = std::max(3, (int)(PanelHeight * 0.13));
+	const int HousingHalfHeight = std::max(3, (int)(PanelHeight * 0.115));
 
-	// Stalk
-	RECT Stalk = { cx - std::max(1, (int)(w * 0.05)), cy - (int)(h * 0.52), cx + std::max(1, (int)(w * 0.05)), cy - (int)(h * 0.36) };
-	FillRect(hDC, &Stalk, hBrush);
+	FillSolidRect(hDC, cx - HousingHalfWidth, cy - HousingHalfHeight, cx + HousingHalfWidth, cy + HousingHalfHeight, FS_LED_HOUSING);
+	FillSolidRect(hDC, cx - HousingHalfWidth, cy - HousingHalfHeight, cx + HousingHalfWidth, cy - HousingHalfHeight + 1, FS_LED_HOUSING_EDGE);
 
-	// Nut
-	Ellipse(hDC, cx - (int)(w * 0.36), cy - (int)(h * 0.04), cx + (int)(w * 0.36), cy + (int)(h * 0.50));
+	const int HalfWidth  = std::max(2, (int)(PanelHeight * 0.10));
+	const int HalfHeight = std::max(2, (int)(PanelHeight * 0.06));
 
-	SelectObject(hDC, hPrevPen);
-	SelectObject(hDC, hPrevBrush);
-	DeleteObject(hBrush);
+	FillSolidRect(hDC, cx - HalfWidth, cy - HalfHeight, cx + HalfWidth, cy + HalfHeight, On ? OnRim : OffRim);
+	FillSolidRect(hDC, cx - HalfWidth + 1, cy - HalfHeight + 1, cx + HalfWidth - 1, cy + HalfHeight - 1, On ? OnColour : OffColour);
 }
 
 /****************************************************************************/
@@ -568,10 +605,10 @@ static void DrawAcornLogo(HDC hDC, int cx, int cy, int Height)
 // flap with its stripes and labels.
 
 static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& Unit,
-                     const char* Name, bool E01Style, bool FlapOpen, bool FileStore,
+                     const char* Name, bool FlapOpen, bool FileStore,
                      const char* RedLabel, bool RedOn,
                      const bool* DiscInserted, const bool* FloppyLED,
-                     int LabelTextHeight)
+                     float ModelTextSize)
 {
 	HDC hDC = Canvas.hDC;
 
@@ -589,20 +626,16 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 	const int FlapTop    = Unit.Y(FS_FLAP_TOP);
 	const int FlapBottom = Unit.Y(FS_FLAP_BOTTOM);
 
-	// Behind the flap: the fascia (slate grey on the E01 and E20, black on
-	// the E01S, E40S and E60S), the floppy drives on the FileStore, the LEDs
-	// and the power switch
-	FillSolidRect(hDC, FlapLeft, FlapTop, FlapRight, FlapBottom, E01Style ? FS_FASCIA_E01 : FS_FASCIA_E01S);
+	// Behind the flap: the very dark black-brown fascia, the floppy drives
+	// on the FileStore, the LEDs and their labels, and the power switch
+	FillSolidRect(hDC, FlapLeft, FlapTop, FlapRight, FlapBottom, FS_FASCIA);
 
 	if (FileStore)
 	{
-		DrawFloppyDrive(hDC, Unit, 0.03, 0.36, DiscInserted[0], FloppyLED[0]);
+		DrawFloppyDrive(hDC, Unit, 0.025, 0.355, DiscInserted[0], FloppyLED[0]);
 		DrawFloppyDrive(hDC, Unit, 0.375, 0.705, DiscInserted[1], FloppyLED[1]);
 
-		// Panel behind the MODE and POWER LEDs
-		FillSolidRect(hDC, Unit.X(0.718), FlapTop, FlapRight, FlapBottom, FS_LED_PANEL);
-
-		// With the door open, the cream case dividers between the drive bays
+		// With the door open, the cream case dividers between the bays
 		if (FlapOpen)
 		{
 			FillSolidRect(hDC, Unit.X(0.362), FlapTop, Unit.X(0.372), FlapBottom, FS_CASE);
@@ -610,40 +643,76 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 		}
 	}
 
-	DrawUnitLEDs(hDC, Unit, RedLabel, RedOn);
+	int PanelHeight, LEDy, RedX, GreenX;
+	GetLEDPosition(Unit, &PanelHeight, &LEDy, &RedX, &GreenX);
+
+	DrawLED(hDC, RedX, LEDy, PanelHeight, RedOn, FS_RED_ON, FS_RED_ON_RIM, FS_RED_OFF, FS_RED_OFF_RIM);
+	DrawLED(hDC, GreenX, LEDy, PanelHeight, true, FS_GREEN_ON, FS_GREEN_ON_RIM, FS_GREEN_OFF, FS_GREEN_OFF_RIM);
 
 	if (FlapOpen)
 	{
 		// Power switch
-		FillSolidRect(hDC, Unit.X(0.90), Unit.Y(0.22), Unit.X(0.94), Unit.Y(0.46), FS_SWITCH);
-		FillSolidRect(hDC, Unit.X(0.91), Unit.Y(0.26), Unit.X(0.93), Unit.Y(0.40), FS_SWITCH_ROCKER);
+		const int SwitchLeft   = Unit.X(0.955);
+		const int SwitchRight  = Unit.X(0.978);
+		const int SwitchTop    = FlapTop + (int)(PanelHeight * 0.30);
+		const int SwitchBottom = FlapTop + (int)(PanelHeight * 0.72);
+
+		FillSolidRect(hDC, SwitchLeft, SwitchTop, SwitchRight, SwitchBottom, FS_SWITCH_SHADOW);
+		FillSolidRect(hDC, SwitchLeft, SwitchTop, SwitchRight - 1, SwitchBottom - 1, FS_SWITCH);
+	}
+
+	// Tan LED labels under the LEDs
+	{
+		GdiFlush();
+
+		Gdiplus::Graphics Graphics(hDC);
+		Graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAlias);
+
+		const float Size = PanelHeight * 0.12f;
+		const float CentreY = FlapTop + PanelHeight * 0.70f + Size * GetCapHeight(PanelFont::LEDLabel) / 2.0f;
+
+		DrawPanelText(Graphics, PanelFont::LEDLabel, Size, RedLabel,
+		              RedX - GetTextWidth(Graphics, PanelFont::LEDLabel, Size, RedLabel) / 2.0f,
+		              CentreY, FS_LED_TEXT);
+
+		DrawPanelText(Graphics, PanelFont::LEDLabel, Size, "POWER",
+		              GreenX - GetTextWidth(Graphics, PanelFont::LEDLabel, Size, "POWER") / 2.0f,
+		              CentreY, FS_LED_TEXT);
+	}
+
+	if (FlapOpen)
+	{
 		return;
 	}
 
 	// The flap is see-through amber plastic...
 	BlendRect(Canvas, FlapLeft, FlapTop, FlapRight, FlapBottom, FS_FLAP_TINT, FS_FLAP_TINT_ALPHA);
 
-	// ...with evenly spaced stripes printed on it, all the same whole number
-	// of pixels wide. The stripes are cut short around the label band where
-	// the model label and Acorn badge are.
-	const int FlapWidth   = FlapRight - FlapLeft;
-	const int FlapHeight  = FlapBottom - FlapTop;
-	const int Pitch       = std::max(4, FlapWidth / FS_STRIPES);
-	const int Stripes     = FlapWidth / Pitch;
-	const int StripeWidth = Pitch / 2;
-	const int FirstStripe = FlapLeft + (FlapWidth - Stripes * Pitch) / 2;
+	// ...with a bevelled edge...
+	const int FlapHeight = FlapBottom - FlapTop;
+	const int Bevel      = std::max(2, (int)(FlapHeight * FS_FLAP_BEVEL));
+	const int InnerLeft   = FlapLeft + Bevel;
+	const int InnerRight  = FlapRight - Bevel;
+	const int InnerTop    = FlapTop + Bevel;
+	const int InnerBottom = FlapBottom - Bevel;
 
-	const int StripeTop    = FlapTop + std::max(1, (int)(FlapHeight * FS_STRIPE_MARGIN));
-	const int StripeBottom = FlapBottom - std::max(1, (int)(FlapHeight * FS_STRIPE_MARGIN));
-	const int BandTop      = FlapTop + (int)(FlapHeight * FS_LABEL_BAND_TOP);
-	const int BandBottom   = FlapTop + (int)(FlapHeight * FS_LABEL_BAND_BOTTOM);
-	const int BandGap      = std::max(1, Pitch / 2);
+	// ...and evenly spaced stripes printed on it, all the same whole number
+	// of pixels wide. The stripes are cut short around the label band.
+	const int InnerWidth  = InnerRight - InnerLeft;
+	const int Pitch       = std::max(4, InnerWidth / FS_STRIPES);
+	const int Stripes     = InnerWidth / Pitch;
+	const int StripeWidth = Pitch / 2;
+	const int FirstStripe = InnerLeft + (InnerWidth - Stripes * Pitch) / 2;
+
+	const int BandTop    = FlapTop + (int)(FlapHeight * FS_LABEL_BAND_TOP);
+	const int BandBottom = FlapTop + (int)(FlapHeight * FS_LABEL_BAND_BOTTOM);
+	const int BandGap    = std::max(1, Pitch / 2);
 
 	// Label positions, in stripes
 	const int ModelLabelFirst = 1;
-	const int ModelLabelLast  = ModelLabelFirst + FS_LABEL_STRIPES;
+	const int ModelLabelLast  = ModelLabelFirst + FS_MODEL_LABEL_STRIPES;
 	const int AcornLabelLast  = Stripes - 1;
-	const int AcornLabelFirst = AcornLabelLast - FS_LABEL_STRIPES;
+	const int AcornLabelFirst = AcornLabelLast - FS_ACORN_LABEL_STRIPES;
 
 	for (int i = 0; i < Stripes; i++)
 	{
@@ -652,83 +721,107 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 		if ((i >= ModelLabelFirst && i < ModelLabelLast) ||
 		    (i >= AcornLabelFirst && i < AcornLabelLast))
 		{
-			FillSolidRect(hDC, x, StripeTop, x + StripeWidth, BandTop - BandGap, FS_STRIPE);
-			FillSolidRect(hDC, x, BandBottom + BandGap, x + StripeWidth, StripeBottom, FS_STRIPE);
+			FillSolidRect(hDC, x, InnerTop, x + StripeWidth, BandTop - BandGap, FS_STRIPE);
+			FillSolidRect(hDC, x, BandBottom + BandGap, x + StripeWidth, InnerBottom, FS_STRIPE);
 		}
 		else
 		{
-			FillSolidRect(hDC, x, StripeTop, x + StripeWidth, StripeBottom, FS_STRIPE);
+			FillSolidRect(hDC, x, InnerTop, x + StripeWidth, InnerBottom, FS_STRIPE);
 		}
 	}
 
-	// ...and the lit LEDs glow through it
-	const int LEDSize = GetLEDSize(Unit);
-	const int LEDy = Unit.Y(FS_LED_Y) - LEDSize / 2;
+	// Lit LEDs glow through the flap
+	const int GlowWidth  = std::max(3, (int)(PanelHeight * 0.14));
+	const int GlowHeight = std::max(2, (int)(PanelHeight * 0.10));
 
 	if (RedOn)
 	{
-		const int x = Unit.X(FS_LED_RED_X);
-		BlendRect(Canvas, x - LEDSize / 2, LEDy - LEDSize / 2, x + LEDSize + LEDSize / 2, LEDy + LEDSize + LEDSize / 2,
-		          FS_RED_ON, FS_LED_GLOW_ALPHA);
+		BlendRect(Canvas, RedX - GlowWidth, LEDy - GlowHeight, RedX + GlowWidth, LEDy + GlowHeight, FS_RED_ON, FS_LED_GLOW_ALPHA);
 	}
 
-	const int GreenX = Unit.X(FS_LED_GREEN_X);
-	BlendRect(Canvas, GreenX - LEDSize / 2, LEDy - LEDSize / 2, GreenX + LEDSize + LEDSize / 2, LEDy + LEDSize + LEDSize / 2,
-	          FS_GREEN_ON, FS_LED_GLOW_ALPHA);
+	BlendRect(Canvas, GreenX - GlowWidth, LEDy - GlowHeight, GreenX + GlowWidth, LEDy + GlowHeight, FS_GREEN_ON, FS_LED_GLOW_ALPHA);
 
-	// Darker moulded edges around the flap
-	const int Edge = std::max(2, (int)(Unit.Height * 0.02));
+	// The bevel: lit along the top and left, in shadow along the bottom and
+	// right, with a catch-light on the inner top and left edges and a dark
+	// outline
+	BlendRect(Canvas, FlapLeft, FlapTop, FlapRight, InnerTop, FS_BEVEL_LIT, 200);
+	BlendRect(Canvas, FlapLeft, InnerBottom, FlapRight, FlapBottom, FS_BEVEL_DARK, 220);
+	BlendRect(Canvas, FlapLeft, InnerTop, InnerLeft, InnerBottom, FS_BEVEL_LIT, 170);
+	BlendRect(Canvas, InnerRight, InnerTop, FlapRight, InnerBottom, FS_BEVEL_DARK, 200);
+	BlendRect(Canvas, InnerLeft, InnerTop - 1, InnerRight, InnerTop, FS_BEVEL_LIGHT, 150);
+	BlendRect(Canvas, InnerLeft - 1, InnerTop, InnerLeft, InnerBottom, FS_BEVEL_LIGHT, 120);
+	BlendRect(Canvas, FlapLeft, FlapTop, FlapRight, FlapTop + 1, FS_BEVEL_OUTLINE, 220);
+	BlendRect(Canvas, FlapLeft, FlapBottom - 1, FlapRight, FlapBottom, FS_BEVEL_OUTLINE, 220);
+	BlendRect(Canvas, FlapLeft, FlapTop, FlapLeft + 1, FlapBottom, FS_BEVEL_OUTLINE, 220);
+	BlendRect(Canvas, FlapRight - 1, FlapTop, FlapRight, FlapBottom, FS_BEVEL_OUTLINE, 220);
 
-	BlendRect(Canvas, FlapLeft, FlapTop, FlapRight, FlapTop + Edge, FS_FLAP_EDGE, FS_FLAP_EDGE_ALPHA);
-	BlendRect(Canvas, FlapLeft, FlapBottom - Edge, FlapRight, FlapBottom, FS_FLAP_EDGE, FS_FLAP_EDGE_ALPHA);
-	BlendRect(Canvas, FlapLeft, FlapTop, FlapLeft + Edge, FlapBottom, FS_FLAP_EDGE, FS_FLAP_EDGE_ALPHA);
-	BlendRect(Canvas, FlapRight - Edge, FlapTop, FlapRight, FlapBottom, FS_FLAP_EDGE, FS_FLAP_EDGE_ALPHA);
-
-	// Model label
-	const int BandHeight = BandBottom - BandTop;
-
-	char Label[40];
-	sprintf(Label, "FILESTORE %s", Name);
-
+	// Black label and badge
 	const int ModelLeft  = FirstStripe + ModelLabelFirst * Pitch;
 	const int ModelRight = FirstStripe + ModelLabelLast * Pitch;
-	const int LabelWidth = GetTextWidth(hDC, Label, LabelTextHeight, true, true);
-
-	FillSolidRect(hDC, ModelLeft, BandTop, ModelRight, BandBottom, FS_LABEL);
-	DrawPanelText(hDC, Label,
-	              ModelLeft + (ModelRight - ModelLeft - LabelWidth) / 2,
-	              BandTop + (BandHeight - LabelTextHeight) / 2 - 1,
-	              LabelTextHeight, true, true, FS_LABEL_TEXT);
-
-	// Acorn badge: "Acorn" and the logo, centred on the badge
 	const int AcornLeft  = FirstStripe + AcornLabelFirst * Pitch;
 	const int AcornRight = FirstStripe + AcornLabelLast * Pitch;
 
+	FillSolidRect(hDC, ModelLeft, BandTop, ModelRight, BandBottom, FS_LABEL);
 	FillSolidRect(hDC, AcornLeft, BandTop, AcornRight, BandBottom, FS_LABEL);
 
-	const int AcornTextHeight = GetFittedTextHeight(hDC, "Acorn", (AcornRight - AcornLeft) * 62 / 100,
-	                                                BandHeight * 7 / 10, true, false);
-	const int AcornTextWidth = GetTextWidth(hDC, "Acorn", AcornTextHeight, true, false);
-	const int LogoWidth = BandHeight / 2;
-	const int LogoGap = std::max(2, LogoWidth / 3);
-	const int AcornTextX = AcornLeft + (AcornRight - AcornLeft - AcornTextWidth - LogoGap - LogoWidth) / 2;
+	GdiFlush();
 
-	DrawPanelText(hDC, "Acorn", AcornTextX, BandTop + (BandHeight - AcornTextHeight) / 2 - 1,
-	              AcornTextHeight, true, false, FS_LABEL_TEXT);
+	Gdiplus::Graphics Graphics(hDC);
+	Graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintAntiAlias);
+	Graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 
-	DrawAcornLogo(hDC, AcornTextX + AcornTextWidth + LogoGap + LogoWidth / 2,
-	              (BandTop + BandBottom) / 2, BandHeight * 7 / 10);
+	const float BandCentre = (BandTop + BandBottom) / 2.0f;
+	const float BandHeight = (float)(BandBottom - BandTop);
+
+	// "FILESTORE E01" etc, centred on the label
+	char Label[40];
+	sprintf(Label, "FILESTORE %s", Name);
+
+	const float LabelWidth = GetTextWidth(Graphics, PanelFont::ModelLabel, ModelTextSize, Label);
+
+	DrawPanelText(Graphics, PanelFont::ModelLabel, ModelTextSize, Label,
+	              ModelLeft + (ModelRight - ModelLeft - LabelWidth) / 2.0f, BandCentre, FS_LABEL_TEXT);
+
+	// "Acorn" and the logo, towards the right of the badge. As on the real
+	// badge, the logo is taller than the text: the cap height is 0.71 of
+	// the logo height, and the text baseline is level with the stalk.
+	float LogoHeight = BandHeight * 0.84f;
+	float AcornSize, AcornWidth, LogoWidth, LogoGap;
+
+	for (;;)
+	{
+		AcornSize  = 0.71f * LogoHeight / GetCapHeight(PanelFont::Acorn);
+		AcornWidth = GetTextWidth(Graphics, PanelFont::Acorn, AcornSize, "Acorn");
+		LogoWidth  = 0.68f * LogoHeight;
+		LogoGap    = 0.12f * LogoHeight;
+
+		if (AcornWidth + LogoGap + LogoWidth <= (AcornRight - AcornLeft) - BandHeight * 0.6f || LogoHeight < 6.0f)
+		{
+			break;
+		}
+
+		LogoHeight -= 0.5f;
+	}
+
+	const float LogoTop  = BandTop + (BandHeight - LogoHeight) / 2.0f;
+	const float Baseline = LogoTop + 0.80f * LogoHeight;
+	const float AcornX   = AcornRight - BandHeight * 0.3f - LogoWidth - LogoGap - AcornWidth;
+
+	DrawPanelText(Graphics, PanelFont::Acorn, AcornSize, "Acorn", AcornX,
+	              Baseline - AcornSize * GetCapHeight(PanelFont::Acorn) / 2.0f, FS_LABEL_TEXT);
+
+	DrawAcornLogo(Graphics, AcornX + AcornWidth + LogoGap, LogoTop, LogoHeight, FS_LABEL_TEXT);
 }
 
 /****************************************************************************/
 
-// Hard drive unit model from the drive image size
+// Hard drive unit model from the drive image size, as printed on the flap
 
 static const char* GetDriveUnitName(int SizeMB)
 {
 	if (SizeMB <= 25) return "E20";
-	if (SizeMB <= 45) return "E40S";
-	return "E60S";
+	if (SizeMB <= 45) return "E40 S";
+	return "E60 S";
 }
 
 /****************************************************************************/
@@ -804,24 +897,29 @@ void BeebWin::PaintFileStore(HDC hDC)
 	Unit.Width = UnitWidth;
 	Unit.Height = UnitHeight;
 
-	// The same label text size on every unit: the largest that fits the
-	// longest label
-	const int FlapWidth = Unit.X(FS_FLAP_RIGHT) - Unit.X(FS_FLAP_LEFT);
-	const int FlapHeight = Unit.Y(FS_FLAP_BOTTOM) - Unit.Y(FS_FLAP_TOP);
-	const int Pitch = std::max(4, FlapWidth / FS_STRIPES);
+	// The same model label text size on every unit: the largest that fits
+	// the longest label in 90% of the label's width
+	float ModelTextSize;
 
-	const int LabelTextHeight = GetFittedTextHeight(
-		Canvas.hDC, "FILESTORE E01S",
-		FS_LABEL_STRIPES * Pitch * 88 / 100,
-		(int)(FlapHeight * (FS_LABEL_BAND_BOTTOM - FS_LABEL_BAND_TOP) * 0.75),
-		true, true);
+	{
+		const int FlapHeight = Unit.Y(FS_FLAP_BOTTOM) - Unit.Y(FS_FLAP_TOP);
+		const int Bevel = std::max(2, (int)(FlapHeight * FS_FLAP_BEVEL));
+		const int InnerWidth = Unit.X(FS_FLAP_RIGHT) - Unit.X(FS_FLAP_LEFT) - 2 * Bevel;
+		const int Pitch = std::max(4, InnerWidth / FS_STRIPES);
+
+		Gdiplus::Graphics Graphics(Canvas.hDC);
+
+		ModelTextSize = GetFittedTextSize(Graphics, PanelFont::ModelLabel, "FILESTORE E40 S",
+		                                  FS_MODEL_LABEL_STRIPES * Pitch * 0.90f,
+		                                  FlapHeight * (float)(FS_LABEL_BAND_BOTTOM - FS_LABEL_BAND_TOP) * 0.80f);
+	}
 
 	// FileStore E01 or E01S
 	const bool E01S = MachineType == Model::FileStoreE01S;
 	const bool DiscInserted[2] = { DiscInfo[0].Loaded, DiscInfo[1].Loaded };
 
-	DrawUnit(Canvas, Unit, E01S ? "E01S" : "E01", !E01S, FileStoreDoorOpen, true,
-	         "MODE", FileStoreModeLED, DiscInserted, LEDs.FloppyDisc, LabelTextHeight);
+	DrawUnit(Canvas, Unit, E01S ? "E01S" : "E01", FileStoreDoorOpen, true,
+	         "MODE", FileStoreModeLED, DiscInserted, LEDs.FloppyDisc, ModelTextSize);
 
 	// Hard drive units
 	for (int Drive = 0; Drive < 4; Drive++)
@@ -833,10 +931,8 @@ void BeebWin::PaintFileStore(HDC hDC)
 
 		Unit.Top += UnitHeight + Gap;
 
-		const char* Name = GetDriveUnitName(m_FileStoreDriveSize[Drive]);
-
-		DrawUnit(Canvas, Unit, Name, strcmp(Name, "E20") == 0, false, false,
-		         "DRIVE", LEDs.HDisc[Drive], nullptr, nullptr, LabelTextHeight);
+		DrawUnit(Canvas, Unit, GetDriveUnitName(m_FileStoreDriveSize[Drive]), false, false,
+		         "DRIVE", LEDs.HDisc[Drive], nullptr, nullptr, ModelTextSize);
 	}
 
 	GdiFlush();
