@@ -1180,8 +1180,9 @@ void BeebWin::PaintFileStore(HDC hDC)
 
 		Unit.Top += UnitHeight + Gap;
 
+		// The red DRIVE LED on a hard drive unit is always on
 		DrawUnit(Canvas, Unit, m_FileStoreUnitName[Drive].c_str(), false, false,
-		         "DRIVE", LEDs.HDisc[Drive], nullptr, nullptr, ModelTextSize);
+		         "DRIVE", true, nullptr, nullptr, ModelTextSize);
 	}
 
 	GdiFlush();
@@ -1208,14 +1209,6 @@ static int GetFileStoreLEDState()
 	// Also redraw when a floppy disc is inserted or removed
 	if (DiscInfo[0].Loaded)   State |= 0x100;
 	if (DiscInfo[1].Loaded)   State |= 0x200;
-
-	for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
-	{
-		if (LEDs.HDisc[Drive])
-		{
-			State |= 0x10 << Drive;
-		}
-	}
 
 	return State;
 }

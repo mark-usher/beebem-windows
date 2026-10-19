@@ -73,7 +73,6 @@ static bool HeadLoaded[2] = { false,false };
 static int ByteCount = 0;
 static long DataPos;
 
-bool Disc2793Enabled = true;
 
 static FILE *Disc0; // File handlers for the disc drives 0 and 1
 static FILE *Disc1;
@@ -170,9 +169,6 @@ static bool CurrentDiscOpen()
 // Read 2793 Register. Note - NOT the FDC Control register at &FE24.
 
 unsigned char Read2793Register(unsigned char Register) {
-	if (!Disc2793Enabled)
-		return 0xFF;
-
 //	if ((Status != lastStatus) && (Register != lastRegister)) {
 //		DebugTrace("Disc2793: Read of FDC FDCommand %d. Register %d - Value is %02X\n", FDCommand, Register, Status);
 
@@ -241,9 +237,6 @@ static void SetMotor(int Drive, bool State) {
 // Write 2793 Register - NOT the FDC Control register at &FE24
 
 void Write2793Register(unsigned char Register, unsigned char Value) {
-	if (!Disc2793Enabled)
-		return;
-
 	#ifdef DEBUG_2793
 	DebugTrace("Disc2793: Write of FDC Register %d - Value is %02X\n", Register, Value);
 	#endif
@@ -1070,7 +1063,13 @@ void Poll2793(int NCycles) {
 			Status |= WD2793_STATUS_SPIN_UP_COMPLETE;
 		}
 
-		if (LoadingCycles <= 0) FDCommand = 10; NextFDCommand = 255; // Go to spin down, but report error.
+		if (LoadingCycles <= 0)
+		{
+			// Go to spin down, but report error.
+			FDCommand = 10;
+			NextFDCommand = 255;
+		}
+
 		SpinDown[CurrentDrive] = SPIN_DOWN_TIME;
 		LightsOn[CurrentDrive] = true;
 		return;

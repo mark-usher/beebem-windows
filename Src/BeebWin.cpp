@@ -2045,7 +2045,7 @@ void BeebWin::UpdateModelMenu()
 	EnableMenuItem(IDM_TELETEXT, !IsMasterET && !IsFS);
 	EnableMenuItem(IDM_SELECT_TELETEXT_DATA_SOURCE, !IsMasterET && !IsFS);
 	EnableMenuItem(IDM_SET_KEYBOARD_LINKS, IsModelB);
-	EnableMenuItem(IDM_FLOPPY_DRIVE, !IsMasterET);
+	EnableMenuItem(IDM_FLOPPY_DRIVE, !IsMasterET && !IsFS);
 	EnableMenuItem(IDM_SCSI_HARD_DRIVE, !IsMasterET);
 	EnableMenuItem(IDM_IDE_HARD_DRIVE, !IsMasterET && !IsFS);
 	EnableMenuItem(IDM_SELECT_HARD_DRIVE_FOLDER, !IsMasterET);
@@ -2083,6 +2083,8 @@ void BeebWin::UpdateModelMenu()
 	EnableMenuItem(IDM_LOGICALKYBDMAPPING, !IsFS);
 	EnableMenuItem(IDM_MAPAS, !IsFS);
 	EnableMenuItem(IDM_MAPFUNCS, !IsFS);
+	EnableMenuItem(IDM_TRANSLATE_CRLF, !IsFS);
+	EnableMenuItem(IDM_SOLIDISK_SWRAM_BOARD, !IsFS);
 	EnableMenuItem(IDM_TUBE_NONE, !IsFS);
 	EnableMenuItem(IDM_TUBE_ACORN65C02, !IsFS);
 	EnableMenuItem(IDM_TUBE_MASTER512, !IsFS);
@@ -2092,15 +2094,19 @@ void BeebWin::UpdateModelMenu()
 	EnableMenuItem(IDM_TUBE_SPROWARM, !IsFS);
 
 	// Grey out the sub-menus whose items are all disabled
-	EnableSubMenu(IDM_CAPTURERES_DISPLAY, !IsFS);              // File -> Screen Capture Options
-	EnableSubMenu(IDM_VIDEORES1, !IsFS);                       // File -> Video Options
-	EnableSubMenu(IDM_DISC_IMPORT_0, !IsMasterET && !IsFS);    // Edit -> Import Files to Disc
-	EnableSubMenu(IDM_DISC_EXPORT_0, !IsMasterET && !IsFS);    // Edit -> Export Files from Disc
-	EnableSubMenu(IDM_TAPE_FAST, !IsMasterET && !IsFS);        // Comms -> Tape Speed
-	EnableSubMenu(IDM_AMXONOFF, !IsMasterET && !IsFS);         // AMX
-	EnableSubMenu(IDM_8271, IsModelB);                         // Hardware -> Model B Floppy Controller
-	EnableSubMenu(IDM_TUBE_NONE, !IsFS);                       // Hardware -> Second Processor
-	EnableSubMenu(IDM_FILESTORE_DRIVE0_NONE, IsFS, 2);         // Hardware -> FileStore Hard Drive Units
+	EnableSubMenu(IDM_CAPTURERES_DISPLAY, !IsFS);           // File -> Screen Capture Options
+	EnableSubMenu(IDM_VIDEORES1, !IsFS);                    // File -> Video Options
+	EnableSubMenu(IDM_DISC_IMPORT_0, !IsMasterET && !IsFS); // Edit -> Import Files to Disc
+	EnableSubMenu(IDM_DISC_EXPORT_0, !IsMasterET && !IsFS); // Edit -> Export Files from Disc
+	EnableSubMenu(IDM_TAPE_FAST, !IsMasterET && !IsFS);     // Comms -> Tape Speed
+	EnableSubMenu(IDM_RED_LEDS, !IsFS);                     // View -> LEDs
+	EnableSubMenu(IDM_BLUR_OFF, !IsFS);                     // View -> Motion Blur
+	EnableSubMenu(IDM_AMXONOFF, !IsMasterET && !IsFS);      // AMX
+	EnableSubMenu(IDM_8271, IsModelB);                      // Hardware -> Model B Floppy Controller
+	EnableSubMenu(IDM_TUBE_NONE, !IsFS);                    // Hardware -> Second Processor
+	EnableSubMenu(IDM_ALLOWWRITES_ROM0, !IsFS);             // Hardware -> Allow SW RAM Write
+	EnableSubMenu(IDM_FILESTORE_DRIVE0_NONE, IsFS, 2);      // Hardware -> FileStore Hard Drive Units
+	EnableSubMenu(IDM_DISABLEKEYSWINDOWS, !IsFS);           // Options -> Disable Keys
 }
 
 void BeebWin::UpdateSFXMenu()
@@ -5330,7 +5336,6 @@ void BeebWin::HandleCommand(UINT MenuID)
 	case IDM_FLOPPY_DRIVE:
 		Disc8271Enabled = !Disc8271Enabled;
 		Disc1770Enabled = !Disc1770Enabled;
-		Disc2793Enabled = !Disc2793Enabled;
 		CheckMenuItem(IDM_FLOPPY_DRIVE, Disc8271Enabled);
 		break;
 

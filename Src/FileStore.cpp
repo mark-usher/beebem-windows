@@ -36,6 +36,9 @@ Boston, MA  02110-1301, USA.
 // &FC2C        Front panel switches (read)
 // &FC30-&FC33  SCSI interface
 // &FD00-&FFFF  RAM
+//
+// Unlike the BBC Micro, the FileStore runs its I/O bus at 2MHz, so I/O
+// accesses aren't slowed down to 1MHz.
 
 #include <windows.h>
 
@@ -123,10 +126,7 @@ unsigned char FileStoreReadMem(int Address)
 	// System VIA
 	if ((Address & ~0xf) == 0xfc10)
 	{
-		SyncIO();
-		unsigned char Value = UserVIARead(Address & 0xf);
-		AdjustForIORead();
-		return Value;
+		return UserVIARead(Address & 0xf);
 	}
 
 	// Econet ADLC
@@ -209,10 +209,6 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 		WholeRam[Address] = Value;
 		return;
 	}
-
-	// All I/O is on the 1MHz bus
-	SyncIO();
-	AdjustForIOWrite();
 
 	// System VIA
 	if ((Address & ~0xf) == 0xfc10)

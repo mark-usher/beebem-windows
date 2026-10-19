@@ -27,8 +27,6 @@ Boston, MA  02110-1301, USA.
 
 #include "DiscType.h"
 
-extern bool Disc2793Enabled;
-
 enum class Disc2793Result {
 	OpenedReadWrite,
 	OpenedReadOnly,

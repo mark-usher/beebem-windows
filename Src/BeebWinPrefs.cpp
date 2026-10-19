@@ -1651,7 +1651,6 @@ void BeebWin::LoadDiskPreferences()
 	m_Preferences.GetBoolValue(CFG_FLOPPY_DRIVE_ENABLED, Disc8271Enabled, true);
 
 	Disc1770Enabled = Disc8271Enabled;
-	Disc2793Enabled = Disc8271Enabled;
 
 	m_Preferences.GetBoolValue(CFG_SCSI_DRIVE_ENABLED, SCSIDriveEnabled, false);
 	m_Preferences.GetBoolValue(CFG_IDE_DRIVE_ENABLED, IDEDriveEnabled, false);
