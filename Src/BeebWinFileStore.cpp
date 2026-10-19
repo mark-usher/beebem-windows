@@ -29,7 +29,12 @@ Boston, MA  02110-1301, USA.
 #include <algorithm>
 #include <string>
 
+#pragma warning(push)
+#pragma warning(disable: 4458) // declaration of 'xxx' hides class member
+using std::min;
+using std::max;
 #include <gdiplus.h>
+#pragma warning(pop)
 
 #include "BeebWin.h"
 #include "BeebMem.h"
