@@ -875,7 +875,8 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 	// "Acorn" and the logo, towards the right of the badge. As on the real
 	// badge, the logo is taller than the text: the cap height is 0.71 of
 	// the logo height, and the text baseline is 0.80 of the way down it,
-	// level with the left end of the stalk.
+	// level with the left end of the stalk. The gap between the text and
+	// the logo is the width of an "n".
 	float LogoHeight = BandHeight * 0.84f;
 	float AcornSize, AcornWidth, LogoWidth, LogoGap;
 
@@ -884,7 +885,7 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 		AcornSize  = 0.71f * LogoHeight / GetCapHeight(PanelFont::Acorn);
 		AcornWidth = GetTextWidth(Graphics, PanelFont::Acorn, AcornSize, "Acorn");
 		LogoWidth  = PANEL_LOGO_WIDTH * LogoHeight;
-		LogoGap    = 0.08f * LogoHeight;
+		LogoGap    = FindGlyph('n')->Advance * AcornSize / PANEL_FONT_UNITS_PER_EM;
 
 		if (AcornWidth + LogoGap + LogoWidth <= (AcornRight - AcornLeft) - BandHeight * 0.6f || LogoHeight < 6.0f)
 		{
