@@ -36,6 +36,7 @@ Boston, MA  02110-1301, USA.
 #include "DiscInfo.h"
 #include "FileUtils.h"
 #include "FileStore.h"
+#include "FileStorePanelArt.h"
 #include "Main.h"
 #include "Messages.h"
 #include "Resource.h"
@@ -330,10 +331,10 @@ static void BlendRect(const FileStoreCanvas& Canvas, int Left, int Top, int Righ
 
 /****************************************************************************/
 
-// Text, drawn with GDI+. The model labels use a high contrast bold serif:
-// Bodoni MT (installed with Microsoft Office) if available, otherwise
-// Times New Roman. The Acorn badge uses Times New Roman, and the LED labels
-// Arial Bold.
+// Text. The model labels and the Acorn badge use Vidaloka, a close match
+// to the lettering on the flap, drawn from the glyph outlines in
+// FileStorePanelArt.h, so the spacing comes from the font's own advance
+// widths and kerning. The LED labels use Arial Bold, drawn with GDI+.
 
 enum class PanelFont
 {
@@ -352,49 +353,71 @@ static std::wstring ToWide(const char* Text)
 	return std::wstring(Text, Text + strlen(Text));
 }
 
-static Gdiplus::Font* CreatePanelFont(PanelFont Font, float Size)
+static bool IsOutlineFont(PanelFont Font)
 {
-	static Gdiplus::FontFamily* pModelFamily = nullptr;
-	static Gdiplus::FontFamily* pSerifFamily = nullptr;
+	return Font != PanelFont::LEDLabel;
+}
+
+static Gdiplus::Font* CreatePanelFont(float Size)
+{
 	static Gdiplus::FontFamily* pSansFamily = nullptr;
 
-	if (pModelFamily == nullptr)
+	if (pSansFamily == nullptr)
 	{
-		pModelFamily = new Gdiplus::FontFamily(L"Bodoni MT");
-
-		if (!pModelFamily->IsAvailable())
-		{
-			delete pModelFamily;
-			pModelFamily = new Gdiplus::FontFamily(L"Times New Roman");
-		}
-
-		pSerifFamily = new Gdiplus::FontFamily(L"Times New Roman");
 		pSansFamily = new Gdiplus::FontFamily(L"Arial");
 	}
 
-	switch (Font)
+	return new Gdiplus::Font(pSansFamily, Size, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+}
+
+static const PanelGlyph* FindGlyph(char Char)
+{
+	for (const PanelGlyph& Glyph : PanelFontGlyphs)
 	{
-		case PanelFont::ModelLabel:
-		default:
-			return new Gdiplus::Font(pModelFamily, Size, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
-
-		case PanelFont::Acorn:
-			return new Gdiplus::Font(pSerifFamily, Size, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
-
-		case PanelFont::LEDLabel:
-			return new Gdiplus::Font(pSansFamily, Size, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+		if (Glyph.Char == Char)
+		{
+			return &Glyph;
+		}
 	}
+
+	// Characters not in the outline font are drawn as spaces
+	return &PanelFontGlyphs[0];
+}
+
+static int GetKerning(char Left, char Right)
+{
+	for (const PanelKerningPair& Pair : PanelFontKerning)
+	{
+		if (Pair.Left == Left && Pair.Right == Right)
+		{
+			return Pair.Value;
+		}
+	}
+
+	return 0;
 }
 
 // Capital letter height as a fraction of the font size
 static float GetCapHeight(PanelFont Font)
 {
-	return Font == PanelFont::LEDLabel ? 0.716f : 0.662f;
+	return IsOutlineFont(Font) ? (float)PANEL_FONT_CAP_HEIGHT / PANEL_FONT_UNITS_PER_EM : 0.716f;
 }
 
 static float GetTextWidth(Gdiplus::Graphics& Graphics, PanelFont Font, float Size, const char* Text)
 {
-	Gdiplus::Font* pFont = CreatePanelFont(Font, Size);
+	if (IsOutlineFont(Font))
+	{
+		int Width = 0;
+
+		for (const char* p = Text; *p != '\0'; p++)
+		{
+			Width += FindGlyph(*p)->Advance + GetKerning(p[0], p[1]);
+		}
+
+		return Width * Size / PANEL_FONT_UNITS_PER_EM;
+	}
+
+	Gdiplus::Font* pFont = CreatePanelFont(Size);
 
 	const std::wstring WideText = ToWide(Text);
 	Gdiplus::RectF Bounds;
@@ -419,20 +442,84 @@ static float GetFittedTextSize(Gdiplus::Graphics& Graphics, PanelFont Font, cons
 	return Size;
 }
 
+// Add one glyph's outline to a path, with its origin (on the baseline) at
+// x, y. Font units have y up.
+
+static void AddGlyphOutline(Gdiplus::GraphicsPath& Path, const PanelGlyph& Glyph, float x, float y, float Scale)
+{
+	const short* pOp = &PanelFontOutlines[Glyph.First];
+	const short* pEnd = pOp + Glyph.Count;
+
+	auto Point = [&](int i) { return Gdiplus::PointF(x + pOp[i] * Scale, y - pOp[i + 1] * Scale); };
+
+	Gdiplus::PointF Current;
+
+	while (pOp < pEnd)
+	{
+		switch (*pOp)
+		{
+			case PANEL_OP_MOVE:
+				Path.StartFigure();
+				Current = Point(1);
+				pOp += 3;
+				break;
+
+			case PANEL_OP_LINE: {
+				const Gdiplus::PointF To = Point(1);
+				Path.AddLine(Current, To);
+				Current = To;
+				pOp += 3;
+				break;
+			}
+
+			case PANEL_OP_CURVE: {
+				const Gdiplus::PointF To = Point(5);
+				Path.AddBezier(Current, Point(1), Point(3), To);
+				Current = To;
+				pOp += 7;
+				break;
+			}
+
+			case PANEL_OP_CLOSE:
+			default:
+				Path.CloseFigure();
+				pOp++;
+				break;
+		}
+	}
+}
+
 // Draw text with its capitals centred vertically on CentreY, starting at x
 static void DrawPanelText(Gdiplus::Graphics& Graphics, PanelFont Font, float Size, const char* Text,
                           float x, float CentreY, COLORREF Colour)
 {
-	Gdiplus::Font* pFont = CreatePanelFont(Font, Size);
+	const float Baseline = CentreY + Size * GetCapHeight(Font) / 2.0f;
+	Gdiplus::SolidBrush Brush(ToGdiplusColor(Colour));
+
+	if (IsOutlineFont(Font))
+	{
+		const float Scale = Size / PANEL_FONT_UNITS_PER_EM;
+		Gdiplus::GraphicsPath Path(Gdiplus::FillModeWinding);
+
+		for (const char* p = Text; *p != '\0'; p++)
+		{
+			const PanelGlyph* pGlyph = FindGlyph(*p);
+			AddGlyphOutline(Path, *pGlyph, x, Baseline, Scale);
+			x += (pGlyph->Advance + GetKerning(p[0], p[1])) * Scale;
+		}
+
+		Graphics.FillPath(&Brush, &Path);
+		return;
+	}
+
+	Gdiplus::Font* pFont = CreatePanelFont(Size);
 
 	Gdiplus::FontFamily Family;
 	pFont->GetFamily(&Family);
 	const INT Style = pFont->GetStyle();
 	const float Ascent = Size * Family.GetCellAscent(Style) / Family.GetEmHeight(Style);
-	const float Baseline = CentreY + Size * GetCapHeight(Font) / 2.0f;
 
 	const std::wstring WideText = ToWide(Text);
-	Gdiplus::SolidBrush Brush(ToGdiplusColor(Colour));
 	Graphics.DrawString(WideText.c_str(), -1, pFont, Gdiplus::PointF(x, Baseline - Ascent),
 	                    Gdiplus::StringFormat::GenericTypographic(), &Brush);
 
@@ -441,38 +528,29 @@ static void DrawPanelText(Gdiplus::Graphics& Graphics, PanelFont Font, float Siz
 
 /****************************************************************************/
 
-// The Acorn logo, Height pixels high and 0.68 x Height wide: an upright
-// egg-shaped nut, a narrow gap, the cup, and below the cup a stalk running
-// out to the right.
+// The Acorn logo, Height pixels high, with its top left corner at x, y
+
+template <size_t N>
+static void FillLogoPart(Gdiplus::Graphics& Graphics, Gdiplus::Brush& Brush,
+                         const float (&Part)[N][2], float x, float y, float Height)
+{
+	Gdiplus::PointF Points[N];
+
+	for (size_t i = 0; i < N; i++)
+	{
+		Points[i] = Gdiplus::PointF(x + Part[i][0] * Height, y + Part[i][1] * Height);
+	}
+
+	Graphics.FillPolygon(&Brush, Points, (INT)N);
+}
 
 static void DrawAcornLogo(Gdiplus::Graphics& Graphics, float x, float y, float Height, COLORREF Colour)
 {
-	const float L = Height;
-	const float cx = x + 0.32f * L;
-	const float rx = 0.29f * L;
-	const float Cut = y + 0.52f * L;
-
 	Gdiplus::SolidBrush Brush(ToGdiplusColor(Colour));
 
-	// Nut
-	Gdiplus::GraphicsPath Nut;
-	Nut.AddBezier(cx - rx, Cut, cx - rx, y + 0.20f * L, cx - 0.55f * rx, y, cx, y);
-	Nut.AddBezier(cx, y, cx + 0.55f * rx, y, cx + rx, y + 0.20f * L, cx + rx, Cut);
-	Nut.CloseFigure();
-	Graphics.FillPath(&Brush, &Nut);
-
-	// Cup: the lower half of an ellipse
-	Graphics.FillPie(&Brush, cx - 0.28f * L, y + 0.33f * L, 0.56f * L, 0.44f * L, 0.0f, 180.0f);
-
-	// Stalk
-	const Gdiplus::PointF Stalk[] = {
-		Gdiplus::PointF(x,             y + 0.785f * L),
-		Gdiplus::PointF(x + 0.12f * L, y + 0.785f * L),
-		Gdiplus::PointF(x + 0.68f * L, y + 0.965f * L),
-		Gdiplus::PointF(x + 0.64f * L, y + 1.00f * L)
-	};
-
-	Graphics.FillPolygon(&Brush, Stalk, 4);
+	FillLogoPart(Graphics, Brush, PanelLogoNut, x, y, Height);
+	FillLogoPart(Graphics, Brush, PanelLogoCup, x, y, Height);
+	FillLogoPart(Graphics, Brush, PanelLogoStalk, x, y, Height);
 }
 
 /****************************************************************************/
@@ -784,7 +862,8 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 
 	// "Acorn" and the logo, towards the right of the badge. As on the real
 	// badge, the logo is taller than the text: the cap height is 0.71 of
-	// the logo height, and the text baseline is level with the stalk.
+	// the logo height, and the text baseline is 0.80 of the way down it,
+	// level with the left end of the stalk.
 	float LogoHeight = BandHeight * 0.84f;
 	float AcornSize, AcornWidth, LogoWidth, LogoGap;
 
@@ -792,8 +871,8 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 	{
 		AcornSize  = 0.71f * LogoHeight / GetCapHeight(PanelFont::Acorn);
 		AcornWidth = GetTextWidth(Graphics, PanelFont::Acorn, AcornSize, "Acorn");
-		LogoWidth  = 0.68f * LogoHeight;
-		LogoGap    = 0.12f * LogoHeight;
+		LogoWidth  = PANEL_LOGO_WIDTH * LogoHeight;
+		LogoGap    = 0.08f * LogoHeight;
 
 		if (AcornWidth + LogoGap + LogoWidth <= (AcornRight - AcornLeft) - BandHeight * 0.6f || LogoHeight < 6.0f)
 		{

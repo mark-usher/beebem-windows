@@ -374,6 +374,7 @@
     <ClInclude Include="Ext1770.h" />
     <ClInclude Include="FileDialog.h" />
     <ClInclude Include="FileStore.h" />
+    <ClInclude Include="FileStorePanelArt.h" />
     <ClInclude Include="FileType.h" />
     <ClInclude Include="FileUtils.h" />
     <ClInclude Include="FolderSelectDialog.h" />
