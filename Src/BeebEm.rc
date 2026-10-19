@@ -49,6 +49,18 @@ IDI_ADL                 ICON                    "res\\ADL.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //
+// Bitmap
+//
+
+IDB_FILESTORE_E01       BITMAP                  "res\\FileStoreE01.bmp"
+
+IDB_FILESTORE_E01S      BITMAP                  "res\\FileStoreE01S.bmp"
+
+IDB_FILESTORE_DRIVES    BITMAP                  "res\\FileStoreDrives.bmp"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
 // Menu
 //
 

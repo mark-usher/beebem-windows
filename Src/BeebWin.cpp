@@ -198,6 +198,8 @@ BeebWin::BeebWin()
 	m_hOldObj = nullptr;
 	m_hDCBitmap = nullptr;
 	m_hBitmap = nullptr;
+	m_hFileStoreBitmap = nullptr;
+	m_FileStoreLEDState = -1;
 	ZeroMemory(&m_BitmapInfo, sizeof(m_BitmapInfo));
 	m_MonitorType = MonitorType::RGB;
 	m_screen = nullptr;
@@ -680,6 +682,11 @@ BeebWin::~BeebWin()
 
 	ReleaseDC(m_hWnd, m_hDC);
 
+	if (m_hFileStoreBitmap != nullptr)
+	{
+		DeleteObject(m_hFileStoreBitmap);
+	}
+
 	if (m_hOldObj != nullptr)
 	{
 		SelectObject(m_hDCBitmap, m_hOldObj);
@@ -761,34 +768,6 @@ void BeebWin::SetModel(Model NewModelType)
 
 /****************************************************************************/
 
-// Open or close the FileStore drive door. Opening the door puts the
-// FileStore into maintenance mode, which flushes its buffers to disc.
-
-void BeebWin::SetFileStoreDoorOpen(bool Open)
-{
-	FileStoreDoorOpen = Open;
-	CheckMenuItem(IDM_FILESTORE_DOOR_OPEN, FileStoreDoorOpen);
-
-	// Only allow floppy discs to be changed when the door is open
-	UpdateFileStoreDiscMenu();
-}
-
-/****************************************************************************/
-
-void BeebWin::UpdateFileStoreDiscMenu()
-{
-	const bool Enabled = !IsFileStore(MachineType) || FileStoreDoorOpen;
-
-	EnableMenuItem(IDM_LOADDISC0, Enabled && MachineType != Model::MasterET);
-	EnableMenuItem(IDM_LOADDISC1, Enabled && MachineType != Model::MasterET);
-	EnableMenuItem(IDM_NEWDISC0, Enabled && MachineType != Model::MasterET);
-	EnableMenuItem(IDM_NEWDISC1, Enabled && MachineType != Model::MasterET);
-	EnableMenuItem(IDM_EJECTDISC0, Enabled && MachineType != Model::MasterET);
-	EnableMenuItem(IDM_EJECTDISC1, Enabled && MachineType != Model::MasterET);
-}
-
-/****************************************************************************/
-
 void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 {
 	SoundReset();
@@ -861,6 +840,9 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 	{
 		FileStoreReset();
 	}
+
+	// Show or remove the FileStore front panel
+	LoadFileStoreBitmap();
 
 	if (IsFileStore(MachineType))
 	{
@@ -2537,7 +2519,16 @@ LRESULT BeebWin::WndProc(UINT nMessage, WPARAM wParam, LPARAM lParam)
 		case WM_PAINT: {
 			PAINTSTRUCT ps;
 			HDC hDC = BeginPaint(m_hWnd, &ps);
-			UpdateLines(hDC, 0, 0);
+
+			if (IsFileStore(MachineType))
+			{
+				PaintFileStore(hDC);
+			}
+			else
+			{
+				UpdateLines(hDC, 0, 0);
+			}
+
 			EndPaint(m_hWnd, &ps);
 			break;
 		}

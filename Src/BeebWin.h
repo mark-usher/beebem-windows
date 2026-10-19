@@ -348,6 +348,10 @@ public:
 	void SetModel(Model NewModelType);
 	void SetFileStoreDoorOpen(bool Open);
 	void UpdateFileStoreDiscMenu();
+	void LoadFileStoreBitmap();
+	void PaintFileStore(HDC hDC);
+	void DrawFileStoreLEDs(HDC hDC);
+	void UpdateFileStoreLEDs();
 	void ResetBeebSystem(Model NewModelType, bool LoadRoms);
 	void Break();
 	bool RebootSystem();
@@ -718,6 +722,8 @@ public:
 	HGDIOBJ m_hOldObj;
 	HDC m_hDCBitmap;
 	HGDIOBJ m_hBitmap;
+	HBITMAP m_hFileStoreBitmap; // FileStore front panel image
+	int m_FileStoreLEDState; // FileStore LED state last drawn
 	BitmapInfo m_BitmapInfo;
 	MonitorType m_MonitorType;
 	char* m_screen;

@@ -31,6 +31,7 @@ Boston, MA  02110-1301, USA.
 // &FC0C-&FC0F  WD2793 FDC registers
 // &FC10-&FC1F  System VIA (emulated using BeebEm's user VIA)
 // &FC2C        Front panel switches (read)
+// &FC30-&FC33  SCSI interface
 // &FD00-&FFFF  RAM
 
 #include <windows.h>
@@ -40,6 +41,7 @@ Boston, MA  02110-1301, USA.
 #include "BeebMem.h"
 #include "Disc2793.h"
 #include "Rtc.h"
+#include "Scsi.h"
 #include "UserVia.h"
 #include "Video.h"
 #include "Main.h"
@@ -134,6 +136,12 @@ unsigned char FileStoreReadMem(int Address)
 		return Value;
 	}
 
+	// SCSI interface
+	if ((Address & ~0x3) == 0xfc30 && SCSIDriveEnabled)
+	{
+		return SCSIRead(Address & 0x3);
+	}
+
 	// RTC data register. The RTC address register at &FC00 is write only.
 	if (Address == 0xfc04 && RTCIsChipEnable())
 	{
@@ -177,6 +185,13 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 	if (Address >= 0xfc0c && Address <= 0xfc0f)
 	{
 		Write2793Register(static_cast<unsigned char>(Address - 0xfc0c), Value);
+		return;
+	}
+
+	// SCSI interface
+	if ((Address & ~0x3) == 0xfc30 && SCSIDriveEnabled)
+	{
+		SCSIWrite(Address & 0x3, Value);
 		return;
 	}
 
@@ -251,6 +266,7 @@ void FileStorePoll(int Cycles)
 	{
 		FrameCycles += FS_FRAME_CYCLES;
 		mainWin->StartOfFrame();
+		mainWin->UpdateFileStoreLEDs();
 	}
 
 	RTCPoll(Cycles);

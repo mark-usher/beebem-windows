@@ -42,6 +42,9 @@ Offset  Description                 Access
 #include "FileUtils.h"
 #include "Log.h"
 #include "Main.h"
+#include "Model.h"
+
+// #define DEBUG_SCSI
 
 static unsigned char ReadData();
 static void WriteData(unsigned char data);
@@ -438,10 +441,19 @@ static void BusFree()
 	LEDs.HDisc[3] = false;
 }
 
-static void Selection(int /* data */)
+// Target ID bit pattern on the data bus during selection
+static int SelectedTarget = 0;
+
+static void Selection(int data)
 {
 	scsi.bsy = true;
 	scsi.phase = Phase::Selection;
+
+	SelectedTarget = data;
+
+	#ifdef DEBUG_SCSI
+	DebugTrace("SCSI: Selection, data bus %02X\n", data);
+	#endif
 }
 
 static void Command(void)
@@ -468,7 +480,40 @@ static void Execute(void)
 	// 				scsi.cmd[0], scsi.cmd[1], scsi.cmd[2], scsi.cmd[3], scsi.cmd[4], scsi.cmd[5], scsi.cmd[6], scsi.cmd[7], scsi.cmd[8], scsi.cmd[9], scsi.phase, ProgramCounter);
 	// }
 
-	scsi.lun = (scsi.cmd[1]) >> 5;
+	if (IsFileStore(MachineType))
+	{
+		// The FileStore addresses its drives 0-3 as SCSI targets 0-3, each
+		// at LUN 0, so map the selected target ID to the drive number
+		switch (SelectedTarget)
+		{
+			case 0x02: scsi.lun = 1; break;
+			case 0x04: scsi.lun = 2; break;
+			case 0x08: scsi.lun = 3; break;
+			default:   scsi.lun = 0; break;
+		}
+	}
+	else
+	{
+		scsi.lun = (scsi.cmd[1]) >> 5;
+	}
+
+	#ifdef DEBUG_SCSI
+	{
+		// Group 0 commands have a 6 byte CDB, group 1 commands 10 bytes
+		const int Group = scsi.cmd[0] >> 5;
+		const int Length = Group == 1 ? 10 : 6;
+
+		DebugTrace("SCSI: Execute command %02X (group %d, opcode %02X), LUN %d, CDB:",
+		           scsi.cmd[0], Group, scsi.cmd[0] & 0x1f, scsi.lun);
+
+		for (int i = 0; i < Length; i++)
+		{
+			DebugTrace(" %02X", scsi.cmd[i]);
+		}
+
+		DebugTrace("\n");
+	}
+	#endif
 
 	LEDs.HDisc[scsi.lun] = 1;
 
@@ -522,6 +567,10 @@ static void Execute(void)
 
 static void Status()
 {
+	#ifdef DEBUG_SCSI
+	DebugTrace("SCSI: Status phase, status byte %02X\n", scsi.status);
+	#endif
+
 	scsi.phase = Phase::Status;
 
 	scsi.io = true;
@@ -531,6 +580,10 @@ static void Status()
 
 static void Message()
 {
+	#ifdef DEBUG_SCSI
+	DebugTrace("SCSI: Message in phase, message byte %02X\n", scsi.message);
+	#endif
+
 	scsi.phase = Phase::Message;
 
 	scsi.msg = true;
@@ -644,6 +697,11 @@ static void Read6()
 	record <<= 8;
 	record |= scsi.cmd[3];
 	scsi.blocks = scsi.cmd[4];
+
+	#ifdef DEBUG_SCSI
+	DebugTrace("SCSI: READ(6) LUN %d, LBA %d, blocks %d\n", scsi.lun, record, scsi.blocks == 0 ? 256 : scsi.blocks);
+	#endif
+
 	if (scsi.blocks == 0)
 		scsi.blocks = 0x100;
 	scsi.length = ReadSector(scsi.buffer, record);
@@ -698,6 +756,11 @@ static void Write6()
 	record <<= 8;
 	record |= scsi.cmd[3];
 	scsi.blocks = scsi.cmd[4];
+
+	#ifdef DEBUG_SCSI
+	DebugTrace("SCSI: WRITE(6) LUN %d, LBA %d, blocks %d\n", scsi.lun, record, scsi.blocks == 0 ? 256 : scsi.blocks);
+	#endif
+
 	if (scsi.blocks == 0)
 		scsi.blocks = 0x100;
 

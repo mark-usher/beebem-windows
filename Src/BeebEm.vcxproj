@@ -181,6 +181,7 @@
     <ClCompile Include="BeebMem.cpp" />
     <ClCompile Include="BeebWin.cpp" />
     <ClCompile Include="BeebWinDx.cpp" />
+    <ClCompile Include="BeebWinFileStore.cpp" />
     <ClCompile Include="BeebWinIo.cpp" />
     <ClCompile Include="BeebWinPrefs.cpp" />
     <ClCompile Include="BeebWinSpeech.cpp" />
@@ -471,6 +472,9 @@
     <Image Include="res\BeebEm.ico" />
     <Image Include="res\CSW.ico" />
     <Image Include="res\DSD.ico" />
+    <Image Include="res\FileStoreDrives.bmp" />
+    <Image Include="res\FileStoreE01.bmp" />
+    <Image Include="res\FileStoreE01S.bmp" />
     <Image Include="res\FSD.ico" />
     <Image Include="res\SSD.ico" />
     <Image Include="res\UEF.ico" />
