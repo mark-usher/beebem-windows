@@ -3388,7 +3388,7 @@ static void DebugRomState()
 				strcat(Flags, "SoftKey, ");
 			}
 
-			const int Len = strlen(Flags);
+			const size_t Len = strlen(Flags);
 
 			if (Len > 2)
 			{
