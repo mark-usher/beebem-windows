@@ -262,16 +262,9 @@ BeebWin::BeebWin()
 	m_DisableKeysBreak = false;
 	m_DisableKeysEscape = false;
 	m_DisableKeysShortcut = false;
-	m_ShiftPressed = false;
 	m_ShiftBooted = false;
 
-	for (int k = 0; k < 256; ++k)
-	{
-		m_vkeyPressed[k][0][0] = -1;
-		m_vkeyPressed[k][1][0] = -1;
-		m_vkeyPressed[k][0][1] = -1;
-		m_vkeyPressed[k][1][1] = -1;
-	}
+	ResetKeyboardState();
 
 	InitKeyMap();
 
@@ -2503,7 +2496,7 @@ LRESULT BeebWin::WndProc(UINT nMessage, WPARAM wParam, LPARAM lParam)
 		}
 
 		case WM_KEYDOWN:
-			// DebugTrace("KeyD: %d, 0x%X, 0x%X\n", wParam, wParam, lParam);
+			DebugTrace("KeyD: %d, 0x%X, 0x%X, repeat=%d\n", wParam, wParam, lParam, (int)(lParam & 0x40000000) != 0);
 
 			if (m_TextToSpeechEnabled &&
 			    ((wParam >= VK_NUMPAD0 && wParam <= VK_NUMPAD9) ||
@@ -2596,7 +2589,7 @@ LRESULT BeebWin::WndProc(UINT nMessage, WPARAM wParam, LPARAM lParam)
 		}
 
 		case WM_KEYUP:
-			// DebugTrace("KeyU: %d, 0x%X, 0x%X\n", uParam, uParam, lParam);
+			DebugTrace("KeyU: %d, 0x%X, 0x%X\n", wParam, wParam, lParam);
 
 			if (wParam == VK_DIVIDE && !m_DisableKeysShortcut)
 			{
@@ -2863,6 +2856,31 @@ int BeebWin::TranslateKey(int vkey, bool keyUp, int &row, int &col)
 	}
 	else // New key press - convert to Beeb row + col
 	{
+		// Record when we last saw a genuine down event (fresh press or
+		// OS auto-repeat) for this vkey. ResyncKeyboardState() uses this
+		// to force-release keys that have gone silent for too long, for
+		// cases where the Windows/Bluetooth input stack drops a key's
+		// state entirely - GetAsyncKeyState() can keep reporting a key
+		// as down indefinitely even after it was physically released
+		// and re-pressed with no effect, so state alone isn't a
+		// sufficient signal for this failure mode.
+		m_vkeyPressedTick[vkey] = GetTickCount64();
+
+		// Also record the time of the *original* press, and never
+		// refresh it while the key is already tracked as down. This
+		// guards against a flaky Bluetooth link that occasionally
+		// resends a stale "still down" report for a key that isn't
+		// really held - each such report would otherwise keep resetting
+		// m_vkeyPressedTick above and prevent the silence-based timeout
+		// from ever firing. This gives ResyncKeyboardState() a second,
+		// non-resettable ceiling on total hold time as a fallback.
+		bool AlreadyTrackedDown = m_vkeyPressed[vkey][0][0] >= 0 ||
+		                          m_vkeyPressed[vkey][0][1] >= 0;
+		if (!AlreadyTrackedDown)
+		{
+			m_vkeyPressedStartTick[vkey] = m_vkeyPressedTick[vkey];
+		}
+
 		row = (*transTable)[vkey][static_cast<int>(m_ShiftPressed)].row;
 		col = (*transTable)[vkey][static_cast<int>(m_ShiftPressed)].col;
 		bool needShift = (*transTable)[vkey][static_cast<int>(m_ShiftPressed)].shift;
@@ -2931,8 +2949,113 @@ int BeebWin::TranslateKey(int vkey, bool keyUp, int &row, int &col)
 
 /****************************************************************************/
 
+// Clear all of BeebWin's own key-tracking state. Used at startup, and
+// after BeebReleaseAllKeys() so that our bookkeeping can never go stale
+// relative to the BBC-side keyboard matrix that call just cleared.
+void BeebWin::ResetKeyboardState()
+{
+	m_ShiftPressed = false;
+
+	for (int k = 0; k < 256; ++k)
+	{
+		m_vkeyPressed[k][0][0] = -1;
+		m_vkeyPressed[k][1][0] = -1;
+		m_vkeyPressed[k][0][1] = -1;
+		m_vkeyPressed[k][1][1] = -1;
+		m_vkeyPressedTick[k] = 0;
+		m_vkeyPressedStartTick[k] = 0;
+	}
+}
+
+// Safety net for missed WM_KEYUP messages (e.g. lost during a flaky
+// Bluetooth HID link, or a focus-change race). If TranslateKey()
+// recorded a vkey as pressed but no further real key events have
+// arrived for it in a while, force the release through the normal
+// path. Called once per emulated frame from StartOfFrame().
+//
+// This deliberately does NOT consult GetAsyncKeyState(). An earlier
+// version of this function did, but testing against a system-wide
+// low-level keyboard hook log showed GetAsyncKeyState() can report a
+// key as "up" even during a genuine, uninterrupted physical hold with
+// real WM_KEYDOWN auto-repeat traffic still arriving for it - trusting
+// that reading caused this function to force-release keys that were
+// still legitimately held, which then made the *next* genuine repeat
+// event look like a fresh press. That was actively recreating the
+// repeating-key bug rather than fixing it.
+//
+// Instead, this relies purely on timing derived from BeebEm's own
+// observed message stream, which doesn't have that failure mode:
+//
+//   - m_vkeyPressedTick is refreshed on every genuine down event we
+//     receive (fresh press or OS auto-repeat) for a vkey. If it's been
+//     more than STUCK_KEY_TIMEOUT_MS since the last one, we've heard
+//     nothing more from this key in a long time - a real hold in
+//     progress can't be that quiet, so treat it as stuck (likely a
+//     dropped key-up) and release it.
+//
+//   - m_vkeyPressedStartTick is set only on the original fresh press
+//     and never refreshed afterwards. This is a hard ceiling on total
+//     hold duration, as a fallback in case the same flaky link
+//     occasionally resends a stale "still down" report for a key that
+//     isn't really held any more, which would otherwise keep refreshing
+//     m_vkeyPressedTick and prevent the silence timeout from ever
+//     firing.
+//
+// Also note: this loop naturally covers Shift itself (vkey 16/160/161),
+// since it's tracked the same as any other vkey - if Shift's own
+// key-up is missed, it gets force-released here too, and TranslateKey()
+// correctly clears m_ShiftPressed as part of that (see the shift-state
+// tracking check at the top of TranslateKey()). No separate special
+// case is needed for Shift.
+static const ULONGLONG STUCK_KEY_TIMEOUT_MS = 600;
+static const ULONGLONG STUCK_KEY_HARD_CEILING_MS = 4000;
+
+void BeebWin::ResyncKeyboardState()
+{
+	ULONGLONG Now = GetTickCount64();
+
+	for (int vkey = 0; vkey < 256; ++vkey)
+	{
+		if (m_vkeyPressed[vkey][0][0] == -1 &&
+		    m_vkeyPressed[vkey][0][1] == -1)
+		{
+			continue; // Nothing recorded as down for this vkey
+		}
+
+		bool TimedOut = (Now - m_vkeyPressedTick[vkey]) > STUCK_KEY_TIMEOUT_MS;
+		bool HardCeilingReached = (Now - m_vkeyPressedStartTick[vkey]) > STUCK_KEY_HARD_CEILING_MS;
+
+		if (TimedOut || HardCeilingReached)
+		{
+			// Note: deliberately NOT consulting GetAsyncKeyState() here.
+			// Testing showed it can report a key as "up" even while a
+			// genuine, uninterrupted physical hold is still in progress
+			// (confirmed against a system-wide low-level keyboard hook
+			// log showing continuous real WM_KEYDOWN repeat traffic for
+			// the same vkey at the exact moment GetAsyncKeyState claimed
+			// it was released). Trusting that reading caused us to
+			// force-release keys that were still legitimately held,
+			// which made the very next genuine repeat event look like a
+			// fresh press - actively recreating the repeating-key bug
+			// rather than fixing it. The timing checks below, based
+			// purely on BeebEm's own observed message stream, don't have
+			// this failure mode: a real hold keeps refreshing
+			// m_vkeyPressedTick via ongoing repeat events, so it's never
+			// mistaken for stuck; only genuine silence triggers release.
+			DebugTrace("ResyncKeyboardState: forcing release of stuck vkey %d (timedOut=%d, hardCeiling=%d)\n",
+			           vkey, TimedOut ? 1 : 0, HardCeilingReached ? 1 : 0);
+			int row, col;
+			TranslateKey(vkey, true, row, col);
+		}
+	}
+}
+
+/****************************************************************************/
+
 bool BeebWin::StartOfFrame()
 {
+	ResyncKeyboardState();
+
 	bool UpdateScreen = UpdateTiming();
 
 	// Force video frame rate to match AVI capture rate to avoid
@@ -5209,10 +5332,19 @@ void BeebWin::OnSetFocus(bool Focus)
 		{
 			::SetFocus(m_hTextView);
 		}
+
+		// Note: no special-case Shift resync needed here. If the user is
+		// still physically holding Shift from before focus was lost,
+		// ResyncKeyboardState() (called every frame from StartOfFrame())
+		// will re-derive m_ShiftPressed from GetAsyncKeyState(VK_SHIFT) on
+		// the very next frame, before the user can plausibly type
+		// anything. TranslateKey() then re-presses the BBC's Shift key
+		// itself the next time a shifted character is typed.
 	}
 	else
 	{
 		BeebReleaseAllKeys();
+		ResetKeyboardState();
 	}
 }
 

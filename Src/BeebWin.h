@@ -504,6 +504,8 @@ public:
 	void TranslateKeyMapping();
 	int TranslateKey(int vkey, bool keyUp, int &row, int &col);
 	void HandleKeyboardTimer();
+	void ResyncKeyboardState();
+	void ResetKeyboardState();
 
 	// Tape
 	void LoadTape();
@@ -782,6 +784,8 @@ public:
 	bool m_ShiftPressed;
 	bool m_ShiftBooted;
 	int m_vkeyPressed[256][2][2];
+	ULONGLONG m_vkeyPressedTick[256];
+	ULONGLONG m_vkeyPressedStartTick[256];
 
 	// File paths
 	char m_AppPath[MAX_PATH];
