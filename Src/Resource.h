@@ -477,6 +477,8 @@
 #define IDM_SELECT_TELETEXT_DATA_SOURCE 40326
 #define IDM_FILESTORE_E01               40327
 #define IDM_FILESTORE_E01S              40328
+#define IDM_FILESTORE_DOOR_OPEN         40329
+#define IDM_FILESTORE_COMMAND_MODE      40330
 
 // Next default values for new objects
 // 
@@ -484,7 +486,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        123
-#define _APS_NEXT_COMMAND_VALUE         40329
+#define _APS_NEXT_COMMAND_VALUE         40331
 #define _APS_NEXT_CONTROL_VALUE         1152
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

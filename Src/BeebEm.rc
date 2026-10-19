@@ -74,6 +74,9 @@ BEGIN
             MENUITEM "Write Protect on Load",       IDM_WRITE_PROTECT_ON_LOAD
         END
         MENUITEM SEPARATOR
+        MENUITEM "FileStore &Door Open",        IDM_FILESTORE_DOOR_OPEN
+        MENUITEM "FileStore &Command Mode",     IDM_FILESTORE_COMMAND_MODE
+        MENUITEM SEPARATOR
         MENUITEM "R&eset",                      IDM_FILE_RESET
         MENUITEM SEPARATOR
         MENUITEM "&Load State...",              IDM_LOADSTATE

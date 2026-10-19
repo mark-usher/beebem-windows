@@ -205,6 +205,8 @@ const char* const CFG_AUTO_SAVE_PREFS_ALL          = "AutoSavePrefsAll";
 // CMOS
 const char* const CFG_CMOS_MASTER128               = "CMOSRam";
 const char* const CFG_CMOS_MASTER_ET               = "CMOSRamMasterET";
+const char* const CFG_CMOS_FILESTORE_E01           = "CMOSRamE01";
+const char* const CFG_CMOS_FILESTORE_E01S          = "CMOSRamE01S";
 
 // Sideways RAM
 const char* const CFG_SWRAM_WRITABLE               = "SWRAMWritable";

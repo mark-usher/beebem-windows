@@ -50,6 +50,7 @@ Boston, MA  02110-1301, USA.
 #include "Main.h"
 #include "Master512CoPro.h"
 #include "Resource.h"
+#include "Rtc.h"
 #include "Serial.h"
 #include "SprowCoPro.h"
 #include "StringUtils.h"
@@ -204,7 +205,7 @@ static const DebugCmd DebugCmdTable[] = {
 	{ "d",          DebugCmdCode,          "", ""}, // Alias of "code"
 	{ "watch",      DebugCmdWatch,         "[p] <addr> <b|w|d> [<name>]", "Set or clear a byte, word, or dword watch at addr" },
 	{ "e",          DebugCmdWatch,         "", ""}, // Alias of "watch"
-	{ "state",      DebugCmdState,         "<v|u|s|e|n|t|m|r>", "Display state of Video/UserVIA/SysVIA/Serial/Econet/Tube/Memory/ROMs" },
+	{ "state",      DebugCmdState,         "<v|u|s|e|n|t|m|r|c>", "Display state of Video/UserVIA/SysVIA/Serial/Econet/Tube/Memory/ROMs/CMOS" },
 	{ "s",          DebugCmdState,         "", ""}, // Alias of "state"
 	{ "save",       DebugCmdSave,          "[<count>] [<filename>]", "Write console lines to file" },
 	{ "w",          DebugCmdSave,          "", ""}, // Alias of "save"
@@ -1010,7 +1011,8 @@ static const InstInfo* GetOpcodeTable(bool host)
 {
 	if (host)
 	{
-		if (MachineType == Model::Master128 || MachineType == Model::MasterET)
+		if (MachineType == Model::Master128 || MachineType == Model::MasterET ||
+		    IsFileStore(MachineType))
 		{
 			return optable_65sc12;
 		}
@@ -2017,7 +2019,26 @@ bool DebugDisassembler(int Addr,
 		return true;
 	}
 	
-	if (Host)
+	if (Host && IsFileStore(MachineType))
+	{
+		// The FileStore OS runs from RAM at 0xE000-0xFFFF, and there are
+		// no paged ROMs
+		if (!DebugOS && Addr >= 0xe000 && Addr <= 0xffff)
+		{
+			if (!LastAddrInOS)
+			{
+				DebugDisplayInfoF("Entered OS (0xE000-0xFFFF) at 0x%04X", Addr);
+
+				LastAddrInOS = true;
+				LastAddrInBIOS = LastAddrInROM = false;
+			}
+
+			return true;
+		}
+
+		LastAddrInOS = false;
+	}
+	else if (Host)
 	{
 		if (!DebugOS && Addr >= 0xc000 && Addr <= 0xfbff)
 		{
@@ -3314,6 +3335,10 @@ static bool DebugCmdState(const char* args)
 
 		case 'r': // ROM state
 			DebugRomState();
+			break;
+
+		case 'c': // RTC/CMOS state
+			DebugRTCState();
 			break;
 
 		default:

@@ -346,6 +346,7 @@ public:
 	void DisplayFDCBoardInfo(HDC hDC, int x, int y);
 
 	void SetModel(Model NewModelType);
+	void SetFileStoreDoorOpen(bool Open);
 	void ResetBeebSystem(Model NewModelType, bool LoadRoms);
 	void Break();
 	bool RebootSystem();

@@ -38,6 +38,7 @@ Boston, MA  02110-1301, USA.
 #include "Disc1770.h"
 #include "Disc8271.h"
 #include "Econet.h"
+#include "FileStore.h"
 #include "Ide.h"
 #include "Log.h"
 #include "Main.h"
@@ -3290,7 +3291,12 @@ static void PollVIAs(unsigned int nCycles)
 		if (CyclesToInt != NO_TIMER_INT_DUE)
 			CyclesToInt -= nCycles;
 
-		SysVIAPoll(nCycles);
+		// The FileStore's system VIA is emulated using the user VIA
+		if (!IsFileStore(MachineType))
+		{
+			SysVIAPoll(nCycles);
+		}
+
 		UserVIAPoll(nCycles);
 
 		ViaCycles += nCycles;
@@ -3319,22 +3325,32 @@ static void PollHardware(unsigned int nCycles)
 			WrapTubeCycles();
 	}
 
-	VideoPoll(nCycles);
-	if (!BasicHardwareOnly) {
-		AtoDPoll(nCycles);
-		SerialPoll(nCycles);
-	}
-	Disc8271Poll();
-	Music5000Poll(nCycles);
-	SoundPoll();
-
-	SpeechPoll(nCycles);
-
-	TeletextPoll();
-
-	if (MachineType == Model::Master128 || !NativeFDC)
+	if (IsFileStore(MachineType))
 	{
-		Poll1770(nCycles); // Do 1770 Background stuff
+		// The FileStore has no video, A/D, serial, 8271, 1770,
+		// Music 5000, speech or teletext hardware
+		FileStorePoll(nCycles);
+		SoundPoll();
+	}
+	else
+	{
+		VideoPoll(nCycles);
+		if (!BasicHardwareOnly) {
+			AtoDPoll(nCycles);
+			SerialPoll(nCycles);
+		}
+		Disc8271Poll();
+		Music5000Poll(nCycles);
+		SoundPoll();
+
+		SpeechPoll(nCycles);
+
+		TeletextPoll();
+
+		if (MachineType == Model::Master128 || !NativeFDC)
+		{
+			Poll1770(nCycles); // Do 1770 Background stuff
+		}
 	}
 
 	if (EconetEnabled && EconetPoll())

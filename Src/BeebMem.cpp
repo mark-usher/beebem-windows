@@ -45,6 +45,7 @@ Boston, MA  02110-1301, USA.
 #include "Disc1770.h"
 #include "Disc8271.h"
 #include "Econet.h" // Rob
+#include "FileStore.h"
 #include "FileUtils.h"
 #include "IC32Latch.h"
 #include "Ide.h"
@@ -321,6 +322,10 @@ const unsigned char* BeebMemPtrWithWrapMode7(int Address, int Length)
 /*----------------------------------------------------------------------------*/
 unsigned char BeebReadMem(int Address) {
 	unsigned char Value = 0xff;
+
+	if (IsFileStore(MachineType)) {
+		return FileStoreReadMem(Address);
+	}
 
 	if (MachineType == Model::B) {
 		if (Address >= 0x8000 && Address < 0xc000) {
@@ -826,6 +831,11 @@ static void RomWriteThrough(int Address, unsigned char Value)
 /*----------------------------------------------------------------------------*/
 void BeebWriteMem(int Address, unsigned char Value)
 {
+	if (IsFileStore(MachineType)) {
+		FileStoreWriteMem(Address, Value);
+		return;
+	}
+
 	if (MachineType == Model::B) {
 		if (Address < 0x8000) {
 			WholeRam[Address] = Value;

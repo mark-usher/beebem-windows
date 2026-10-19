@@ -43,6 +43,8 @@ void RTCWriteData(unsigned char CMOSData);
 
 unsigned char RTCReadData();
 
+void RTCPoll(int Cycles);
+
 void DebugRTCState();
 
 void RTCSetCMOSDefaults(Model model);

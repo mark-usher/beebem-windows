@@ -1698,6 +1698,24 @@ void BeebWin::LoadCMOSPreferences()
 	{
 		RTCSetCMOSDefaults(Model::MasterET);
 	}
+
+	if (m_Preferences.GetBinaryValue(CFG_CMOS_FILESTORE_E01, CMOSData, 50))
+	{
+		RTCSetCMOSData(Model::FileStoreE01, CMOSData, 50);
+	}
+	else
+	{
+		RTCSetCMOSDefaults(Model::FileStoreE01);
+	}
+
+	if (m_Preferences.GetBinaryValue(CFG_CMOS_FILESTORE_E01S, CMOSData, 50))
+	{
+		RTCSetCMOSData(Model::FileStoreE01S, CMOSData, 50);
+	}
+	else
+	{
+		RTCSetCMOSDefaults(Model::FileStoreE01S);
+	}
 }
 
 /****************************************************************************/
@@ -2025,6 +2043,8 @@ void BeebWin::SavePreferences(bool saveAll)
 		// CMOS
 		m_Preferences.SetBinaryValue(CFG_CMOS_MASTER128, RTCGetCMOSData(Model::Master128), 50);
 		m_Preferences.SetBinaryValue(CFG_CMOS_MASTER_ET, RTCGetCMOSData(Model::MasterET), 50);
+		m_Preferences.SetBinaryValue(CFG_CMOS_FILESTORE_E01, RTCGetCMOSData(Model::FileStoreE01), 50);
+		m_Preferences.SetBinaryValue(CFG_CMOS_FILESTORE_E01S, RTCGetCMOSData(Model::FileStoreE01S), 50);
 
 		m_Preferences.SetBinaryValue(CFG_USER_PORT_RTC_REGISTERS, UserPortRTCRegisters, sizeof(UserPortRTCRegisters));
 	}

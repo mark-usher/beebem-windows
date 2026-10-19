@@ -29,6 +29,7 @@ Boston, MA  02110-1301, USA.
 #include <time.h>
 
 #include "Rtc.h"
+#include "6502core.h"
 #include "Bcd.h"
 #include "Debug.h"
 #include "DebugTrace.h"
@@ -39,9 +40,12 @@ Boston, MA  02110-1301, USA.
 
 /*-------------------------------------------------------------------------*/
 
-// The Acorn Master Series uses a HD146818. This provides a RTC (Real Time
-// Clock), a programmable periodic interrupt and square wave generator
-// (which BeebEm doesn't emulate), and 50 bytes CMOS RAM.
+// The Acorn Master Series and FileStore use a HD146818. This provides a RTC
+// (Real Time Clock), a programmable periodic interrupt and square wave
+// generator (which BeebEm doesn't emulate), and 50 bytes CMOS RAM.
+//
+// The FileStore also uses the update-ended flag and interrupt, which
+// BeebEm emulates for the FileStore only, see RTCPoll().
 //
 //                                 Memory Map
 //
@@ -147,16 +151,58 @@ Boston, MA  02110-1301, USA.
 // | 62 | 3E |                                                                 |
 // | 63 | 3F |                                                                 |
 // +----+----+-----------------------------------------------------------------+
+// | FileStore E01 and E01S                                                    |
+// |---------------------------------------------------------------------------|
+// |         | Default value in BeebEm                                         |
+// |         | hex | Description                                               |
+// +----+----+-----+-----------------------------------------------------------+
+// | 14 | 0E | FE  | Station number                                            |
+// | 15 | 0F | 01  | Station number check byte (station number EOR &FF)        |
+// | 16 | 10 | 00  | Reserved                                                  |
+// | 17 | 11 | 00  | Reserved                                                  |
+// | 18 | 12 | 00  | Reserved                                                  |
+// | 19 | 13 | 00  | Reserved                                                  |
+// | 20 | 14 | 00  | Last error number                                         |
+// | 21 | 15 | 00  | Last error X                                              |
+// | 22 | 16 | 00  | Last error Y                                              |
+// | 23 | 17 | 00  | Last error LSB                                            |
+// | 24 | 18 | 00  | Last error MSB                                            |
+// | 25 | 19 | FF  | SIN LSB                                                   |
+// | 26 | 1A | FF  | SIN CSB                                                   |
+// | 27 | 1B | FF  | SIN MSB                                                   |
+// | 28 | 1C | 80  | Maximum number of users                                   |
+// | 29 | 1D | 06  | Maximum drive number + 1                                  |
+// | 30 | 1E | 50  | Printer server name, 6 characters ("Puce"), 00 = disabled |
+// | .. | .. | ..  |                                                           |
+// | 35 | 23 | 00  |                                                           |
+// | 36 | 24 | 53  | Maintenance mode user name, 11 characters ("SYST")        |
+// | .. | .. | ..  |                                                           |
+// | 46 | 2E | 00  |                                                           |
+// | 47 | 2F | 54  | User name check byte                                      |
+// | 48 | 30 | 4E  | Printer page feeds: 0 = on, anything else = off           |
+// | 49 | 31 | 01  | Hard drive copyright string check: 0 = yes, 1 = no        |
+// | 50 | 32 | 00  | Unused                                                    |
+// | .. | .. | ..  |                                                           |
+// | 63 | 3F | 00  |                                                           |
+// +----+----+-----+-----------------------------------------------------------+
 
 // Offset from PC clock (seconds)
 static time_t RTCTimeOffset = 0;
+
+// Index into CMOSType::Register for each machine that has CMOS RAM
+constexpr int CMOS_MASTER_128 = 0;
+constexpr int CMOS_MASTER_ET  = 1;
+constexpr int CMOS_FILESTORE_E01  = 2;
+constexpr int CMOS_FILESTORE_E01S = 3;
+constexpr int CMOS_COUNT = 4;
 
 struct CMOSType
 {
 	bool ChipEnable;
 	unsigned char Address;
-	// RTC registers + 50 bytes CMOS RAM for Master 128 and Master ET
-	unsigned char Register[2][64];
+	// RTC registers + 50 bytes CMOS RAM for Master 128, Master ET,
+	// FileStore E01 and FileStore E01S
+	unsigned char Register[CMOS_COUNT][64];
 };
 
 static CMOSType CMOS;
@@ -166,8 +212,18 @@ const unsigned char RTC146818_REG_B = 0x0B;
 const unsigned char RTC146818_REG_C = 0x0C;
 const unsigned char RTC146818_REG_D = 0x0D;
 
+const unsigned char RTC146818_REG_A_UIP    = 0x80;
+
 const unsigned char RTC146818_REG_B_SET    = 0x80;
+const unsigned char RTC146818_REG_B_PIE    = 0x40;
+const unsigned char RTC146818_REG_B_AIE    = 0x20;
+const unsigned char RTC146818_REG_B_UIE    = 0x10;
 const unsigned char RTC146818_REG_B_BINARY = 0x04;
+
+const unsigned char RTC146818_REG_C_IRQF   = 0x80;
+const unsigned char RTC146818_REG_C_PF     = 0x40;
+const unsigned char RTC146818_REG_C_AF     = 0x20;
+const unsigned char RTC146818_REG_C_UF     = 0x10;
 
 // Master 128 CMOS defaults from byte 14 (RAM bytes only)
 
@@ -215,8 +271,80 @@ const unsigned char CMOSDefault_MasterET[50] =
 	0xa2  // 30 - Serial format 8N1, no boot on reset, scroll enabled, external tube, Loud
 };
 
+// FileStore E01/E01S CMOS defaults from byte 14 (RAM bytes only)
+
+const unsigned char CMOSDefault_FileStore[50] =
+{
+	0xfe, // 14 - Station number: 254
+	0x01, // 15 - Station number check byte
+	0x00, // 16 - Reserved
+	0x00, // 17 - Reserved
+	0x00, // 18 - Reserved
+	0x00, // 19 - Reserved
+	0x00, // 20 - Last error number
+	0x00, // 21 - Last error X
+	0x00, // 22 - Last error Y
+	0x00, // 23 - Last error LSB
+	0x00, // 24 - Last error MSB
+	0xff, // 25 - SIN LSB
+	0xff, // 26 - SIN CSB
+	0xff, // 27 - SIN MSB
+	0x80, // 28 - Maximum number of users: 128
+	0x06, // 29 - Maximum drive number + 1
+	0x50, // 30 - Printer server name: "Puce"
+	0x75, // 31
+	0x63, // 32
+	0x65, // 33
+	0x00, // 34
+	0x00, // 35
+	0x53, // 36 - Maintenance mode user name: "SYST"
+	0x59, // 37
+	0x53, // 38
+	0x54, // 39
+	0x00, // 40
+	0x00, // 41
+	0x00, // 42
+	0x00, // 43
+	0x00, // 44
+	0x00, // 45
+	0x00, // 46
+	0x54, // 47 - User name check byte
+	0x4e, // 48 - Printer page feeds off
+	0x01, // 49 - Hard drive copyright string check off
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // 50-56
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  // 57-63
+};
+
+// FileStore RTC update cycle period, in 2MHz CPU cycles. A real 146818 has
+// one update cycle per second; the earlier FileStore emulation used a 10ms
+// Windows timer, which is kept here.
+constexpr int RTC_UPDATE_CYCLES = 20000;
+
+static int RTCUpdateCycles = RTC_UPDATE_CYCLES;
+
 // Pointer used to switch between the CMOS RAM for the different machines
 unsigned char* pCMOS = nullptr;
+
+/*-------------------------------------------------------------------------*/
+
+static int GetCMOSIndex(Model model)
+{
+	switch (model)
+	{
+		case Model::Master128:
+		default:
+			return CMOS_MASTER_128;
+
+		case Model::MasterET:
+			return CMOS_MASTER_ET;
+
+		case Model::FileStoreE01:
+			return CMOS_FILESTORE_E01;
+
+		case Model::FileStoreE01S:
+			return CMOS_FILESTORE_E01S;
+	}
+}
 
 /*-------------------------------------------------------------------------*/
 
@@ -296,11 +424,10 @@ void RTCInit()
 	switch (MachineType)
 	{
 		case Model::Master128:
-			pCMOS = CMOS.Register[0]; // Pointer to Master 128 CMOS
-			break;
-
 		case Model::MasterET:
-			pCMOS = CMOS.Register[1]; // Pointer to Master ET CMOS
+		case Model::FileStoreE01:
+		case Model::FileStoreE01S:
+			pCMOS = CMOS.Register[GetCMOSIndex(MachineType)];
 			break;
 
 		default: // Machine doesn't use CMOS
@@ -308,6 +435,19 @@ void RTCInit()
 			if (DebugEnabled)
 				DebugDisplayTrace(DebugType::CMOS, true, "RTC: Timer off");
 			return;
+	}
+
+	if (IsFileStore(MachineType))
+	{
+		// Clear registers A-D: the FileStore ROM sets them up
+		pCMOS[RTC146818_REG_A] = 0;
+		pCMOS[RTC146818_REG_B] = 0;
+		pCMOS[RTC146818_REG_C] = 0;
+		pCMOS[RTC146818_REG_D] = 0;
+
+		IntStatus &= ~IRQ_RTC;
+
+		RTCUpdateCycles = RTC_UPDATE_CYCLES;
 	}
 
 	time_t SysTime;
@@ -403,7 +543,12 @@ void RTCWriteData(unsigned char Value)
 	{
 		// Control register B
 		// Bit-7 SET - 0=clock running, 1=clock update halted
-		if (Value & RTC146818_REG_B_SET)
+		if (IsFileStore(MachineType))
+		{
+			// The FileStore clock always follows the PC clock, as in the
+			// earlier FileStore emulation
+		}
+		else if (Value & RTC146818_REG_B_SET)
 		{
 			RTCUpdate();
 		}
@@ -444,6 +589,14 @@ unsigned char RTCReadData()
 
 	unsigned char Value = pCMOS[CMOS.Address];
 
+	if (CMOS.Address == RTC146818_REG_C)
+	{
+		// Reading register C clears the interrupt flags and the interrupt
+		pCMOS[RTC146818_REG_C] = 0;
+
+		IntStatus &= ~IRQ_RTC;
+	}
+
 	if (DebugEnabled)
 	{
 		DebugDisplayTraceF(DebugType::CMOS, true,
@@ -462,15 +615,22 @@ unsigned char RTCReadData()
 
 void RTCSetCMOSDefaults(Model model)
 {
+	const int Index = GetCMOSIndex(model);
+
 	switch (model)
 	{
 		case Model::Master128:
 		default:
-			memcpy(&CMOS.Register[0][14], CMOSDefault_Master128, 50);
+			memcpy(&CMOS.Register[Index][14], CMOSDefault_Master128, 50);
 			break;
 
 		case Model::MasterET:
-			memcpy(&CMOS.Register[1][14], CMOSDefault_MasterET, 50);
+			memcpy(&CMOS.Register[Index][14], CMOSDefault_MasterET, 50);
+			break;
+
+		case Model::FileStoreE01:
+		case Model::FileStoreE01S:
+			memcpy(&CMOS.Register[Index][14], CMOSDefault_FileStore, 50);
 			break;
 	}
 }
@@ -479,7 +639,7 @@ void RTCSetCMOSDefaults(Model model)
 
 unsigned char RTCGetData(Model model, unsigned char Address)
 {
-	const int Index = model == Model::Master128 ? 0 : 1;
+	const int Index = GetCMOSIndex(model);
 
 	return CMOS.Register[Index][Address];
 }
@@ -488,7 +648,7 @@ unsigned char RTCGetData(Model model, unsigned char Address)
 
 const unsigned char* RTCGetCMOSData(Model model)
 {
-	const int Index = model == Model::Master128 ? 0 : 1;
+	const int Index = GetCMOSIndex(model);
 
 	return &CMOS.Register[Index][14];
 }
@@ -497,9 +657,113 @@ const unsigned char* RTCGetCMOSData(Model model)
 
 void RTCSetCMOSData(Model model, const unsigned char* pData, int Size)
 {
-	const int Index = model == Model::Master128 ? 0 : 1;
+	const int Index = GetCMOSIndex(model);
 
 	memcpy(&CMOS.Register[Index][14], pData, Size);
+}
+
+/*-------------------------------------------------------------------------*/
+
+// Called from FileStorePoll(). The FileStore relies on the update-in-progress
+// and update-ended flags, and on the update-ended interrupt, so emulate an
+// update cycle every RTC_UPDATE_CYCLES.
+
+void RTCPoll(int Cycles)
+{
+	if (pCMOS == nullptr)
+	{
+		return;
+	}
+
+	RTCUpdateCycles -= Cycles;
+
+	if (RTCUpdateCycles > 0)
+	{
+		return;
+	}
+
+	RTCUpdateCycles += RTC_UPDATE_CYCLES;
+
+	// No update cycles while the SET bit is set
+	if (pCMOS[RTC146818_REG_B] & RTC146818_REG_B_SET)
+	{
+		return;
+	}
+
+	pCMOS[RTC146818_REG_A] |= RTC146818_REG_A_UIP;
+
+	RTCUpdate();
+
+	// Alarms are not emulated
+
+	// The update-ended flag is set after each update cycle
+	pCMOS[RTC146818_REG_C] |= RTC146818_REG_C_UF;
+
+	// IRQF is set when any flag is set with its interrupt enabled
+	// (UIE/UF, AIE/AF, PIE/PF)
+	const unsigned char Enabled = pCMOS[RTC146818_REG_B] &
+	                              (RTC146818_REG_B_PIE | RTC146818_REG_B_AIE | RTC146818_REG_B_UIE);
+
+	if (pCMOS[RTC146818_REG_C] & Enabled)
+	{
+		pCMOS[RTC146818_REG_C] |= RTC146818_REG_C_IRQF;
+		IntStatus |= IRQ_RTC;
+	}
+	else
+	{
+		pCMOS[RTC146818_REG_C] &= ~RTC146818_REG_C_IRQF;
+		IntStatus &= ~IRQ_RTC;
+	}
+
+	pCMOS[RTC146818_REG_A] &= ~RTC146818_REG_A_UIP;
+
+	#ifdef DEBUG_RTC
+	DebugTrace("RTC: Update cycle, register C %02X\n", pCMOS[RTC146818_REG_C]);
+	#endif
+}
+
+/*-------------------------------------------------------------------------*/
+
+void DebugRTCState()
+{
+	if (pCMOS == nullptr)
+	{
+		DebugDisplayInfo("RTC: Not present on this model");
+		return;
+	}
+
+	DebugDisplayInfoF("RTC: Clock %02X/%02X/%02X %02X:%02X:%02X (%s)",
+	                  pCMOS[7], pCMOS[8], pCMOS[9],
+	                  pCMOS[4], pCMOS[2], pCMOS[0],
+	                  (pCMOS[RTC146818_REG_B] & RTC146818_REG_B_BINARY) ? "binary" : "BCD");
+
+	DebugDisplayInfoF("RTC: Register A %02X, B %02X, C %02X, D %02X",
+	                  pCMOS[RTC146818_REG_A], pCMOS[RTC146818_REG_B],
+	                  pCMOS[RTC146818_REG_C], pCMOS[RTC146818_REG_D]);
+
+	DebugDisplayInfoF("RTC: Chip enable %s, address %02X",
+	                  CMOS.ChipEnable ? "on" : "off", CMOS.Address);
+
+	// CMOS RAM starts at address 0x0e
+	for (int Row = 0x00; Row < 0x40; Row += 0x10)
+	{
+		char Line[80];
+		int Length = sprintf(Line, "CMOS: %02X:", Row);
+
+		for (int Address = Row; Address < Row + 0x10; Address++)
+		{
+			if (Address < 0x0e)
+			{
+				Length += sprintf(Line + Length, "   ");
+			}
+			else
+			{
+				Length += sprintf(Line + Length, " %02X", pCMOS[Address]);
+			}
+		}
+
+		DebugDisplayInfo(Line);
+	}
 }
 
 /*-------------------------------------------------------------------------*/

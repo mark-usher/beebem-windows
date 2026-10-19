@@ -68,6 +68,7 @@ using std::max;
 #include "DiscInfo.h"
 #include "Econet.h" // Rob O'Donnell Christmas 2004.
 #include "Ext1770.h"
+#include "FileStore.h"
 #include "FolderSelectDialog.h"
 #include "FileType.h"
 #include "FileUtils.h"
@@ -759,6 +760,17 @@ void BeebWin::SetModel(Model NewModelType)
 
 /****************************************************************************/
 
+// Open or close the FileStore drive door. Opening the door puts the
+// FileStore into maintenance mode, which flushes its buffers to disc.
+
+void BeebWin::SetFileStoreDoorOpen(bool Open)
+{
+	FileStoreDoorOpen = Open;
+	CheckMenuItem(IDM_FILESTORE_DOOR_OPEN, FileStoreDoorOpen);
+}
+
+/****************************************************************************/
+
 void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 {
 	SoundReset();
@@ -802,6 +814,13 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 
 	MachineType = NewModelType;
 
+	if (IsFileStore(MachineType))
+	{
+		// The FileStore ROMs are loaded directly into RAM and the code is
+		// self-modifying, so always reload them to get a clean reset
+		LoadRoms = true;
+	}
+
 	if (MachineType == Model::MasterET)
 	{
 		Music5000Enabled = false;
@@ -819,6 +838,11 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 	Init6502Core();
 
 	RTCInit();
+
+	if (IsFileStore(MachineType))
+	{
+		FileStoreReset();
+	}
 
 	if (IsFileStore(MachineType))
 	{
@@ -1412,6 +1436,8 @@ void BeebWin::InitMenu(void)
 	CheckMenuItem(IDM_WRITE_PROTECT_DISC0, m_WriteProtectDisc[0]);
 	CheckMenuItem(IDM_WRITE_PROTECT_DISC1, m_WriteProtectDisc[1]);
 	CheckMenuItem(IDM_WRITE_PROTECT_ON_LOAD, m_WriteProtectOnLoad);
+	CheckMenuItem(IDM_FILESTORE_DOOR_OPEN, FileStoreDoorOpen);
+	CheckMenuItem(IDM_FILESTORE_COMMAND_MODE, FileStoreCommandMode);
 
 	// File -> Capture Options
 	UpdateBitmapCaptureFormatMenu();
@@ -1880,6 +1906,16 @@ void BeebWin::UpdateModelMenu()
 
 	// Options Menu
 	EnableMenuItem(IDM_CONFIGURE_JOYSTICK, !IsMasterET && !IsFS);
+
+	// FileStore front panel
+	EnableMenuItem(IDM_FILESTORE_DOOR_OPEN, IsFS);
+	EnableMenuItem(IDM_FILESTORE_COMMAND_MODE, MachineType == Model::FileStoreE01);
+
+	// Saved state files don't include the FileStore hardware
+	EnableMenuItem(IDM_LOADSTATE, !IsFS);
+	EnableMenuItem(IDM_SAVESTATE, !IsFS);
+	EnableMenuItem(IDM_QUICKLOAD, !IsFS);
+	EnableMenuItem(IDM_QUICKSAVE, !IsFS);
 
 	// The FileStore has no display, keyboard or Tube
 	EnableMenuItem(IDM_CAPTURESCREEN, !IsFS);
@@ -4776,6 +4812,15 @@ void BeebWin::HandleCommand(UINT MenuID)
 
 	case IDM_FILESTORE_E01S:
 		SetModel(Model::FileStoreE01S);
+		break;
+
+	case IDM_FILESTORE_DOOR_OPEN:
+		SetFileStoreDoorOpen(!FileStoreDoorOpen);
+		break;
+
+	case IDM_FILESTORE_COMMAND_MODE:
+		FileStoreCommandMode = !FileStoreCommandMode;
+		CheckMenuItem(IDM_FILESTORE_COMMAND_MODE, FileStoreCommandMode);
 		break;
 
 	case IDM_REWINDTAPE:
