@@ -22,10 +22,10 @@ Boston, MA  02110-1301, USA.
 
 #include <windows.h>
 
-// If building for Windows 10, you get a C4996 warning from sphelper.h. But it's
-// an error! Even though warnings are not set to be errors.
+// sphelper.h calls the deprecated GetVersionEx(), which gives warning C4996
+// (an error if SDL checks are enabled), so disable it for this header.
 #pragma warning(push)
-#pragma warning(default: 4996)
+#pragma warning(disable: 4996)
 #define STRSAFE_NO_DEPRECATE
 #include <sphelper.h>
 #pragma warning(pop)
