@@ -101,9 +101,6 @@
 #define IDD_ABOUT                       120
 #define IDD_TELETEXT                    121
 #define IDD_JOYSTICK                    122
-#define IDB_FILESTORE_E01               123
-#define IDB_FILESTORE_E01S              124
-#define IDB_FILESTORE_DRIVES            125
 #define IDC_DEBUGBREAK                  1010
 #define IDC_DEBUGINFO                   1015
 #define IDC_DEBUGCOMMAND                1016
@@ -488,7 +485,7 @@
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        126
+#define _APS_NEXT_RESOURCE_VALUE        123
 #define _APS_NEXT_COMMAND_VALUE         40331
 #define _APS_NEXT_CONTROL_VALUE         1152
 #define _APS_NEXT_SYMED_VALUE           101

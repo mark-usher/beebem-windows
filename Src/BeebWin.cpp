@@ -198,7 +198,11 @@ BeebWin::BeebWin()
 	m_hOldObj = nullptr;
 	m_hDCBitmap = nullptr;
 	m_hBitmap = nullptr;
-	m_hFileStoreBitmap = nullptr;
+	for (int Drive = 0; Drive < 4; Drive++)
+	{
+		m_FileStoreDriveSize[Drive] = -1;
+	}
+
 	m_FileStoreLEDState = -1;
 	m_FileStoreShutdownAction = FileStoreShutdownAction::None;
 	m_FileStoreShutdownModel = Model::FileStoreE01;
@@ -684,11 +688,6 @@ BeebWin::~BeebWin()
 
 	ReleaseDC(m_hWnd, m_hDC);
 
-	if (m_hFileStoreBitmap != nullptr)
-	{
-		DeleteObject(m_hFileStoreBitmap);
-	}
-
 	if (m_hOldObj != nullptr)
 	{
 		SelectObject(m_hDCBitmap, m_hOldObj);
@@ -850,7 +849,7 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 	}
 
 	// Show or remove the FileStore front panel
-	LoadFileStoreBitmap();
+	UpdateFileStorePanel();
 
 	if (IsFileStore(MachineType))
 	{
@@ -2549,6 +2548,12 @@ LRESULT BeebWin::WndProc(UINT nMessage, WPARAM wParam, LPARAM lParam)
 
 		case WM_SIZE:
 			OnSize(wParam, LOWORD(lParam), HIWORD(lParam));
+
+			// The FileStore front panel is scaled to the window
+			if (IsFileStore(MachineType))
+			{
+				InvalidateRect(m_hWnd, nullptr, FALSE);
+			}
 			break;
 
 		case WM_SET_WINDOW_CLIENT_SIZE: {
@@ -5171,6 +5176,7 @@ void BeebWin::HandleCommand(UINT MenuID)
 			IDEDriveEnabled = false;
 			CheckMenuItem(IDM_IDE_HARD_DRIVE, IDEDriveEnabled);
 		}
+		UpdateFileStorePanel();
 		break;
 
 	case IDM_IDE_HARD_DRIVE:

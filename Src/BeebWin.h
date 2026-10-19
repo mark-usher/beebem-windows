@@ -357,9 +357,8 @@ public:
 	void SetModel(Model NewModelType);
 	void SetFileStoreDoorOpen(bool Open);
 	void UpdateFileStoreDiscMenu();
-	void LoadFileStoreBitmap();
+	void UpdateFileStorePanel();
 	void PaintFileStore(HDC hDC);
-	void DrawFileStoreLEDs(HDC hDC);
 	void UpdateFileStoreLEDs();
 	bool BeginFileStoreShutdown(FileStoreShutdownAction Action, Model NewModelType);
 	void CompleteFileStoreShutdown();
@@ -733,7 +732,7 @@ public:
 	HGDIOBJ m_hOldObj;
 	HDC m_hDCBitmap;
 	HGDIOBJ m_hBitmap;
-	HBITMAP m_hFileStoreBitmap; // FileStore front panel image
+	int m_FileStoreDriveSize[4]; // FileStore SCSI drive image sizes in MB, -1 if none
 	int m_FileStoreLEDState; // FileStore LED state last drawn
 	FileStoreShutdownAction m_FileStoreShutdownAction; // What to do once the FileStore has flushed its buffers
 	Model m_FileStoreShutdownModel; // Model to change to after FileStore shutdown

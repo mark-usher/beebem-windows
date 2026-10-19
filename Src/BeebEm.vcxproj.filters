@@ -754,15 +754,6 @@
     <Image Include="res\DSD.ico">
       <Filter>Resource Files</Filter>
     </Image>
-    <Image Include="res\FileStoreDrives.bmp">
-      <Filter>Resource Files</Filter>
-    </Image>
-    <Image Include="res\FileStoreE01.bmp">
-      <Filter>Resource Files</Filter>
-    </Image>
-    <Image Include="res\FileStoreE01S.bmp">
-      <Filter>Resource Files</Filter>
-    </Image>
     <Image Include="res\FSD.ico">
       <Filter>Resource Files</Filter>
     </Image>
