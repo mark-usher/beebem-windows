@@ -228,9 +228,11 @@ static const COLORREF FS_LABEL           = RGB(18, 18, 18);
 static const COLORREF FS_LABEL_TEXT      = RGB(232, 230, 215);
 
 // Floppy drive
+static const COLORREF FS_DRIVE_FILLER    = RGB(28, 24, 24);    // Blank panel beside each drive
+static const COLORREF FS_DRIVE_SEAM      = RGB(90, 86, 80);
 static const COLORREF FS_DRIVE_BEZEL     = RGB(20, 20, 22);
 static const COLORREF FS_DRIVE_BAND      = RGB(30, 30, 32);    // Raised band above the slot
-static const COLORREF FS_DRIVE_EDGE      = RGB(70, 70, 74);
+static const COLORREF FS_DRIVE_EDGE      = RGB(78, 78, 82);
 static const COLORREF FS_DRIVE_SLOT_RIM  = RGB(60, 60, 64);
 static const COLORREF FS_DRIVE_SLOT      = RGB(8, 8, 9);
 static const COLORREF FS_DRIVE_SHUTTER   = RGB(26, 26, 28);    // Black shutter, no disc
@@ -600,12 +602,17 @@ constexpr double FS_LED_Y       = 0.54; // Fraction of the flap height
 static void DrawFloppyDrive(HDC hDC, const FileStoreUnitLayout& Unit, double Left, double Right,
                             bool DiscInserted, bool LED)
 {
-	const int BezelLeft   = Unit.X(Left);
+	// Each drive bay has a blank panel on the left, then the 3.5" drive
+	const int BayLeft     = Unit.X(Left);
+	const int BezelLeft   = Unit.X(Left + (Right - Left) * 0.163);
 	const int BezelRight  = Unit.X(Right);
 	const int BezelTop    = Unit.Y(0.11);
 	const int BezelBottom = Unit.Y(0.59);
 	const int BezelWidth  = BezelRight - BezelLeft;
 	const int BezelHeight = BezelBottom - BezelTop;
+
+	FillSolidRect(hDC, BayLeft, BezelTop, BezelLeft - 1, BezelBottom, FS_DRIVE_FILLER);
+	FillSolidRect(hDC, BezelLeft - 1, BezelTop, BezelLeft, BezelBottom, FS_DRIVE_SEAM);
 
 	// Positions within the drive bezel
 	auto DX = [&](double f) { return BezelLeft + (int)(f * BezelWidth); };
@@ -613,37 +620,37 @@ static void DrawFloppyDrive(HDC hDC, const FileStoreUnitLayout& Unit, double Lef
 
 	FillSolidRect(hDC, BezelLeft, BezelTop, BezelRight, BezelBottom, FS_DRIVE_BEZEL);
 
-	// Raised band above the slot
-	FillSolidRect(hDC, DX(0.26), DY(0.07), DX(0.77), DY(0.18), FS_DRIVE_BAND);
-	FillSolidRect(hDC, DX(0.26), DY(0.07), DX(0.77), DY(0.07) + 1, FS_DRIVE_EDGE);
+	// Raised band above the slot, its top edge catching the light
+	FillSolidRect(hDC, DX(0.25), DY(0.09), DX(0.77), DY(0.20), FS_DRIVE_BAND);
+	FillSolidRect(hDC, DX(0.25), DY(0.09), DX(0.77), DY(0.09) + 2, FS_DRIVE_EDGE);
 
 	// Slot
-	FillSolidRect(hDC, DX(0.05), DY(0.20), DX(0.96), DY(0.43), FS_DRIVE_SLOT_RIM);
-	FillSolidRect(hDC, DX(0.05) + 1, DY(0.20) + 1, DX(0.96) - 1, DY(0.43) - 1, FS_DRIVE_SLOT);
+	FillSolidRect(hDC, DX(0.05), DY(0.21), DX(0.95), DY(0.44), FS_DRIVE_SLOT_RIM);
+	FillSolidRect(hDC, DX(0.05) + 1, DY(0.21) + 1, DX(0.95) - 1, DY(0.44) - 1, FS_DRIVE_SLOT);
 
 	if (DiscInserted)
 	{
 		// A thin, filled-in disc in the slot
-		FillSolidRect(hDC, DX(0.08), DY(0.27), DX(0.94), DY(0.36), FS_DRIVE_DISC);
-		FillSolidRect(hDC, DX(0.08), DY(0.27), DX(0.94), DY(0.27) + 1, FS_DRIVE_DISC_EDGE);
+		FillSolidRect(hDC, DX(0.08), DY(0.29), DX(0.94), DY(0.38), FS_DRIVE_DISC);
+		FillSolidRect(hDC, DX(0.08), DY(0.29), DX(0.94), DY(0.29) + 1, FS_DRIVE_DISC_EDGE);
 	}
 	else
 	{
-		// The black shutter, flush in the slot
-		FillSolidRect(hDC, DX(0.26), DY(0.20) + 1, DX(0.77), DY(0.43) - 1, FS_DRIVE_SHUTTER);
-		FillSolidRect(hDC, DX(0.26), DY(0.20) + 1, DX(0.77), DY(0.20) + 2, FS_DRIVE_SHUTTER_EDGE);
+		// The black shutter, flush in the slot below the band
+		FillSolidRect(hDC, DX(0.25), DY(0.21) + 1, DX(0.77), DY(0.44) - 1, FS_DRIVE_SHUTTER);
+		FillSolidRect(hDC, DX(0.25), DY(0.21) + 1, DX(0.77), DY(0.21) + 2, FS_DRIVE_SHUTTER_EDGE);
 	}
 
-	// Lower step
-	FillSolidRect(hDC, DX(0.26), DY(0.46), DX(0.96), DY(0.60), FS_DRIVE_STEP);
-	FillSolidRect(hDC, DX(0.26), DY(0.46), DX(0.96), DY(0.46) + 1, FS_DRIVE_SHUTTER_EDGE);
+	// Lower ridge, stopping short of the eject button
+	FillSolidRect(hDC, DX(0.26), DY(0.59), DX(0.77), DY(0.66), FS_DRIVE_STEP);
+	FillSolidRect(hDC, DX(0.26), DY(0.59), DX(0.77), DY(0.59) + 1, FS_DRIVE_EDGE);
 
 	// Activity LED
-	FillSolidRect(hDC, DX(0.17), DY(0.79), DX(0.22), DY(0.85), LED ? FS_DRIVE_LED_ON : FS_DRIVE_LED_OFF);
+	FillSolidRect(hDC, DX(0.17), DY(0.78), DX(0.22), DY(0.85), LED ? FS_DRIVE_LED_ON : FS_DRIVE_LED_OFF);
 
 	// Eject button
-	FillSolidRect(hDC, DX(0.78), DY(0.69), DX(0.95), DY(0.85), DiscInserted ? FS_DRIVE_EJECT_RIM_DISC : FS_DRIVE_EJECT_RIM);
-	FillSolidRect(hDC, DX(0.78) + 1, DY(0.69) + 1, DX(0.95) - 1, DY(0.85) - 1, FS_DRIVE_EJECT);
+	FillSolidRect(hDC, DX(0.77), DY(0.68), DX(0.94), DY(0.84), DiscInserted ? FS_DRIVE_EJECT_RIM_DISC : FS_DRIVE_EJECT_RIM);
+	FillSolidRect(hDC, DX(0.77) + 1, DY(0.68) + 1, DX(0.94) - 1, DY(0.84) - 1, FS_DRIVE_EJECT);
 }
 
 /****************************************************************************/
