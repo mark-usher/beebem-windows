@@ -1842,8 +1842,10 @@ void BeebWin::SavePreferences(bool saveAll)
 		m_Preferences.EraseValue(CFG_TUBE_ARM_OLD);
 
 		// Window size and position
-		m_Preferences.SetDecimalValue(CFG_VIEW_WIN_SIZE_X, m_XLastWinSize);
-		m_Preferences.SetDecimalValue(CFG_VIEW_WIN_SIZE_Y, m_YLastWinSize);
+		// In FileStore mode the window is sized to fit the FileStore, so save
+		// the size used by the other models
+		m_Preferences.SetDecimalValue(CFG_VIEW_WIN_SIZE_X, m_FileStoreWindowFitted ? m_FileStoreSavedWinSize[0] : m_XLastWinSize);
+		m_Preferences.SetDecimalValue(CFG_VIEW_WIN_SIZE_Y, m_FileStoreWindowFitted ? m_FileStoreSavedWinSize[1] : m_YLastWinSize);
 		m_Preferences.EraseValue(CFG_VIEW_WIN_SIZE);
 
 		RECT Rect;

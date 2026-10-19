@@ -204,6 +204,9 @@ BeebWin::BeebWin()
 	}
 
 	m_FileStoreLEDState = -1;
+	m_FileStoreWindowFitted = false;
+	m_FileStoreSavedWinSize[0] = 640;
+	m_FileStoreSavedWinSize[1] = 512;
 	m_FileStoreShutdownAction = FileStoreShutdownAction::None;
 	m_FileStoreShutdownModel = Model::FileStoreE01;
 	m_FileStoreEconetForced = false;
@@ -2581,9 +2584,11 @@ LRESULT BeebWin::WndProc(UINT nMessage, WPARAM wParam, LPARAM lParam)
 		case WM_SIZE:
 			OnSize(wParam, LOWORD(lParam), HIWORD(lParam));
 
-			// The FileStore front panel is scaled to the window
+			// The FileStore front panel is scaled to the window, and the
+			// window height follows its width
 			if (IsFileStore(MachineType))
 			{
+				FitFileStoreWindow();
 				InvalidateRect(m_hWnd, nullptr, FALSE);
 			}
 			break;

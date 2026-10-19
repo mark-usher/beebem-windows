@@ -33,8 +33,10 @@ Boston, MA  02110-1301, USA.
 #include "FileUtils.h"
 #include "FileStore.h"
 #include "Main.h"
+#include "Messages.h"
 #include "Resource.h"
 #include "Scsi.h"
+#include "WindowUtils.h"
 
 /****************************************************************************/
 
@@ -103,6 +105,8 @@ void BeebWin::UpdateFileStorePanel()
 	// Force the LEDs to be redrawn
 	m_FileStoreLEDState = -1;
 
+	FitFileStoreWindow();
+
 	if (m_hWnd != nullptr)
 	{
 		InvalidateRect(m_hWnd, nullptr, FALSE);
@@ -111,24 +115,124 @@ void BeebWin::UpdateFileStorePanel()
 
 /****************************************************************************/
 
-// Colours
+// Layout of the stack of units in the window, shared by PaintFileStore()
+// and FitFileStoreWindow(). Each unit is about 5:1 including its base.
 
-static const COLORREF FS_BACKGROUND   = RGB(32, 32, 36);
-static const COLORREF FS_CASE         = RGB(214, 206, 184); // Cream case
-static const COLORREF FS_CASE_SHADOW  = RGB(160, 152, 132);
-static const COLORREF FS_CASE_HIGHLIGHT = RGB(236, 230, 214);
-static const COLORREF FS_FLAP         = RGB(52, 52, 56);    // Door flap strip
-static const COLORREF FS_FLAP_DRIVE   = RGB(70, 66, 60);    // Drive unit flap strip
-static const COLORREF FS_RECESS       = RGB(18, 18, 20);    // Behind the open door
-static const COLORREF FS_FLOPPY       = RGB(46, 46, 50);    // Floppy drive fascia
-static const COLORREF FS_SLOT         = RGB(8, 8, 8);
-static const COLORREF FS_LABEL        = RGB(40, 40, 44);
-static const COLORREF FS_LABEL_TEXT   = RGB(230, 230, 230);
-static const COLORREF FS_TEXT         = RGB(60, 56, 50);
-static const COLORREF FS_RED_ON       = RGB(255, 40, 30);
-static const COLORREF FS_RED_OFF      = RGB(70, 10, 8);
-static const COLORREF FS_GREEN_ON     = RGB(40, 255, 60);
-static const COLORREF FS_GREEN_OFF    = RGB(10, 60, 14);
+static int GetFileStoreMargin(int ClientWidth)
+{
+	return ClientWidth / 40;
+}
+
+static int GetFileStoreUnitGap(int ClientWidth)
+{
+	return GetFileStoreMargin(ClientWidth) / 3;
+}
+
+static int GetFileStoreUnitHeight(int ClientWidth)
+{
+	return (ClientWidth - 2 * GetFileStoreMargin(ClientWidth)) / 5;
+}
+
+/****************************************************************************/
+
+// Make the window just tall enough for the FileStore and its hard drive
+// units, so there is no empty space. The window size used by the other
+// models is kept, and restored when changing to another model.
+
+void BeebWin::FitFileStoreWindow()
+{
+	if (m_hWnd == nullptr || m_FullScreen)
+	{
+		return;
+	}
+
+	if (!IsFileStore(MachineType))
+	{
+		if (m_FileStoreWindowFitted)
+		{
+			m_FileStoreWindowFitted = false;
+
+			PostMessage(m_hWnd,
+			            WM_SET_WINDOW_CLIENT_SIZE,
+			            0,
+			            reinterpret_cast<LPARAM>(new WindowPos(m_FileStoreSavedWinSize[0],
+			                                                   m_FileStoreSavedWinSize[1])));
+		}
+
+		return;
+	}
+
+	if (!m_FileStoreWindowFitted)
+	{
+		m_FileStoreSavedWinSize[0] = m_XLastWinSize;
+		m_FileStoreSavedWinSize[1] = m_YLastWinSize;
+		m_FileStoreWindowFitted = true;
+	}
+
+	RECT ClientRect;
+	GetClientRect(m_hWnd, &ClientRect);
+
+	const int Width = ClientRect.right - ClientRect.left;
+
+	if (Width <= 0)
+	{
+		return;
+	}
+
+	int Units = 1;
+
+	for (int Drive = 0; Drive < 4; Drive++)
+	{
+		if (m_FileStoreDriveSize[Drive] >= 0)
+		{
+			Units++;
+		}
+	}
+
+	const int Height = 2 * GetFileStoreMargin(Width) +
+	                   Units * GetFileStoreUnitHeight(Width) +
+	                   (Units - 1) * GetFileStoreUnitGap(Width);
+
+	if (Height != ClientRect.bottom - ClientRect.top)
+	{
+		PostMessage(m_hWnd,
+		            WM_SET_WINDOW_CLIENT_SIZE,
+		            0,
+		            reinterpret_cast<LPARAM>(new WindowPos(Width, Height)));
+	}
+}
+
+/****************************************************************************/
+
+// Colours, taken from photos of the real units
+
+static const COLORREF FS_BACKGROUND     = RGB(40, 40, 44);
+static const COLORREF FS_CASE           = RGB(222, 213, 190); // Cream case
+static const COLORREF FS_CASE_HIGHLIGHT = RGB(238, 232, 214);
+static const COLORREF FS_CASE_SHADOW    = RGB(170, 160, 138);
+static const COLORREF FS_PLINTH         = RGB(212, 202, 176); // Recessed base
+static const COLORREF FS_PLINTH_SHADOW  = RGB(150, 141, 120);
+static const COLORREF FS_STRIPE         = RGB(236, 232, 220); // Flap stripes
+static const COLORREF FS_STRIPE_GAP     = RGB(28, 28, 30);
+static const COLORREF FS_EDGE_AMBER     = RGB(214, 140, 40);  // E01S/E40S/E60S flap edge
+static const COLORREF FS_EDGE_SMOKE     = RGB(150, 150, 150); // E01/E20 flap edge
+static const COLORREF FS_LABEL          = RGB(18, 18, 18);
+static const COLORREF FS_LABEL_TEXT     = RGB(235, 235, 235);
+static const COLORREF FS_FASCIA_E01     = RGB(88, 96, 92);    // Behind the flap
+static const COLORREF FS_FASCIA_E01S    = RGB(30, 30, 32);
+static const COLORREF FS_FLOPPY         = RGB(24, 24, 26);
+static const COLORREF FS_SHUTTER        = RGB(222, 190, 40);
+static const COLORREF FS_SLOT           = RGB(8, 8, 8);
+static const COLORREF FS_EJECT          = RGB(60, 60, 64);
+static const COLORREF FS_SWITCH         = RGB(220, 214, 200);
+static const COLORREF FS_SWITCH_ROCKER  = RGB(120, 116, 108);
+static const COLORREF FS_FASCIA_TEXT    = RGB(220, 220, 220);
+static const COLORREF FS_RED_ON         = RGB(255, 40, 30);
+static const COLORREF FS_RED_OFF        = RGB(90, 20, 16);
+static const COLORREF FS_GREEN_ON       = RGB(40, 240, 90);
+static const COLORREF FS_GREEN_OFF      = RGB(20, 70, 36);
+static const COLORREF FS_FLOPPY_LED_ON  = RGB(60, 200, 80);
+static const COLORREF FS_FLOPPY_LED_OFF = RGB(30, 60, 36);
 
 /****************************************************************************/
 
@@ -144,26 +248,26 @@ static void FillSolidRect(HDC hDC, int Left, int Top, int Right, int Bottom, COL
 
 static void DrawLED(HDC hDC, int x, int y, int Size, bool On, COLORREF OnColour, COLORREF OffColour)
 {
-	HBRUSH hBrush = CreateSolidBrush(On ? OnColour : OffColour);
-	HPEN hPen = CreatePen(PS_SOLID, 1, RGB(0, 0, 0));
-	HGDIOBJ hPrevBrush = SelectObject(hDC, hBrush);
-	HGDIOBJ hPrevPen = SelectObject(hDC, hPen);
-
-	Ellipse(hDC, x, y, x + Size, y + Size);
-
-	SelectObject(hDC, hPrevPen);
-	SelectObject(hDC, hPrevBrush);
-	DeleteObject(hPen);
-	DeleteObject(hBrush);
+	FillSolidRect(hDC, x - 1, y - 1, x + Size + 1, y + Size + 1, RGB(0, 0, 0));
+	FillSolidRect(hDC, x, y, x + Size, y + Size, On ? OnColour : OffColour);
 }
 
 /****************************************************************************/
 
-static void DrawPanelText(HDC hDC, const char* Text, int x, int y, int Height, int Weight, COLORREF Colour)
+static HFONT CreatePanelFont(int Height, bool Serif, bool Bold)
 {
-	HFONT hFont = CreateFont(Height, 0, 0, 0, Weight, FALSE, FALSE, FALSE,
-	                         ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-	                         ANTIALIASED_QUALITY, VARIABLE_PITCH | FF_SWISS, "Arial");
+	return CreateFont(Height, 0, 0, 0, Bold ? FW_BOLD : FW_NORMAL, FALSE, FALSE, FALSE,
+	                  ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+	                  ANTIALIASED_QUALITY,
+	                  VARIABLE_PITCH | (Serif ? FF_ROMAN : FF_SWISS),
+	                  Serif ? "Times New Roman" : "Arial");
+}
+
+/****************************************************************************/
+
+static void DrawPanelText(HDC hDC, const char* Text, int x, int y, int Height, bool Serif, bool Bold, COLORREF Colour)
+{
+	HFONT hFont = CreatePanelFont(std::max(6, Height), Serif, Bold);
 	HGDIOBJ hPrevFont = SelectObject(hDC, hFont);
 
 	SetBkMode(hDC, TRANSPARENT);
@@ -176,7 +280,50 @@ static void DrawPanelText(HDC hDC, const char* Text, int x, int y, int Height, i
 
 /****************************************************************************/
 
-// Layout of one unit (E01/E01S or a hard drive unit), in pixels
+// Draw text in the largest serif font that fits the box, centred vertically
+
+static void DrawFittedText(HDC hDC, const char* Text, int Left, int Top, int Right, int Bottom, bool Bold)
+{
+	int Height = (Bottom - Top) * 7 / 10;
+	HFONT hFont = nullptr;
+
+	SetBkMode(hDC, TRANSPARENT);
+	SetTextColor(hDC, FS_LABEL_TEXT);
+
+	for (; Height > 6; Height--)
+	{
+		hFont = CreatePanelFont(Height, true, Bold);
+		HGDIOBJ hPrevFont = SelectObject(hDC, hFont);
+
+		SIZE Size;
+		GetTextExtentPoint32(hDC, Text, (int)strlen(Text), &Size);
+
+		SelectObject(hDC, hPrevFont);
+
+		if (Size.cx <= Right - Left)
+		{
+			break;
+		}
+
+		DeleteObject(hFont);
+		hFont = nullptr;
+	}
+
+	if (hFont == nullptr)
+	{
+		hFont = CreatePanelFont(6, true, Bold);
+	}
+
+	HGDIOBJ hPrevFont = SelectObject(hDC, hFont);
+	TextOut(hDC, Left, Top + (Bottom - Top - Height) / 2 - 1, Text, (int)strlen(Text));
+	SelectObject(hDC, hPrevFont);
+	DeleteObject(hFont);
+}
+
+/****************************************************************************/
+
+// Layout of one unit (FileStore or hard drive unit), in pixels. Positions
+// are given as fractions of the unit's width and height.
 
 struct FileStoreUnitLayout
 {
@@ -186,71 +333,158 @@ struct FileStoreUnitLayout
 	int Y(double f) const { return Top + (int)(f * Height); }
 };
 
-// Position of the green (power) and red (MODE / drive activity) LEDs,
-// the same on every unit
-constexpr double FS_LED_X_GREEN = 0.905;
-constexpr double FS_LED_X_RED   = 0.935;
-constexpr double FS_LED_Y       = 0.42;
+// Front flap area
+constexpr double FS_FLAP_LEFT   = 0.012;
+constexpr double FS_FLAP_RIGHT  = 0.988;
+constexpr double FS_FLAP_TOP    = 0.10;
+constexpr double FS_FLAP_BOTTOM = 0.60;
+
+// The two LEDs (MODE/POWER on the FileStore, DRIVE/POWER on a hard drive
+// unit) are in the same place on every unit
+constexpr double FS_LED_X       = 0.745;
+constexpr double FS_LED_SPACING = 0.045;
+constexpr double FS_LED_Y       = 0.27;
 
 /****************************************************************************/
 
-static void DrawUnitCase(HDC hDC, const FileStoreUnitLayout& Unit)
+static void DrawUnitLEDs(HDC hDC, const FileStoreUnitLayout& Unit,
+                         const char* RedLabel, bool RedOn, bool FlapOpen)
 {
-	// Case with a highlight along the top and a shadow along the bottom
-	FillSolidRect(hDC, Unit.Left, Unit.Top, Unit.Left + Unit.Width, Unit.Top + Unit.Height, FS_CASE);
-	FillSolidRect(hDC, Unit.Left, Unit.Top, Unit.Left + Unit.Width, Unit.Y(0.04) + 1, FS_CASE_HIGHLIGHT);
-	FillSolidRect(hDC, Unit.Left, Unit.Y(0.94), Unit.Left + Unit.Width, Unit.Top + Unit.Height, FS_CASE_SHADOW);
-}
+	const int Size = std::max(4, (int)(Unit.Height * 0.07));
 
-/****************************************************************************/
+	const int RedX   = Unit.X(FS_LED_X);
+	const int GreenX = Unit.X(FS_LED_X + FS_LED_SPACING);
+	const int y      = Unit.Y(FS_LED_Y);
 
-static void DrawUnitLabel(HDC hDC, const FileStoreUnitLayout& Unit, const char* Name, const char* Model, const char* SubText)
-{
-	// Label panel on the left hand side
-	FillSolidRect(hDC, Unit.X(0.025), Unit.Y(0.18), Unit.X(0.185), Unit.Y(0.82), FS_LABEL);
+	DrawLED(hDC, RedX, y, Size, RedOn, FS_RED_ON, FS_RED_OFF);
+	DrawLED(hDC, GreenX, y, Size, true, FS_GREEN_ON, FS_GREEN_OFF); // Power
 
-	const int TextHeight = std::max(8, (int)(Unit.Height * 0.15));
-
-	DrawPanelText(hDC, "Acorn", Unit.X(0.035), Unit.Y(0.21), TextHeight, FW_BOLD, FS_LABEL_TEXT);
-
-	if (Name != nullptr)
+	if (FlapOpen)
 	{
-		DrawPanelText(hDC, Name, Unit.X(0.035), Unit.Y(0.40), TextHeight, FW_NORMAL, FS_LABEL_TEXT);
-	}
+		const int TextHeight = (int)(Unit.Height * 0.07);
 
-	DrawPanelText(hDC, Model, Unit.X(0.035), Name != nullptr ? Unit.Y(0.59) : Unit.Y(0.45), TextHeight, FW_BOLD, FS_LABEL_TEXT);
-
-	if (SubText != nullptr)
-	{
-		DrawPanelText(hDC, SubText, Unit.X(0.21), Unit.Y(0.80), std::max(7, (int)(Unit.Height * 0.11)), FW_NORMAL, FS_TEXT);
+		DrawPanelText(hDC, RedLabel, RedX - Size * 6 / 10, y + Size + 2, TextHeight, false, false, FS_FASCIA_TEXT);
+		DrawPanelText(hDC, "POWER", GreenX - Size * 6 / 10, y + Size + 2, TextHeight, false, false, FS_FASCIA_TEXT);
 	}
 }
 
 /****************************************************************************/
 
-static void DrawFloppyDrive(HDC hDC, const FileStoreUnitLayout& Unit, double Left, double Right, bool LED, const char* Name)
+static void DrawFloppyDrive(HDC hDC, const FileStoreUnitLayout& Unit, double Left, double Right, bool LED)
 {
-	FillSolidRect(hDC, Unit.X(Left), Unit.Y(0.24), Unit.X(Right), Unit.Y(0.76), FS_FLOPPY);
+	FillSolidRect(hDC, Unit.X(Left), Unit.Y(0.16), Unit.X(Right), Unit.Y(0.54), FS_FLOPPY);
 
-	// Disc slot and eject button
-	FillSolidRect(hDC, Unit.X(Left + 0.04), Unit.Y(0.46), Unit.X(Right - 0.04), Unit.Y(0.53), FS_SLOT);
-	FillSolidRect(hDC, Unit.X(Right - 0.07), Unit.Y(0.60), Unit.X(Right - 0.03), Unit.Y(0.70), FS_CASE_SHADOW);
+	// Disc slot with its shutter, and the eject button
+	FillSolidRect(hDC, Unit.X(Left + 0.03), Unit.Y(0.31), Unit.X(Right - 0.07), Unit.Y(0.36), FS_SHUTTER);
+	FillSolidRect(hDC, Unit.X(Left + 0.035), Unit.Y(0.325), Unit.X(Right - 0.075), Unit.Y(0.345), FS_SLOT);
+	FillSolidRect(hDC, Unit.X(Right - 0.06), Unit.Y(0.38), Unit.X(Right - 0.02), Unit.Y(0.50), FS_EJECT);
 
 	// Activity LED
-	const int LEDSize = std::max(4, (int)(Unit.Height * 0.09));
-	DrawLED(hDC, Unit.X(Left + 0.02), Unit.Y(0.62), LEDSize, LED, FS_GREEN_ON, FS_GREEN_OFF);
-
-	DrawPanelText(hDC, Name, Unit.X(Left + 0.02), Unit.Y(0.27), std::max(7, (int)(Unit.Height * 0.11)), FW_NORMAL, FS_LABEL_TEXT);
+	const int Size = std::max(3, (int)(Unit.Height * 0.05));
+	const int x = Unit.X(Left + 0.015);
+	const int y = Unit.Y(0.44);
+	FillSolidRect(hDC, x, y, x + Size, y + Size, LED ? FS_FLOPPY_LED_ON : FS_FLOPPY_LED_OFF);
 }
 
 /****************************************************************************/
+
+// Draw one unit: the case, its recessed base, and the front flap (closed),
+// or for the FileStore with the door open, the drives behind it.
+
+static void DrawUnit(HDC hDC, const FileStoreUnitLayout& Unit,
+                     const char* Name, bool Amber, bool FlapOpen,
+                     const char* RedLabel, bool RedOn,
+                     bool Floppy0, bool Floppy1)
+{
+	// Recessed base
+	FillSolidRect(hDC, Unit.X(0.05), Unit.Y(0.66), Unit.X(0.95), Unit.Y(0.96), FS_PLINTH);
+	FillSolidRect(hDC, Unit.X(0.05), Unit.Y(0.93), Unit.X(0.95), Unit.Y(0.96), FS_PLINTH_SHADOW);
+
+	// Case front
+	FillSolidRect(hDC, Unit.X(0.0), Unit.Y(0.0), Unit.X(1.0), Unit.Y(0.66), FS_CASE);
+	FillSolidRect(hDC, Unit.X(0.0), Unit.Y(0.0), Unit.X(1.0), Unit.Y(0.05), FS_CASE_HIGHLIGHT);
+	FillSolidRect(hDC, Unit.X(0.0), Unit.Y(0.63), Unit.X(1.0), Unit.Y(0.66), FS_CASE_SHADOW);
+
+	const int FlapLeft   = Unit.X(FS_FLAP_LEFT);
+	const int FlapRight  = Unit.X(FS_FLAP_RIGHT);
+	const int FlapTop    = Unit.Y(FS_FLAP_TOP);
+	const int FlapBottom = Unit.Y(FS_FLAP_BOTTOM);
+
+	if (FlapOpen)
+	{
+		// Fascia with the floppy drives (drives 4 and 5), LEDs and power switch
+		FillSolidRect(hDC, FlapLeft, FlapTop, FlapRight, FlapBottom, Amber ? FS_FASCIA_E01S : FS_FASCIA_E01);
+
+		DrawFloppyDrive(hDC, Unit, 0.03, 0.36, Floppy0);
+		DrawFloppyDrive(hDC, Unit, 0.375, 0.705, Floppy1);
+
+		DrawUnitLEDs(hDC, Unit, RedLabel, RedOn, true);
+
+		FillSolidRect(hDC, Unit.X(0.90), Unit.Y(0.22), Unit.X(0.94), Unit.Y(0.46), FS_SWITCH);
+		FillSolidRect(hDC, Unit.X(0.91), Unit.Y(0.26), Unit.X(0.93), Unit.Y(0.40), FS_SWITCH_ROCKER);
+		return;
+	}
+
+	// Closed flap: vertical stripes over a dark backing. The LEDs show
+	// between the stripes.
+	FillSolidRect(hDC, FlapLeft, FlapTop, FlapRight, FlapBottom, FS_STRIPE_GAP);
+
+	const int Stripes = 88;
+	const double Pitch = (double)(FlapRight - FlapLeft) / Stripes;
+
+	for (int i = 0; i < Stripes; i++)
+	{
+		FillSolidRect(hDC,
+		              FlapLeft + (int)(i * Pitch + Pitch * 0.40), FlapTop,
+		              FlapLeft + (int)((i + 1) * Pitch), FlapBottom,
+		              FS_STRIPE);
+	}
+
+	DrawUnitLEDs(hDC, Unit, RedLabel, RedOn, false);
+
+	// Flap edge: amber on the E01S, E40S and E60S, smoked on the E01 and E20
+	const COLORREF Edge = Amber ? FS_EDGE_AMBER : FS_EDGE_SMOKE;
+	const int EdgeHeight = std::max(2, (int)(Unit.Height * 0.03));
+	const int EdgeWidth = std::max(2, (int)(Unit.Width * 0.004));
+
+	FillSolidRect(hDC, FlapLeft, FlapTop, FlapRight, FlapTop + EdgeHeight, Edge);
+	FillSolidRect(hDC, FlapLeft, FlapBottom - EdgeHeight, FlapRight, FlapBottom, Edge);
+	FillSolidRect(hDC, FlapLeft, FlapTop, FlapLeft + EdgeWidth, FlapBottom, Edge);
+	FillSolidRect(hDC, FlapRight - EdgeWidth, FlapTop, FlapRight, FlapBottom, Edge);
+
+	// Model label on the left, Acorn badge on the right
+	char Label[40];
+	sprintf(Label, "FILESTORE %s", Name);
+
+	FillSolidRect(hDC, Unit.X(0.025), Unit.Y(0.27), Unit.X(0.235), Unit.Y(0.45), FS_LABEL);
+	DrawFittedText(hDC, Label, Unit.X(0.035), Unit.Y(0.27), Unit.X(0.225), Unit.Y(0.45), true);
+
+	FillSolidRect(hDC, Unit.X(0.81), Unit.Y(0.27), Unit.X(0.975), Unit.Y(0.45), FS_LABEL);
+	DrawFittedText(hDC, "Acorn", Unit.X(0.86), Unit.Y(0.27), Unit.X(0.94), Unit.Y(0.45), false);
+
+	// Acorn logo
+	const int r = std::max(2, (int)(Unit.Height * 0.04));
+	const int cx = Unit.X(0.955);
+	const int cy = Unit.Y(0.36);
+
+	HBRUSH hBrush = CreateSolidBrush(FS_LABEL_TEXT);
+	HGDIOBJ hPrevBrush = SelectObject(hDC, hBrush);
+	HGDIOBJ hPrevPen = SelectObject(hDC, GetStockObject(NULL_PEN));
+	Ellipse(hDC, cx - r, cy - r, cx + r, cy + r);
+	SelectObject(hDC, hPrevPen);
+	SelectObject(hDC, hPrevBrush);
+	DeleteObject(hBrush);
+}
+
+/****************************************************************************/
+
+// Hard drive unit model from the drive image size
 
 static const char* GetDriveUnitName(int SizeMB)
 {
-	if (SizeMB > 0 && SizeMB <= 25) return "E20";
-	if (SizeMB > 25 && SizeMB <= 45) return "E40S";
-	if (SizeMB > 45 && SizeMB <= 70) return "E60S";
-	return "SCSI drive";
+	if (SizeMB <= 25) return "E20";
+	if (SizeMB <= 45) return "E40S";
+	return "E60S";
 }
 
 /****************************************************************************/
@@ -285,16 +519,19 @@ void BeebWin::PaintFileStore(HDC hDC)
 		}
 	}
 
-	// Units are about 6:1, stacked with a small gap, scaled to fit
-	const int Margin = ClientWidth / 40;
-	int UnitWidth = ClientWidth - 2 * Margin;
-	int UnitHeight = UnitWidth / 6;
+	// The FileStore is at the top with its hard drive units stacked
+	// underneath, scaled to fit the window
+	const int Margin = GetFileStoreMargin(ClientWidth);
+	const int Gap = GetFileStoreUnitGap(ClientWidth);
 	const int Units = 1 + DriveCount;
 
-	if (Units * (UnitHeight + Margin / 2) + Margin > ClientHeight)
+	int UnitWidth = ClientWidth - 2 * Margin;
+	int UnitHeight = GetFileStoreUnitHeight(ClientWidth);
+
+	if (Units * (UnitHeight + Gap) + Margin > ClientHeight)
 	{
-		UnitHeight = (ClientHeight - Margin) / Units - Margin / 2;
-		UnitWidth = UnitHeight * 6;
+		UnitHeight = (ClientHeight - Margin) / Units - Gap;
+		UnitWidth = UnitHeight * 5;
 	}
 
 	FileStoreUnitLayout Unit;
@@ -303,32 +540,14 @@ void BeebWin::PaintFileStore(HDC hDC)
 	Unit.Width = UnitWidth;
 	Unit.Height = UnitHeight;
 
-	const int LEDSize = std::max(4, (int)(UnitHeight * 0.1));
+	// FileStore E01 (smoked flap) or E01S (amber flap)
+	const bool E01S = MachineType == Model::FileStoreE01S;
 
-	// FileStore E01/E01S
-	DrawUnitCase(hMemDC, Unit);
-	DrawUnitLabel(hMemDC, Unit, "FileStore",
-	              MachineType == Model::FileStoreE01 ? "E01" : "E01S",
-	              nullptr);
+	DrawUnit(hMemDC, Unit, E01S ? "E01S" : "E01", E01S, FileStoreDoorOpen,
+	         "MODE", FileStoreModeLED,
+	         LEDs.FloppyDisc[0], LEDs.FloppyDisc[1]);
 
-	if (FileStoreDoorOpen)
-	{
-		// Door open: the floppy drives (drives 4 and 5)
-		FillSolidRect(hMemDC, Unit.X(0.21), Unit.Y(0.18), Unit.X(0.87), Unit.Y(0.82), FS_RECESS);
-		DrawFloppyDrive(hMemDC, Unit, 0.23, 0.53, LEDs.FloppyDisc[0], "4");
-		DrawFloppyDrive(hMemDC, Unit, 0.55, 0.85, LEDs.FloppyDisc[1], "5");
-	}
-	else
-	{
-		// Door flap strip
-		FillSolidRect(hMemDC, Unit.X(0.21), Unit.Y(0.30), Unit.X(0.87), Unit.Y(0.70), FS_FLAP);
-	}
-
-	DrawLED(hMemDC, Unit.X(FS_LED_X_GREEN), Unit.Y(FS_LED_Y), LEDSize, true, FS_GREEN_ON, FS_GREEN_OFF);
-	DrawLED(hMemDC, Unit.X(FS_LED_X_RED), Unit.Y(FS_LED_Y), LEDSize, FileStoreModeLED, FS_RED_ON, FS_RED_OFF);
-	DrawPanelText(hMemDC, "MODE", Unit.X(FS_LED_X_RED - 0.01), Unit.Y(0.62), std::max(7, (int)(UnitHeight * 0.1)), FW_NORMAL, FS_TEXT);
-
-	// Hard drive units, stacked underneath
+	// Hard drive units
 	for (int Drive = 0; Drive < 4; Drive++)
 	{
 		if (m_FileStoreDriveSize[Drive] < 0)
@@ -336,17 +555,12 @@ void BeebWin::PaintFileStore(HDC hDC)
 			continue;
 		}
 
-		Unit.Top += UnitHeight + Margin / 2;
+		Unit.Top += UnitHeight + Gap;
 
-		char SubText[40];
-		sprintf(SubText, "Drive %d  %d MB", Drive, m_FileStoreDriveSize[Drive]);
+		const char* Name = GetDriveUnitName(m_FileStoreDriveSize[Drive]);
 
-		DrawUnitCase(hMemDC, Unit);
-		DrawUnitLabel(hMemDC, Unit, nullptr, GetDriveUnitName(m_FileStoreDriveSize[Drive]), SubText);
-		FillSolidRect(hMemDC, Unit.X(0.21), Unit.Y(0.30), Unit.X(0.87), Unit.Y(0.70), FS_FLAP_DRIVE);
-
-		DrawLED(hMemDC, Unit.X(FS_LED_X_GREEN), Unit.Y(FS_LED_Y), LEDSize, true, FS_GREEN_ON, FS_GREEN_OFF);
-		DrawLED(hMemDC, Unit.X(FS_LED_X_RED), Unit.Y(FS_LED_Y), LEDSize, LEDs.HDisc[Drive], FS_RED_ON, FS_RED_OFF);
+		DrawUnit(hMemDC, Unit, Name, strcmp(Name, "E20") != 0, false,
+		         "DRIVE", LEDs.HDisc[Drive], false, false);
 	}
 
 	BitBlt(hDC, 0, 0, ClientWidth, ClientHeight, hMemDC, 0, 0, SRCCOPY);

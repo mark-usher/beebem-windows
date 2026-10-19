@@ -677,7 +677,7 @@ void Poll2793(int NCycles) {
 				// 256..2: read + DRQ (255x)
 				//      1: read + DRQ + rotate disc + go back to 256
 				if (ByteCount > 0 && !feof(CurrentDisc)) {
-					Data = fgetc(CurrentDisc);
+					Data = static_cast<unsigned char>(fgetc(CurrentDisc));
 					Status |= WD2793_STATUS_DATA_REQUEST;
 					NMIStatus |= NMI_FLOPPY;
 				}
