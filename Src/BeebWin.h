@@ -358,6 +358,9 @@ public:
 	void SetFileStoreDoorOpen(bool Open);
 	void UpdateFileStoreDiscMenu();
 	void UpdateFileStorePanel();
+	std::string GetFileStoreUnitName(int Drive) const;
+	void UpdateFileStoreDriveMenu();
+	bool HandleFileStoreDriveCommand(UINT MenuID);
 	void FitFileStoreWindow();
 	void PaintFileStore(HDC hDC);
 	void UpdateFileStoreLEDs();
@@ -733,7 +736,8 @@ public:
 	HGDIOBJ m_hOldObj;
 	HDC m_hDCBitmap;
 	HGDIOBJ m_hBitmap;
-	int m_FileStoreDriveSize[4]; // FileStore SCSI drive image sizes in MB, -1 if none
+	std::string m_FileStoreDriveLabel[4]; // FileStore custom hard drive unit labels
+	std::string m_FileStoreUnitName[4]; // FileStore hard drive unit names shown, empty if none
 	bool m_FileStoreWindowFitted; // Window resized to fit the FileStore units
 	int m_FileStoreSavedWinSize[2]; // Window size to restore for other models
 	int m_FileStoreLEDState; // FileStore LED state last drawn

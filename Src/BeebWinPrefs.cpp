@@ -32,6 +32,7 @@ Boston, MA  02110-1301, USA.
 #include "Disc2793.h"
 #include "Disc8271.h"
 #include "Econet.h"
+#include "FileStore.h"
 #include "FileUtils.h"
 #include "Ide.h"
 #include "IP232.h"
@@ -125,6 +126,17 @@ static const char* const SoundStreamerTypeStr[] =
 {
 	"XAudio2",
 	"DirectSound",
+	nullptr
+};
+
+static const char* const FileStoreDriveTypeStr[] =
+{
+	"None",
+	"Auto",
+	"E20",
+	"E40S",
+	"E60S",
+	"Custom",
 	nullptr
 };
 
@@ -1615,6 +1627,20 @@ void BeebWin::LoadDiskPreferences()
 
 	m_Preferences.GetBoolValue(CFG_SCSI_DRIVE_ENABLED, SCSIDriveEnabled, false);
 	m_Preferences.GetBoolValue(CFG_IDE_DRIVE_ENABLED, IDEDriveEnabled, false);
+
+	// FileStore hard drive units
+	for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
+	{
+		char Key[50];
+		std::string Value;
+
+		sprintf(Key, CFG_FILESTORE_DRIVE, Drive);
+		m_Preferences.GetStringValue(Key, Value, FileStoreDriveTypeStr[(int)FileStoreDriveType::Auto]);
+		FileStoreDrive[Drive] = static_cast<FileStoreDriveType>(FindEnum(Value, FileStoreDriveTypeStr, (int)FileStoreDriveType::Auto));
+
+		sprintf(Key, CFG_FILESTORE_DRIVE_LABEL, Drive);
+		m_Preferences.GetStringValue(Key, m_FileStoreDriveLabel[Drive], "");
+	}
 }
 
 /****************************************************************************/
@@ -2010,6 +2036,25 @@ void BeebWin::SavePreferences(bool saveAll)
 		m_Preferences.SetBoolValue(CFG_FLOPPY_DRIVE_ENABLED, Disc8271Enabled);
 		m_Preferences.SetBoolValue(CFG_SCSI_DRIVE_ENABLED, SCSIDriveEnabled);
 		m_Preferences.SetBoolValue(CFG_IDE_DRIVE_ENABLED, IDEDriveEnabled);
+
+		for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
+		{
+			char Key[50];
+
+			sprintf(Key, CFG_FILESTORE_DRIVE, Drive);
+			m_Preferences.SetStringValue(Key, FileStoreDriveTypeStr[(int)FileStoreDrive[Drive]]);
+
+			sprintf(Key, CFG_FILESTORE_DRIVE_LABEL, Drive);
+
+			if (m_FileStoreDriveLabel[Drive].empty())
+			{
+				m_Preferences.EraseValue(Key);
+			}
+			else
+			{
+				m_Preferences.SetStringValue(Key, m_FileStoreDriveLabel[Drive]);
+			}
+		}
 
 		// User port RTC
 		m_Preferences.SetBoolValue(CFG_USER_PORT_RTC_ENABLED, UserPortRTCEnabled);

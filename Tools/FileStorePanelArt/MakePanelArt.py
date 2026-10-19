@@ -26,7 +26,7 @@ from fontTools.ttLib import TTFont
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 # Characters available to the panel text
-CHARS = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZcorn"
+CHARS = " -./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZcorn"
 
 # Path operations, as stored in the outline array
 OP_MOVE, OP_LINE, OP_CURVE, OP_CLOSE = 0, 1, 2, 3

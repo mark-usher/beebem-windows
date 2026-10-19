@@ -387,6 +387,45 @@ BEGIN
         MENUITEM "SCSI Hard Drive On/Off",      IDM_SCSI_HARD_DRIVE
         MENUITEM "IDE Hard Drive On/Off",       IDM_IDE_HARD_DRIVE
         MENUITEM "Select Hard Drive Folder...", IDM_SELECT_HARD_DRIVE_FOLDER
+        POPUP "FileStore Hard Drive Units"
+        BEGIN
+            POPUP "Drive &0"
+            BEGIN
+                MENUITEM "None",                              IDM_FILESTORE_DRIVE0_NONE
+                MENUITEM "Auto (if the image exists)",        IDM_FILESTORE_DRIVE0_AUTO
+                MENUITEM "E20",                               IDM_FILESTORE_DRIVE0_E20
+                MENUITEM "E40 S",                             IDM_FILESTORE_DRIVE0_E40S
+                MENUITEM "E60 S",                             IDM_FILESTORE_DRIVE0_E60S
+                MENUITEM "Custom Label...",                   IDM_FILESTORE_DRIVE0_CUSTOM
+            END
+            POPUP "Drive &1"
+            BEGIN
+                MENUITEM "None",                              IDM_FILESTORE_DRIVE1_NONE
+                MENUITEM "Auto (if the image exists)",        IDM_FILESTORE_DRIVE1_AUTO
+                MENUITEM "E20",                               IDM_FILESTORE_DRIVE1_E20
+                MENUITEM "E40 S",                             IDM_FILESTORE_DRIVE1_E40S
+                MENUITEM "E60 S",                             IDM_FILESTORE_DRIVE1_E60S
+                MENUITEM "Custom Label...",                   IDM_FILESTORE_DRIVE1_CUSTOM
+            END
+            POPUP "Drive &2"
+            BEGIN
+                MENUITEM "None",                              IDM_FILESTORE_DRIVE2_NONE
+                MENUITEM "Auto (if the image exists)",        IDM_FILESTORE_DRIVE2_AUTO
+                MENUITEM "E20",                               IDM_FILESTORE_DRIVE2_E20
+                MENUITEM "E40 S",                             IDM_FILESTORE_DRIVE2_E40S
+                MENUITEM "E60 S",                             IDM_FILESTORE_DRIVE2_E60S
+                MENUITEM "Custom Label...",                   IDM_FILESTORE_DRIVE2_CUSTOM
+            END
+            POPUP "Drive &3"
+            BEGIN
+                MENUITEM "None",                              IDM_FILESTORE_DRIVE3_NONE
+                MENUITEM "Auto (if the image exists)",        IDM_FILESTORE_DRIVE3_AUTO
+                MENUITEM "E20",                               IDM_FILESTORE_DRIVE3_E20
+                MENUITEM "E40 S",                             IDM_FILESTORE_DRIVE3_E40S
+                MENUITEM "E60 S",                             IDM_FILESTORE_DRIVE3_E60S
+                MENUITEM "Custom Label...",                   IDM_FILESTORE_DRIVE3_CUSTOM
+            END
+        END
         MENUITEM SEPARATOR
         MENUITEM "User Port Breakout Box",      IDM_BREAKOUT
         MENUITEM "User Port RTC Module",        IDM_USER_PORT_RTC_MODULE
@@ -818,6 +857,18 @@ BEGIN
     PUSHBUTTON      "&Refresh",IDC_REFRESH,258,47,50,14
 END
 
+IDD_FILESTORE_DRIVE_LABEL DIALOGEX 0, 0, 201, 72
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "FileStore Hard Drive Unit Label"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "Label for drive 0, up to 4 characters:",IDC_FILESTORE_DRIVE_PROMPT,7,9,187,8
+    LTEXT           "FILESTORE",IDC_STATIC,7,29,40,8
+    EDITTEXT        IDC_FILESTORE_DRIVE_LABEL,50,27,40,14,ES_UPPERCASE | ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "OK",IDOK,84,51,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,144,51,50,14
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -926,6 +977,14 @@ BEGIN
         RIGHTMARGIN, 308
         TOPMARGIN, 9
         BOTTOMMARGIN, 153
+    END
+
+    IDD_FILESTORE_DRIVE_LABEL, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 194
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 65
     END
 END
 #endif    // APSTUDIO_INVOKED

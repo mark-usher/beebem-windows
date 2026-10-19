@@ -132,6 +132,9 @@
     <ClCompile Include="FileStore.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="FileStoreDriveLabelDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="FileType.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -444,6 +447,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="FileStore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FileStoreDriveLabelDialog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="FileStorePanelArt.h">

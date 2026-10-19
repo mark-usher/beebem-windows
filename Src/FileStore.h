@@ -28,6 +28,27 @@ extern bool FileStoreDoorOpen;    // Front panel door switch
 extern bool FileStoreCommandMode; // Front panel command mode switch (E01 only)
 extern bool FileStoreModeLED;     // Front panel MODE LED
 
+// Hard drive unit attached as each of SCSI drives 0-3. Auto attaches the
+// drive if its image file exists, and labels it from the image size.
+enum class FileStoreDriveType
+{
+	None,
+	Auto,
+	E20,
+	E40S,
+	E60S,
+	Custom
+};
+
+constexpr int FILESTORE_MAX_DRIVES = 4;
+
+// Longest custom drive label, and the characters it can contain (those
+// in the front panel lettering)
+constexpr int FILESTORE_DRIVE_LABEL_LENGTH = 4;
+constexpr const char* FILESTORE_DRIVE_LABEL_CHARS = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-./";
+
+extern FileStoreDriveType FileStoreDrive[FILESTORE_MAX_DRIVES];
+
 void FileStoreReset();
 unsigned char FileStoreReadMem(int Address);
 void FileStoreWriteMem(int Address, unsigned char Value);

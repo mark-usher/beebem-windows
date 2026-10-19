@@ -198,11 +198,6 @@ BeebWin::BeebWin()
 	m_hOldObj = nullptr;
 	m_hDCBitmap = nullptr;
 	m_hBitmap = nullptr;
-	for (int Drive = 0; Drive < 4; Drive++)
-	{
-		m_FileStoreDriveSize[Drive] = -1;
-	}
-
 	m_FileStoreLEDState = -1;
 	m_FileStoreWindowFitted = false;
 	m_FileStoreSavedWinSize[0] = 640;
@@ -1972,6 +1967,7 @@ void BeebWin::UpdateModelMenu()
 
 	// FileStore front panel
 	UpdateFileStoreDiscMenu();
+	UpdateFileStoreDriveMenu();
 	EnableMenuItem(IDM_FILESTORE_DOOR_OPEN, IsFS && m_FileStoreShutdownAction == FileStoreShutdownAction::None);
 	EnableMenuItem(IDM_ECONET, !IsFS);
 	EnableMenuItem(IDM_FILESTORE_COMMAND_MODE, MachineType == Model::FileStoreE01);
@@ -5340,6 +5336,10 @@ void BeebWin::HandleCommand(UINT MenuID)
 			m_DisableKeysShortcut = true;
 		}
 		UpdateDisableKeysMenu();
+		break;
+
+	default:
+		HandleFileStoreDriveCommand(MenuID);
 		break;
 	}
 

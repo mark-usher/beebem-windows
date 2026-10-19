@@ -52,7 +52,7 @@
       <p>
         The FileStore has no display or keyboard, so the emulator window shows
         its front panel: the FileStore unit with its MODE LED and, below it,
-        an E20, E40S or E60S hard drive unit for each SCSI drive image found.
+        a hard drive unit for each SCSI drive attached (see below).
         Econet is always enabled in FileStore mode; set the FileStore's station
         number in <span class="file">Econet.cfg</span> as for any other
         station (see <a href="econet.html">Econet Support</a>).
@@ -68,6 +68,37 @@
         <a href="harddisks.html">Hard Disks</a>). Each SCSI drive is selected
         by its target ID. Floppy discs can only be loaded, created or ejected
         while the drive door is open.
+      </p>
+
+      <h2>Hard drive units</h2>
+
+      <p>
+        <span class="ui">Hardware &rarr; SCSI Hard Drive On/Off</span> turns
+        all the hard drives on or off. Then, for each of drives 0 to 3,
+        <span class="ui">Hardware &rarr; FileStore Hard Drive Units</span>
+        chooses the unit attached:
+      </p>
+
+      <ul>
+        <li><b>None</b>: no drive is attached.</li>
+        <li><b>Auto</b> (the default): the drive is attached if its image file
+          exists, and labelled from the image size: E20 up to 25 MB, E40 S up
+          to 45 MB, otherwise E60 S.</li>
+        <li><b>E20</b>, <b>E40 S</b> or <b>E60 S</b>: the drive is attached
+          and shown with that label.</li>
+        <li><b>Custom Label</b>: the drive is attached and shown with your own
+          label of up to 4 characters (letters, digits, spaces, '-', '.' and
+          '/') after &quot;FILESTORE&quot;.</li>
+      </ul>
+
+      <p>
+        Each attached drive is shown as a unit below the FileStore, and the
+        window is sized to fit. Changing a drive restarts the FileStore, after
+        letting it write its buffers to disc. The settings are saved in the
+        preferences file as <span class="file">FileStoreDrive0</span> to
+        <span class="file">FileStoreDrive3</span>, with custom labels in
+        <span class="file">FileStoreDrive0Label</span> to
+        <span class="file">FileStoreDrive3Label</span>.
       </p>
 
       <h2>Front panel controls</h2>

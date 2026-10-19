@@ -39,6 +39,7 @@ Offset  Description                 Access
 #include "6502core.h"
 #include "BeebMem.h"
 #include "DebugTrace.h"
+#include "FileStore.h"
 #include "FileUtils.h"
 #include "Log.h"
 #include "Main.h"
@@ -164,10 +165,28 @@ void SCSIReset()
 		return;
 	}
 
+	// On a FileStore, each drive is only attached if a hard drive unit is
+	// configured for it
+	const bool FileStore = IsFileStore(MachineType);
+
 	for (int i = 0; i < 4; ++i)
 	{
+		SCSISize[i] = 0;
+
+		if (FileStore && FileStoreDrive[i] == FileStoreDriveType::None)
+		{
+			continue;
+		}
+
 		char FileName[MAX_PATH];
 		MakeFileName(FileName, MAX_PATH, HardDrivePath, "scsi%d.dat", i);
+
+		// An Auto drive is attached only if its image file exists
+		if (FileStore && FileStoreDrive[i] == FileStoreDriveType::Auto &&
+		    GetFileAttributes(FileName) == INVALID_FILE_ATTRIBUTES)
+		{
+			continue;
+		}
 
 		SCSIDisc[i] = fopen(FileName, "rb+");
 
@@ -178,8 +197,6 @@ void SCSIReset()
 			mainWin->Report(MessageType::Error,
 			                "Could not open SCSI disc image:\n  %s\n\n%s", FileName, Error.c_str());
 		}
-
-		SCSISize[i] = 0;
 
 		if (SCSIDisc[i] != nullptr)
 		{

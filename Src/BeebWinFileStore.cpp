@@ -24,6 +24,7 @@ Boston, MA  02110-1301, USA.
 
 #include <windows.h>
 
+#include <ctype.h>
 #include <stdio.h>
 
 #include <algorithm>
@@ -41,6 +42,7 @@ using std::max;
 #include "DiscInfo.h"
 #include "FileUtils.h"
 #include "FileStore.h"
+#include "FileStoreDriveLabelDialog.h"
 #include "FileStorePanelArt.h"
 #include "Main.h"
 #include "Messages.h"
@@ -87,29 +89,164 @@ void BeebWin::UpdateFileStoreDiscMenu()
 // drive unit for each SCSI drive image found. Everything is drawn with GDI,
 // scaled to the window, so no bitmaps are needed.
 
-// Look for the SCSI drive images, and redraw the front panel.
+// Labels on the flap have a half space before a trailing "S", as in
+// "E01 S" and "E40 S"
 
-void BeebWin::UpdateFileStorePanel()
+constexpr char FS_HALF_SPACE = '\x01';
+
+static std::string GetModelLabel(const char* Model)
 {
-	for (int Drive = 0; Drive < 4; Drive++)
-	{
-		m_FileStoreDriveSize[Drive] = -1;
+	std::string Label = Model;
+	const size_t Length = Label.size();
 
-		if (IsFileStore(MachineType) && SCSIDriveEnabled)
-		{
+	if (Length > 1 && Label[Length - 1] == 'S' && isdigit((unsigned char)Label[Length - 2]))
+	{
+		Label.insert(Length - 1, 1, FS_HALF_SPACE);
+	}
+
+	return Label;
+}
+
+// Hard drive unit model from the drive image size
+
+static const char* GetDriveUnitModel(unsigned long long Size)
+{
+	const unsigned long long SizeMB = Size / (1024 * 1024);
+
+	if (SizeMB <= 25) return "E20";
+	if (SizeMB <= 45) return "E40S";
+	return "E60S";
+}
+
+// The label for the hard drive unit attached as a SCSI drive, or an empty
+// string if there is no unit
+
+std::string BeebWin::GetFileStoreUnitName(int Drive) const
+{
+	if (!IsFileStore(MachineType) || !SCSIDriveEnabled)
+	{
+		return "";
+	}
+
+	switch (FileStoreDrive[Drive])
+	{
+		case FileStoreDriveType::None:
+		default:
+			return "";
+
+		case FileStoreDriveType::Auto: {
 			char FileName[MAX_PATH];
 			MakeFileName(FileName, MAX_PATH, HardDrivePath, "scsi%d.dat", Drive);
 
 			WIN32_FILE_ATTRIBUTE_DATA Data;
 
-			if (GetFileAttributesEx(FileName, GetFileExInfoStandard, &Data))
+			if (!GetFileAttributesEx(FileName, GetFileExInfoStandard, &Data))
 			{
-				const unsigned long long Size =
-					((unsigned long long)Data.nFileSizeHigh << 32) | Data.nFileSizeLow;
-
-				m_FileStoreDriveSize[Drive] = (int)(Size / (1024 * 1024));
+				return "";
 			}
+
+			const unsigned long long Size =
+				((unsigned long long)Data.nFileSizeHigh << 32) | Data.nFileSizeLow;
+
+			return GetModelLabel(GetDriveUnitModel(Size));
 		}
+
+		case FileStoreDriveType::E20:
+			return GetModelLabel("E20");
+
+		case FileStoreDriveType::E40S:
+			return GetModelLabel("E40S");
+
+		case FileStoreDriveType::E60S:
+			return GetModelLabel("E60S");
+
+		case FileStoreDriveType::Custom:
+			// A space, so the unit is still shown without a label
+			return m_FileStoreDriveLabel[Drive].empty() ? " " : m_FileStoreDriveLabel[Drive];
+	}
+}
+
+/****************************************************************************/
+
+// Hardware -> FileStore Hard Drive Units menu: a None, Auto, E20, E40 S,
+// E60 S and Custom item for each drive
+
+constexpr int FS_DRIVE_MENU_ITEMS = 6;
+
+static UINT GetFileStoreDriveMenuID(int Drive, FileStoreDriveType Type)
+{
+	return IDM_FILESTORE_DRIVE0_NONE + Drive * FS_DRIVE_MENU_ITEMS + (int)Type;
+}
+
+void BeebWin::UpdateFileStoreDriveMenu()
+{
+	for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
+	{
+		const UINT CustomID = GetFileStoreDriveMenuID(Drive, FileStoreDriveType::Custom);
+
+		std::string Text = "Custom Label";
+
+		if (!m_FileStoreDriveLabel[Drive].empty())
+		{
+			Text += " (" + m_FileStoreDriveLabel[Drive] + ")";
+		}
+
+		Text += "...";
+
+		ModifyMenu(m_hMenu, CustomID, MF_BYCOMMAND | MF_STRING, CustomID, Text.c_str());
+
+		CheckMenuRadioItem(GetFileStoreDriveMenuID(Drive, FileStoreDriveType::None),
+		                   CustomID,
+		                   GetFileStoreDriveMenuID(Drive, FileStoreDrive[Drive]));
+	}
+}
+
+// Returns false if MenuID isn't a FileStore drive menu item
+
+bool BeebWin::HandleFileStoreDriveCommand(UINT MenuID)
+{
+	if (MenuID < IDM_FILESTORE_DRIVE0_NONE || MenuID > IDM_FILESTORE_DRIVE3_CUSTOM)
+	{
+		return false;
+	}
+
+	const int Drive = (MenuID - IDM_FILESTORE_DRIVE0_NONE) / FS_DRIVE_MENU_ITEMS;
+	const FileStoreDriveType Type = static_cast<FileStoreDriveType>((MenuID - IDM_FILESTORE_DRIVE0_NONE) % FS_DRIVE_MENU_ITEMS);
+
+	if (Type == FileStoreDriveType::Custom)
+	{
+		FileStoreDriveLabelDialog Dialog(hInst, m_hWnd, Drive, m_FileStoreDriveLabel[Drive]);
+
+		if (!Dialog.DoModal())
+		{
+			return true;
+		}
+
+		m_FileStoreDriveLabel[Drive] = Dialog.GetLabel();
+	}
+
+	FileStoreDrive[Drive] = Type;
+	UpdateFileStoreDriveMenu();
+
+	// Drives are attached when the FileStore starts, so restart it, letting
+	// it flush its buffers first
+	if (!BeginFileStoreShutdown(FileStoreShutdownAction::Reset, MachineType))
+	{
+		UpdateFileStorePanel();
+	}
+
+	return true;
+}
+
+/****************************************************************************/
+
+// Work out which hard drive units are attached, and redraw the front panel.
+
+void BeebWin::UpdateFileStorePanel()
+{
+	for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
+	{
+		m_FileStoreUnitName[Drive] = GetFileStoreUnitName(Drive);
 	}
 
 	// Force the LEDs to be redrawn
@@ -193,7 +330,7 @@ void BeebWin::FitFileStoreWindow()
 
 	for (int Drive = 0; Drive < 4; Drive++)
 	{
-		if (m_FileStoreDriveSize[Drive] >= 0)
+		if (!m_FileStoreUnitName[Drive].empty())
 		{
 			Units++;
 		}
@@ -404,6 +541,19 @@ static int GetKerning(char Left, char Right)
 	return 0;
 }
 
+// Distance from the start of one character to the next, in font units.
+// FS_HALF_SPACE is half the width of a space.
+
+static int GetAdvance(char Char, char Next)
+{
+	if (Char == FS_HALF_SPACE)
+	{
+		return FindGlyph(' ')->Advance / 2;
+	}
+
+	return FindGlyph(Char)->Advance + GetKerning(Char, Next);
+}
+
 // Capital letter height as a fraction of the font size
 static float GetCapHeight(PanelFont Font)
 {
@@ -418,7 +568,7 @@ static float GetTextWidth(Gdiplus::Graphics& Graphics, PanelFont Font, float Siz
 
 		for (const char* p = Text; *p != '\0'; p++)
 		{
-			Width += FindGlyph(*p)->Advance + GetKerning(p[0], p[1]);
+			Width += GetAdvance(p[0], p[1]);
 		}
 
 		return Width * Size / PANEL_FONT_UNITS_PER_EM;
@@ -510,9 +660,8 @@ static void DrawPanelText(Gdiplus::Graphics& Graphics, PanelFont Font, float Siz
 
 		for (const char* p = Text; *p != '\0'; p++)
 		{
-			const PanelGlyph* pGlyph = FindGlyph(*p);
-			AddGlyphOutline(Path, *pGlyph, x, Baseline, Scale);
-			x += (pGlyph->Advance + GetKerning(p[0], p[1])) * Scale;
+			AddGlyphOutline(Path, *FindGlyph(*p), x, Baseline, Scale);
+			x += GetAdvance(p[0], p[1]) * Scale;
 		}
 
 		Graphics.FillPath(&Brush, &Path);
@@ -907,17 +1056,6 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 
 /****************************************************************************/
 
-// Hard drive unit model from the drive image size, as printed on the flap
-
-static const char* GetDriveUnitName(int SizeMB)
-{
-	if (SizeMB <= 25) return "E20";
-	if (SizeMB <= 45) return "E40 S";
-	return "E60 S";
-}
-
-/****************************************************************************/
-
 void BeebWin::PaintFileStore(HDC hDC)
 {
 	RECT ClientRect;
@@ -962,7 +1100,7 @@ void BeebWin::PaintFileStore(HDC hDC)
 
 	for (int Drive = 0; Drive < 4; Drive++)
 	{
-		if (m_FileStoreDriveSize[Drive] >= 0)
+		if (!m_FileStoreUnitName[Drive].empty())
 		{
 			DriveCount++;
 		}
@@ -1001,7 +1139,23 @@ void BeebWin::PaintFileStore(HDC hDC)
 
 		Gdiplus::Graphics Graphics(Canvas.hDC);
 
-		ModelTextSize = GetFittedTextSize(Graphics, PanelFont::ModelLabel, "FILESTORE E40 S",
+		// Fit the longest of the standard labels and any custom ones
+		std::string Longest = "FILESTORE " + GetModelLabel("E40S");
+		float LongestWidth = GetTextWidth(Graphics, PanelFont::ModelLabel, 100.0f, Longest.c_str());
+
+		for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
+		{
+			const std::string Label = "FILESTORE " + m_FileStoreUnitName[Drive];
+			const float Width = GetTextWidth(Graphics, PanelFont::ModelLabel, 100.0f, Label.c_str());
+
+			if (!m_FileStoreUnitName[Drive].empty() && Width > LongestWidth)
+			{
+				Longest = Label;
+				LongestWidth = Width;
+			}
+		}
+
+		ModelTextSize = GetFittedTextSize(Graphics, PanelFont::ModelLabel, Longest.c_str(),
 		                                  FS_MODEL_LABEL_STRIPES * Pitch * 0.90f,
 		                                  FlapHeight * (float)(FS_LABEL_BAND_BOTTOM - FS_LABEL_BAND_TOP) * 0.80f);
 	}
@@ -1010,20 +1164,20 @@ void BeebWin::PaintFileStore(HDC hDC)
 	const bool E01S = MachineType == Model::FileStoreE01S;
 	const bool DiscInserted[2] = { DiscInfo[0].Loaded, DiscInfo[1].Loaded };
 
-	DrawUnit(Canvas, Unit, E01S ? "E01S" : "E01", FileStoreDoorOpen, true,
+	DrawUnit(Canvas, Unit, GetModelLabel(E01S ? "E01S" : "E01").c_str(), FileStoreDoorOpen, true,
 	         "MODE", FileStoreModeLED, DiscInserted, LEDs.FloppyDisc, ModelTextSize);
 
 	// Hard drive units
 	for (int Drive = 0; Drive < 4; Drive++)
 	{
-		if (m_FileStoreDriveSize[Drive] < 0)
+		if (m_FileStoreUnitName[Drive].empty())
 		{
 			continue;
 		}
 
 		Unit.Top += UnitHeight + Gap;
 
-		DrawUnit(Canvas, Unit, GetDriveUnitName(m_FileStoreDriveSize[Drive]), false, false,
+		DrawUnit(Canvas, Unit, m_FileStoreUnitName[Drive].c_str(), false, false,
 		         "DRIVE", LEDs.HDisc[Drive], nullptr, nullptr, ModelTextSize);
 	}
 

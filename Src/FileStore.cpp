@@ -57,6 +57,13 @@ bool FileStoreDoorOpen = false;
 bool FileStoreCommandMode = false;
 bool FileStoreModeLED = false;
 
+FileStoreDriveType FileStoreDrive[FILESTORE_MAX_DRIVES] = {
+	FileStoreDriveType::Auto,
+	FileStoreDriveType::Auto,
+	FileStoreDriveType::Auto,
+	FileStoreDriveType::Auto
+};
+
 // Control latch at &FC08 (write only)
 constexpr unsigned char FS_CONTROL_FLOPPY_0     = 0x01; // Select left floppy drive
 constexpr unsigned char FS_CONTROL_FLOPPY_1     = 0x02; // Select right floppy drive

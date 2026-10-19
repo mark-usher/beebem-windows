@@ -101,6 +101,7 @@
 #define IDD_ABOUT                       120
 #define IDD_TELETEXT                    121
 #define IDD_JOYSTICK                    122
+#define IDD_FILESTORE_DRIVE_LABEL       123
 #define IDC_DEBUGBREAK                  1010
 #define IDC_DEBUGINFO                   1015
 #define IDC_DEBUGCOMMAND                1016
@@ -240,6 +241,8 @@
 #define IDC_CHANNEL23_INPUT_COMBO       1149
 #define IDC_BUTTON0_INPUT_COMBO         1150
 #define IDC_BUTTON1_INPUT_COMBO         1151
+#define IDC_FILESTORE_DRIVE_PROMPT      1152
+#define IDC_FILESTORE_DRIVE_LABEL       1153
 #define IDM_ABOUT                       40001
 #define IDM_DISC                        40002
 #define IDM_LOADDISC0                   40002
@@ -479,15 +482,39 @@
 #define IDM_FILESTORE_E01S              40328
 #define IDM_FILESTORE_DOOR_OPEN         40329
 #define IDM_FILESTORE_COMMAND_MODE      40330
+#define IDM_FILESTORE_DRIVE0_NONE       40331
+#define IDM_FILESTORE_DRIVE0_AUTO       40332
+#define IDM_FILESTORE_DRIVE0_E20        40333
+#define IDM_FILESTORE_DRIVE0_E40S       40334
+#define IDM_FILESTORE_DRIVE0_E60S       40335
+#define IDM_FILESTORE_DRIVE0_CUSTOM     40336
+#define IDM_FILESTORE_DRIVE1_NONE       40337
+#define IDM_FILESTORE_DRIVE1_AUTO       40338
+#define IDM_FILESTORE_DRIVE1_E20        40339
+#define IDM_FILESTORE_DRIVE1_E40S       40340
+#define IDM_FILESTORE_DRIVE1_E60S       40341
+#define IDM_FILESTORE_DRIVE1_CUSTOM     40342
+#define IDM_FILESTORE_DRIVE2_NONE       40343
+#define IDM_FILESTORE_DRIVE2_AUTO       40344
+#define IDM_FILESTORE_DRIVE2_E20        40345
+#define IDM_FILESTORE_DRIVE2_E40S       40346
+#define IDM_FILESTORE_DRIVE2_E60S       40347
+#define IDM_FILESTORE_DRIVE2_CUSTOM     40348
+#define IDM_FILESTORE_DRIVE3_NONE       40349
+#define IDM_FILESTORE_DRIVE3_AUTO       40350
+#define IDM_FILESTORE_DRIVE3_E20        40351
+#define IDM_FILESTORE_DRIVE3_E40S       40352
+#define IDM_FILESTORE_DRIVE3_E60S       40353
+#define IDM_FILESTORE_DRIVE3_CUSTOM     40354
 
 // Next default values for new objects
 // 
 #ifdef APSTUDIO_INVOKED
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
-#define _APS_NEXT_RESOURCE_VALUE        123
-#define _APS_NEXT_COMMAND_VALUE         40331
-#define _APS_NEXT_CONTROL_VALUE         1152
+#define _APS_NEXT_RESOURCE_VALUE        124
+#define _APS_NEXT_COMMAND_VALUE         40355
+#define _APS_NEXT_CONTROL_VALUE         1154
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif
