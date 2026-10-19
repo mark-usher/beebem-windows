@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>BeebEm - BBC Micro and Master Series Emulator</title>
+    <meta http-equiv="Content-Type" content="text/html;charset=us-ascii">
+    <link rel="stylesheet" href="style.css">
+  </head>
+
+  <body>
+    <header>
+      <div class="title">
+        <div class="logo">
+          <img src="beeb.gif" alt="BBC Micro" width="48" height="48">
+        </div>
+        <h1>
+          BeebEm - BBC Micro and Master Series Emulator
+        </h1>
+        <div class="logo">
+          <img src="beeb.gif" alt="BBC Micro" width="48" height="48">
+        </div>
+      </div>
+
+      <nav>
+        <div>
+          <a href="index.html">Home</a>
+        </div>
+        <div>
+          <a href="contents.html">Help Contents</a>
+        </div>
+        <div>
+          <a href="http://www.mkw.me.uk/beebem/software.html">Download Software</a>
+        </div>
+          <div>
+          <a href="http://www.mkw.me.uk/beebem/index.html">BeebEm Website</a>
+        </div>
+      </nav>
+    </header>
+
+
+    <main>
+      <h1>Acorn FileStore E01 and E01S</h1>
+
+      <p>
+        The Acorn FileStore is a stand-alone Econet file server. BeebEm
+        emulates the FileStore E01 (separate OS and file server ROMs) and the
+        E01S (one combined ROM), including the CPU (a 65C102, emulated as a 65C12), system VIA,
+        146818 real-time clock and CMOS RAM, WD2793 floppy disc controller,
+        SCSI hard drives and the Econet interface. Select the model from
+        <span class="ui">Hardware &rarr; BBC Model</span>.
+      </p>
+
+      <p>
+        The FileStore has no display or keyboard, so the emulator window shows
+        its front panel: the FileStore unit with its MODE LED and, below it,
+        an E20, E40S or E60S hard drive unit for each SCSI drive image found.
+        Econet is always enabled in FileStore mode; set the FileStore's station
+        number in <span class="file">Econet.cfg</span> as for any other
+        station (see <a href="econet.html">Econet Support</a>).
+      </p>
+
+      <h2>Discs</h2>
+
+      <p>
+        The FileStore uses ADFS format floppy discs in drives 4 and 5 (BeebEm
+        drives 0 and 1), and SCSI hard drives 0 to 3, which use the
+        <span class="file">scsi0.dat</span> to <span class="file">scsi3.dat</span>
+        image files in the hard drive folder (see
+        <a href="harddisks.html">Hard Disks</a>). Each SCSI drive is selected
+        by its target ID. Floppy discs can only be loaded, created or ejected
+        while the drive door is open.
+      </p>
+
+      <h2>Front panel controls</h2>
+
+      <p>
+        <span class="ui">File &rarr; FileStore Door Open</span> opens or closes
+        the drive door flap. Opening the door puts the FileStore into
+        maintenance mode, which writes its buffers to disc.
+        <span class="ui">File &rarr; FileStore Command Mode</span> sets the
+        command mode switch (E01 only).
+      </p>
+
+      <p>
+        When you reset or exit BeebEm, or change to another model, BeebEm first
+        opens the door and waits two seconds so that the FileStore can flush
+        its buffers. The FileStore keeps running when the BeebEm window is
+        inactive.
+      </p>
+
+      <h2>CMOS RAM</h2>
+
+      <p>
+        The E01 and E01S each have their own CMOS RAM, saved in the preferences
+        file as <span class="file">CMOSRamE01</span> and
+        <span class="file">CMOSRamE01S</span>. The debugger command
+        <span class="cmd">state c</span> shows the clock registers and CMOS RAM.
+        Saved state files are not supported for the FileStore.
+      </p>
+    </main>
+
+    <footer>
+      <p>Copyright &copy; 2026 BeebEm contributors</p>
+    </footer>
+  </body>
+</html>

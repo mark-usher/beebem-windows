@@ -516,6 +516,7 @@
     <None Include="..\Help\econet.html" />
     <None Include="..\Help\emulation.html" />
     <None Include="..\Help\faq.html" />
+    <None Include="..\Help\filestore.html" />
     <None Include="..\Help\gettingstarted.html" />
     <None Include="..\Help\harddisks.html" />
     <None Include="..\Help\index.html" />

@@ -795,6 +795,9 @@
     <None Include="..\Help\faq.html">
       <Filter>Help Files</Filter>
     </None>
+    <None Include="..\Help\filestore.html">
+      <Filter>Help Files</Filter>
+    </None>
     <None Include="..\Help\gettingstarted.html">
       <Filter>Help Files</Filter>
     </None>

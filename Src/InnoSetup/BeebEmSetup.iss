@@ -131,6 +131,7 @@ Source: ..\..\Help\econet.html;            DestDir: {app}\Help;                 
 Source: ..\..\Help\emulation.html;         DestDir: {app}\Help;                                                                          Flags: ignoreversion
 Source: ..\..\Help\export.png;             DestDir: {app}\Help;                                                                          Flags: ignoreversion
 Source: ..\..\Help\faq.html;               DestDir: {app}\Help;                                                                          Flags: ignoreversion
+Source: ..\..\Help\filestore.html;         DestDir: {app}\Help;                                                                          Flags: ignoreversion
 Source: ..\..\Help\gettingstarted.html;    DestDir: {app}\Help;                                                                          Flags: ignoreversion
 Source: ..\..\Help\harddisks.html;         DestDir: {app}\Help;                                                                          Flags: ignoreversion
 Source: ..\..\Help\index.html;             DestDir: {app}\Help;                                                                          Flags: ignoreversion
