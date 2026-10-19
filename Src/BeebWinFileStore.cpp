@@ -220,22 +220,24 @@ static const COLORREF FS_LABEL          = RGB(18, 18, 18);
 static const COLORREF FS_LABEL_TEXT     = RGB(235, 235, 235);
 static const COLORREF FS_FASCIA_E01     = RGB(88, 96, 92);    // Behind the flap
 static const COLORREF FS_FASCIA_E01S    = RGB(30, 30, 32);
-static const COLORREF FS_FASCIA_TEXT    = RGB(220, 220, 220);
-static const COLORREF FS_FLOPPY         = RGB(14, 14, 16);    // Floppy drive
-static const COLORREF FS_SHUTTER        = RGB(74, 74, 80);    // Empty drive
-static const COLORREF FS_SHUTTER_EDGE   = RGB(110, 110, 118);
-static const COLORREF FS_DISC           = RGB(4, 4, 4);       // Disc in the drive
-static const COLORREF FS_DISC_EDGE      = RGB(120, 120, 126);
-static const COLORREF FS_EJECT          = RGB(46, 46, 50);
-static const COLORREF FS_EJECT_OUT      = RGB(90, 90, 96);
+static const COLORREF FS_LED_PANEL      = RGB(44, 34, 32);    // Behind MODE/POWER
+static const COLORREF FS_LED_PANEL_TEXT = RGB(205, 185, 130);
+static const COLORREF FS_FLOPPY         = RGB(22, 22, 24);    // 3.5" drive bezel
+static const COLORREF FS_SLOT           = RGB(6, 6, 6);
+static const COLORREF FS_SHUTTER        = RGB(28, 28, 30);    // Black shutter, empty drive
+static const COLORREF FS_SHUTTER_EDGE   = RGB(58, 58, 62);
+static const COLORREF FS_DISC           = RGB(2, 2, 2);       // Disc in the drive
+static const COLORREF FS_DISC_EDGE      = RGB(130, 130, 136);
+static const COLORREF FS_EJECT          = RGB(26, 26, 28);
+static const COLORREF FS_EJECT_OUT      = RGB(96, 96, 102);
 static const COLORREF FS_SWITCH         = RGB(220, 214, 200);
 static const COLORREF FS_SWITCH_ROCKER  = RGB(120, 116, 108);
 static const COLORREF FS_RED_ON         = RGB(255, 40, 30);
 static const COLORREF FS_RED_OFF        = RGB(90, 20, 16);
 static const COLORREF FS_GREEN_ON       = RGB(40, 240, 90);
 static const COLORREF FS_GREEN_OFF      = RGB(20, 70, 36);
-static const COLORREF FS_FLOPPY_LED_ON  = RGB(60, 200, 80);
-static const COLORREF FS_FLOPPY_LED_OFF = RGB(30, 60, 36);
+static const COLORREF FS_FLOPPY_LED_ON  = RGB(170, 255, 40);  // Lime
+static const COLORREF FS_FLOPPY_LED_OFF = RGB(52, 56, 50);
 
 // Opacity (out of 256) of the flap tint, the flap edge, and the glow of a
 // lit LED seen through the flap
@@ -464,51 +466,64 @@ static void DrawUnitLEDs(HDC hDC, const FileStoreUnitLayout& Unit, const char* R
 	const int TextHeight = std::max(6, (int)(Unit.Height * 0.055));
 
 	DrawPanelText(hDC, RedLabel,
-	              RedX + Size / 2 - GetTextWidth(hDC, RedLabel, TextHeight, false, false) / 2,
-	              y + Size + 2, TextHeight, false, false, FS_FASCIA_TEXT);
+	              RedX + Size / 2 - GetTextWidth(hDC, RedLabel, TextHeight, false, true) / 2,
+	              y + Size + 2, TextHeight, false, true, FS_LED_PANEL_TEXT);
 
 	DrawPanelText(hDC, "POWER",
-	              GreenX + Size / 2 - GetTextWidth(hDC, "POWER", TextHeight, false, false) / 2,
-	              y + Size + 2, TextHeight, false, false, FS_FASCIA_TEXT);
+	              GreenX + Size / 2 - GetTextWidth(hDC, "POWER", TextHeight, false, true) / 2,
+	              y + Size + 2, TextHeight, false, true, FS_LED_PANEL_TEXT);
 }
 
 /****************************************************************************/
 
+// A 3.5" floppy drive, as on the real FileStore: black bezel, a stepped
+// slot with a raised shutter in the middle, the activity LED at the bottom
+// left and the eject button at the bottom right. Left and Right are
+// fractions of the unit's width.
+
 static void DrawFloppyDrive(HDC hDC, const FileStoreUnitLayout& Unit, double Left, double Right,
                             bool DiscInserted, bool LED)
 {
-	FillSolidRect(hDC, Unit.X(Left), Unit.Y(0.16), Unit.X(Right), Unit.Y(0.54), FS_FLOPPY);
+	// Position across the drive, as a fraction of the drive's width
+	auto DX = [&](double f) { return Unit.X(Left + (Right - Left) * f); };
 
-	// Disc slot
-	const int SlotLeft   = Unit.X(Left + 0.03);
-	const int SlotRight  = Unit.X(Right - 0.07);
-	const int SlotTop    = Unit.Y(0.29);
-	const int SlotBottom = Unit.Y(0.38);
+	FillSolidRect(hDC, DX(0.0), Unit.Y(0.16), DX(1.0), Unit.Y(0.54), FS_FLOPPY);
 
-	FillSolidRect(hDC, SlotLeft, SlotTop, SlotRight, SlotBottom, RGB(0, 0, 0));
+	// Slot opening, with the lips at each side
+	FillSolidRect(hDC, DX(0.06), Unit.Y(0.28), DX(0.94), Unit.Y(0.34), FS_SLOT);
+
+	const int ShutterLeft   = DX(0.30);
+	const int ShutterRight  = DX(0.75);
+	const int ShutterTop    = Unit.Y(0.25);
+	const int ShutterBottom = Unit.Y(0.37);
 
 	if (DiscInserted)
 	{
-		// Black disc filling the slot, with highlights along its top and
-		// bottom edges to show it against the drive, and the eject button out
-		FillSolidRect(hDC, SlotLeft + 1, SlotTop + 1, SlotRight - 1, SlotBottom - 1, FS_DISC);
-		FillSolidRect(hDC, SlotLeft + 1, SlotTop + 1, SlotRight - 1, SlotTop + 2, FS_DISC_EDGE);
-		FillSolidRect(hDC, SlotLeft + 1, SlotBottom - 2, SlotRight - 1, SlotBottom - 1, FS_DISC_EDGE);
-		FillSolidRect(hDC, Unit.X(Right - 0.06), Unit.Y(0.36), Unit.X(Right - 0.02), Unit.Y(0.50), FS_EJECT_OUT);
+		// Black disc in the slot, outlined so it stands out from the drive,
+		// and the eject button out
+		FillSolidRect(hDC, ShutterLeft, ShutterTop, ShutterRight, ShutterBottom, FS_DISC);
+		FillSolidRect(hDC, ShutterLeft, ShutterTop, ShutterRight, ShutterTop + 1, FS_DISC_EDGE);
+		FillSolidRect(hDC, ShutterLeft, ShutterBottom - 1, ShutterRight, ShutterBottom, FS_DISC_EDGE);
+		FillSolidRect(hDC, ShutterLeft, ShutterTop, ShutterLeft + 1, ShutterBottom, FS_DISC_EDGE);
+		FillSolidRect(hDC, ShutterRight - 1, ShutterTop, ShutterRight, ShutterBottom, FS_DISC_EDGE);
+
+		FillSolidRect(hDC, DX(0.76), Unit.Y(0.43), DX(0.89), Unit.Y(0.50), FS_EJECT_OUT);
 	}
 	else
 	{
-		// Empty: the drive's shutter closes the slot
-		FillSolidRect(hDC, SlotLeft + 1, SlotTop + 1, SlotRight - 1, SlotBottom - 1, FS_SHUTTER);
-		FillSolidRect(hDC, SlotLeft + 1, SlotTop + 1, SlotRight - 1, SlotTop + 2, FS_SHUTTER_EDGE);
-		FillSolidRect(hDC, Unit.X(Right - 0.06), Unit.Y(0.38), Unit.X(Right - 0.02), Unit.Y(0.50), FS_EJECT);
+		// Empty: the black shutter, with a faint top edge
+		FillSolidRect(hDC, ShutterLeft, ShutterTop, ShutterRight, ShutterBottom, FS_SHUTTER);
+		FillSolidRect(hDC, ShutterLeft, ShutterTop, ShutterRight, ShutterTop + 1, FS_SHUTTER_EDGE);
+
+		FillSolidRect(hDC, DX(0.76), Unit.Y(0.43), DX(0.89), Unit.Y(0.50), FS_EJECT);
+		FillSolidRect(hDC, DX(0.76), Unit.Y(0.43), DX(0.89), Unit.Y(0.43) + 1, FS_SHUTTER_EDGE);
 	}
 
+	// Lower lip of the slot
+	FillSolidRect(hDC, DX(0.30), Unit.Y(0.405), DX(0.88), Unit.Y(0.405) + 1, FS_SHUTTER_EDGE);
+
 	// Activity LED
-	const int Size = std::max(3, (int)(Unit.Height * 0.05));
-	const int x = Unit.X(Left + 0.015);
-	const int y = Unit.Y(0.44);
-	FillSolidRect(hDC, x, y, x + Size, y + Size, LED ? FS_FLOPPY_LED_ON : FS_FLOPPY_LED_OFF);
+	FillSolidRect(hDC, DX(0.18), Unit.Y(0.45), DX(0.24), Unit.Y(0.48), LED ? FS_FLOPPY_LED_ON : FS_FLOPPY_LED_OFF);
 }
 
 /****************************************************************************/
@@ -583,6 +598,16 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 	{
 		DrawFloppyDrive(hDC, Unit, 0.03, 0.36, DiscInserted[0], FloppyLED[0]);
 		DrawFloppyDrive(hDC, Unit, 0.375, 0.705, DiscInserted[1], FloppyLED[1]);
+
+		// Panel behind the MODE and POWER LEDs
+		FillSolidRect(hDC, Unit.X(0.718), FlapTop, FlapRight, FlapBottom, FS_LED_PANEL);
+
+		// With the door open, the cream case dividers between the drive bays
+		if (FlapOpen)
+		{
+			FillSolidRect(hDC, Unit.X(0.362), FlapTop, Unit.X(0.372), FlapBottom, FS_CASE);
+			FillSolidRect(hDC, Unit.X(0.708), FlapTop, Unit.X(0.718), FlapBottom, FS_CASE);
+		}
 	}
 
 	DrawUnitLEDs(hDC, Unit, RedLabel, RedOn);
