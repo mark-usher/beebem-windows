@@ -84,9 +84,12 @@ void BeebWin::UpdateFileStoreDiscMenu()
 
 // The FileStore is a headless device, so the emulator window shows a
 // drawing of its front panel: the E01/E01S unit (with the door flap closed,
-// or open to show the floppy drives), and below it one E20/E40S/E60S hard
-// drive unit for each SCSI drive image found. Everything is drawn with GDI,
-// scaled to the window, so no bitmaps are needed.
+// or open to show the floppy drives), and below it a hard drive unit for
+// each SCSI drive attached (see Hardware -> FileStore Hard Drive Units).
+// Everything is drawn with GDI and GDI+, scaled to the window, so no
+// bitmaps are needed.
+
+/****************************************************************************/
 
 // Labels on the flap have a half space before a trailing "S", as in
 // "E01 S" and "E40 S"
@@ -206,8 +209,9 @@ bool BeebWin::HandleFileStoreDriveCommand(UINT MenuID)
 		return false;
 	}
 
-	const int Drive = (MenuID - IDM_FILESTORE_DRIVE0_NONE) / FS_DRIVE_MENU_ITEMS;
-	const FileStoreDriveType Type = static_cast<FileStoreDriveType>((MenuID - IDM_FILESTORE_DRIVE0_NONE) % FS_DRIVE_MENU_ITEMS);
+	const int Item = MenuID - IDM_FILESTORE_DRIVE0_NONE;
+	const int Drive = Item / FS_DRIVE_MENU_ITEMS;
+	const FileStoreDriveType Type = static_cast<FileStoreDriveType>(Item % FS_DRIVE_MENU_ITEMS);
 
 	FileStoreDrive[Drive] = Type;
 	UpdateFileStoreDriveMenu();
@@ -312,7 +316,7 @@ void BeebWin::FitFileStoreWindow()
 
 	int Units = 1;
 
-	for (int Drive = 0; Drive < 4; Drive++)
+	for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
 	{
 		if (!m_FileStoreUnitName[Drive].empty())
 		{
@@ -337,55 +341,55 @@ void BeebWin::FitFileStoreWindow()
 
 // Colours, taken from photos of the real units
 
-static const COLORREF FS_BACKGROUND      = RGB(40, 40, 44);
-static const COLORREF FS_CASE            = RGB(222, 213, 190); // Cream case
-static const COLORREF FS_CASE_HIGHLIGHT  = RGB(238, 232, 214);
-static const COLORREF FS_CASE_SHADOW     = RGB(170, 160, 138);
-static const COLORREF FS_PLINTH          = RGB(212, 202, 176); // Recessed base
-static const COLORREF FS_PLINTH_SHADOW   = RGB(150, 141, 120);
-static const COLORREF FS_FASCIA          = RGB(30, 24, 22);    // Very dark black-brown
-static const COLORREF FS_STRIPE          = RGB(236, 232, 214); // Stripes printed on the flap
-static const COLORREF FS_FLAP_TINT       = RGB(200, 95, 25);   // See-through amber flap
-static const COLORREF FS_BEVEL_LIT       = RGB(205, 140, 60);  // Bevelled edge of the flap
-static const COLORREF FS_BEVEL_DARK      = RGB(140, 72, 22);
-static const COLORREF FS_BEVEL_LIGHT     = RGB(255, 200, 120);
-static const COLORREF FS_BEVEL_OUTLINE   = RGB(70, 25, 8);
-static const COLORREF FS_LABEL           = RGB(18, 18, 18);
-static const COLORREF FS_LABEL_TEXT      = RGB(232, 230, 215);
+static const COLORREF FS_BACKGROUND     = RGB(40, 40, 44);
+static const COLORREF FS_CASE           = RGB(222, 213, 190); // Cream case
+static const COLORREF FS_CASE_HIGHLIGHT = RGB(238, 232, 214);
+static const COLORREF FS_CASE_SHADOW    = RGB(170, 160, 138);
+static const COLORREF FS_PLINTH         = RGB(212, 202, 176); // Recessed base
+static const COLORREF FS_PLINTH_SHADOW  = RGB(150, 141, 120);
+static const COLORREF FS_FASCIA         = RGB(30, 24, 22);    // Very dark black-brown
+static const COLORREF FS_STRIPE         = RGB(236, 232, 214); // Stripes printed on the flap
+static const COLORREF FS_FLAP_TINT      = RGB(200, 95, 25);   // See-through amber flap
+static const COLORREF FS_BEVEL_LIT      = RGB(205, 140, 60);  // Bevelled edge of the flap
+static const COLORREF FS_BEVEL_DARK     = RGB(140, 72, 22);
+static const COLORREF FS_BEVEL_LIGHT    = RGB(255, 200, 120);
+static const COLORREF FS_BEVEL_OUTLINE  = RGB(70, 25, 8);
+static const COLORREF FS_LABEL          = RGB(18, 18, 18);
+static const COLORREF FS_LABEL_TEXT     = RGB(232, 230, 215);
 
 // Floppy drive
-static const COLORREF FS_DRIVE_FILLER    = RGB(28, 24, 24);    // Blank panel beside each drive
-static const COLORREF FS_DRIVE_SEAM      = RGB(90, 86, 80);
-static const COLORREF FS_DRIVE_BEZEL     = RGB(20, 20, 22);
-static const COLORREF FS_DRIVE_BAND      = RGB(30, 30, 32);    // Raised band above the slot
-static const COLORREF FS_DRIVE_EDGE      = RGB(78, 78, 82);
-static const COLORREF FS_DRIVE_SLOT_RIM  = RGB(60, 60, 64);
-static const COLORREF FS_DRIVE_SLOT      = RGB(8, 8, 9);
-static const COLORREF FS_DRIVE_SHUTTER   = RGB(26, 26, 28);    // Black shutter, no disc
-static const COLORREF FS_DRIVE_SHUTTER_EDGE = RGB(48, 48, 52);
-static const COLORREF FS_DRIVE_DISC      = RGB(3, 3, 3);       // Disc in the drive
-static const COLORREF FS_DRIVE_DISC_EDGE = RGB(85, 85, 90);
-static const COLORREF FS_DRIVE_STEP      = RGB(24, 24, 26);
-static const COLORREF FS_DRIVE_EJECT     = RGB(18, 18, 20);
-static const COLORREF FS_DRIVE_EJECT_RIM = RGB(55, 55, 58);
+static const COLORREF FS_DRIVE_FILLER         = RGB(28, 24, 24);   // Blank panel beside each drive
+static const COLORREF FS_DRIVE_SEAM           = RGB(90, 86, 80);
+static const COLORREF FS_DRIVE_BEZEL          = RGB(20, 20, 22);
+static const COLORREF FS_DRIVE_BAND           = RGB(30, 30, 32);   // Raised band above the slot
+static const COLORREF FS_DRIVE_EDGE           = RGB(78, 78, 82);
+static const COLORREF FS_DRIVE_SLOT_RIM       = RGB(60, 60, 64);
+static const COLORREF FS_DRIVE_SLOT           = RGB(8, 8, 9);
+static const COLORREF FS_DRIVE_SHUTTER        = RGB(26, 26, 28);   // Black shutter, no disc
+static const COLORREF FS_DRIVE_SHUTTER_EDGE   = RGB(48, 48, 52);
+static const COLORREF FS_DRIVE_DISC           = RGB(3, 3, 3);      // Disc in the drive
+static const COLORREF FS_DRIVE_DISC_EDGE      = RGB(85, 85, 90);
+static const COLORREF FS_DRIVE_STEP           = RGB(24, 24, 26);
+static const COLORREF FS_DRIVE_EJECT          = RGB(18, 18, 20);
+static const COLORREF FS_DRIVE_EJECT_RIM      = RGB(55, 55, 58);
 static const COLORREF FS_DRIVE_EJECT_RIM_DISC = RGB(95, 95, 100);
-static const COLORREF FS_DRIVE_LED_ON    = RGB(170, 255, 40);  // Lime
-static const COLORREF FS_DRIVE_LED_OFF   = RGB(66, 68, 64);
+static const COLORREF FS_DRIVE_LED_ON         = RGB(170, 255, 40); // Lime
+static const COLORREF FS_DRIVE_LED_OFF        = RGB(66, 68, 64);
 
 // MODE/DRIVE and POWER LEDs
-static const COLORREF FS_LED_HOUSING     = RGB(42, 36, 34);
+static const COLORREF FS_LED_HOUSING      = RGB(42, 36, 34);
 static const COLORREF FS_LED_HOUSING_EDGE = RGB(80, 74, 70);
-static const COLORREF FS_RED_ON          = RGB(255, 45, 35);
-static const COLORREF FS_RED_ON_RIM      = RGB(255, 170, 160);
-static const COLORREF FS_RED_OFF         = RGB(115, 18, 20);
-static const COLORREF FS_RED_OFF_RIM     = RGB(180, 140, 140);
-static const COLORREF FS_GREEN_ON        = RGB(150, 245, 40);
-static const COLORREF FS_GREEN_ON_RIM    = RGB(200, 255, 150);
-static const COLORREF FS_GREEN_OFF       = RGB(40, 60, 30);
-static const COLORREF FS_GREEN_OFF_RIM   = RGB(90, 110, 80);
-static const COLORREF FS_LED_TEXT        = RGB(185, 160, 95);  // Tan lettering
-static const COLORREF FS_SWITCH          = RGB(225, 218, 200);
-static const COLORREF FS_SWITCH_SHADOW   = RGB(150, 144, 130);
+static const COLORREF FS_RED_ON           = RGB(255, 45, 35);
+static const COLORREF FS_RED_ON_RIM       = RGB(255, 170, 160);
+static const COLORREF FS_RED_OFF          = RGB(115, 18, 20);
+static const COLORREF FS_RED_OFF_RIM      = RGB(180, 140, 140);
+static const COLORREF FS_GREEN_ON         = RGB(150, 245, 40);
+static const COLORREF FS_GREEN_ON_RIM     = RGB(200, 255, 150);
+static const COLORREF FS_GREEN_OFF        = RGB(40, 60, 30);
+static const COLORREF FS_GREEN_OFF_RIM    = RGB(90, 110, 80);
+static const COLORREF FS_LED_TEXT         = RGB(185, 160, 95);  // Tan lettering
+static const COLORREF FS_SWITCH           = RGB(225, 218, 200);
+static const COLORREF FS_SWITCH_SHADOW    = RGB(150, 144, 130);
 
 // Opacity (out of 256) of the flap tint, and of the glow of a lit LED seen
 // through the flap
@@ -571,7 +575,8 @@ static float GetTextWidth(Gdiplus::Graphics& Graphics, PanelFont Font, float Siz
 }
 
 // Largest font size, up to MaxSize, at which Text fits in Width pixels
-static float GetFittedTextSize(Gdiplus::Graphics& Graphics, PanelFont Font, const char* Text, float Width, float MaxSize)
+static float GetFittedTextSize(Gdiplus::Graphics& Graphics, PanelFont Font, const char* Text,
+                               float Width, float MaxSize)
 {
 	float Size = MaxSize;
 
@@ -716,12 +721,12 @@ constexpr double FS_FLAP_BOTTOM = 0.60;
 // label (10 stripes) and Acorn badge (9 stripes) are one stripe in from the
 // ends, in a band across the middle of the flap that the stripes are cut
 // short around.
-constexpr double FS_FLAP_BEVEL         = 0.07; // Fraction of the flap height
-constexpr int    FS_STRIPES            = 60;
+constexpr double FS_FLAP_BEVEL          = 0.07; // Fraction of the flap height
+constexpr int    FS_STRIPES             = 60;
 constexpr int    FS_MODEL_LABEL_STRIPES = 10;
 constexpr int    FS_ACORN_LABEL_STRIPES = 8;
-constexpr double FS_LABEL_BAND_TOP     = 0.36; // Fraction of the flap height
-constexpr double FS_LABEL_BAND_BOTTOM  = 0.64;
+constexpr double FS_LABEL_BAND_TOP      = 0.36; // Fraction of the flap height
+constexpr double FS_LABEL_BAND_BOTTOM   = 0.64;
 
 // The MODE/DRIVE and POWER LEDs are in the same place on every unit:
 // centred on the flap, just left of the Acorn badge
@@ -787,7 +792,8 @@ static void DrawFloppyDrive(HDC hDC, const FileStoreUnitLayout& Unit, double Lef
 	FillSolidRect(hDC, DX(0.17), DY(0.78), DX(0.22), DY(0.85), LED ? FS_DRIVE_LED_ON : FS_DRIVE_LED_OFF);
 
 	// Eject button
-	FillSolidRect(hDC, DX(0.77), DY(0.68), DX(0.94), DY(0.84), DiscInserted ? FS_DRIVE_EJECT_RIM_DISC : FS_DRIVE_EJECT_RIM);
+	FillSolidRect(hDC, DX(0.77), DY(0.68), DX(0.94), DY(0.84),
+	              DiscInserted ? FS_DRIVE_EJECT_RIM_DISC : FS_DRIVE_EJECT_RIM);
 	FillSolidRect(hDC, DX(0.77) + 1, DY(0.68) + 1, DX(0.94) - 1, DY(0.84) - 1, FS_DRIVE_EJECT);
 }
 
@@ -811,14 +817,24 @@ static void DrawLED(HDC hDC, int cx, int cy, int PanelHeight, bool On,
 	const int HousingHalfWidth  = std::max(3, (int)(PanelHeight * 0.13));
 	const int HousingHalfHeight = std::max(3, (int)(PanelHeight * 0.115));
 
-	FillSolidRect(hDC, cx - HousingHalfWidth, cy - HousingHalfHeight, cx + HousingHalfWidth, cy + HousingHalfHeight, FS_LED_HOUSING);
-	FillSolidRect(hDC, cx - HousingHalfWidth, cy - HousingHalfHeight, cx + HousingHalfWidth, cy - HousingHalfHeight + 1, FS_LED_HOUSING_EDGE);
+	const int HousingLeft   = cx - HousingHalfWidth;
+	const int HousingRight  = cx + HousingHalfWidth;
+	const int HousingTop    = cy - HousingHalfHeight;
+	const int HousingBottom = cy + HousingHalfHeight;
+
+	FillSolidRect(hDC, HousingLeft, HousingTop, HousingRight, HousingBottom, FS_LED_HOUSING);
+	FillSolidRect(hDC, HousingLeft, HousingTop, HousingRight, HousingTop + 1, FS_LED_HOUSING_EDGE);
 
 	const int HalfWidth  = std::max(2, (int)(PanelHeight * 0.10));
 	const int HalfHeight = std::max(2, (int)(PanelHeight * 0.06));
 
-	FillSolidRect(hDC, cx - HalfWidth, cy - HalfHeight, cx + HalfWidth, cy + HalfHeight, On ? OnRim : OffRim);
-	FillSolidRect(hDC, cx - HalfWidth + 1, cy - HalfHeight + 1, cx + HalfWidth - 1, cy + HalfHeight - 1, On ? OnColour : OffColour);
+	const int Left   = cx - HalfWidth;
+	const int Right  = cx + HalfWidth;
+	const int Top    = cy - HalfHeight;
+	const int Bottom = cy + HalfHeight;
+
+	FillSolidRect(hDC, Left, Top, Right, Bottom, On ? OnRim : OffRim);
+	FillSolidRect(hDC, Left + 1, Top + 1, Right - 1, Bottom - 1, On ? OnColour : OffColour);
 }
 
 /****************************************************************************/
@@ -912,8 +928,8 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 	BlendRect(Canvas, FlapLeft, FlapTop, FlapRight, FlapBottom, FS_FLAP_TINT, FS_FLAP_TINT_ALPHA);
 
 	// ...with a bevelled edge...
-	const int FlapHeight = FlapBottom - FlapTop;
-	const int Bevel      = std::max(2, (int)(FlapHeight * FS_FLAP_BEVEL));
+	const int FlapHeight  = FlapBottom - FlapTop;
+	const int Bevel       = std::max(2, (int)(FlapHeight * FS_FLAP_BEVEL));
 	const int InnerLeft   = FlapLeft + Bevel;
 	const int InnerRight  = FlapRight - Bevel;
 	const int InnerTop    = FlapTop + Bevel;
@@ -959,10 +975,12 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 
 	if (RedOn)
 	{
-		BlendRect(Canvas, RedX - GlowWidth, LEDy - GlowHeight, RedX + GlowWidth, LEDy + GlowHeight, FS_RED_ON, FS_LED_GLOW_ALPHA);
+		BlendRect(Canvas, RedX - GlowWidth, LEDy - GlowHeight, RedX + GlowWidth, LEDy + GlowHeight,
+		          FS_RED_ON, FS_LED_GLOW_ALPHA);
 	}
 
-	BlendRect(Canvas, GreenX - GlowWidth, LEDy - GlowHeight, GreenX + GlowWidth, LEDy + GlowHeight, FS_GREEN_ON, FS_LED_GLOW_ALPHA);
+	BlendRect(Canvas, GreenX - GlowWidth, LEDy - GlowHeight, GreenX + GlowWidth, LEDy + GlowHeight,
+	          FS_GREEN_ON, FS_LED_GLOW_ALPHA);
 
 	// The bevel: lit along the top and left, in shadow along the bottom and
 	// right, with a catch-light on the inner top and left edges and a dark
@@ -1020,7 +1038,8 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 		LogoWidth  = PANEL_LOGO_WIDTH * LogoHeight;
 		LogoGap    = FindGlyph('n')->Advance * AcornSize / PANEL_FONT_UNITS_PER_EM;
 
-		if (AcornWidth + LogoGap + LogoWidth <= (AcornRight - AcornLeft) - BandHeight * 0.6f || LogoHeight < 6.0f)
+		if (AcornWidth + LogoGap + LogoWidth <= (AcornRight - AcornLeft) - BandHeight * 0.6f ||
+		    LogoHeight < 6.0f)
 		{
 			break;
 		}
@@ -1045,7 +1064,7 @@ void BeebWin::PaintFileStore(HDC hDC)
 	RECT ClientRect;
 	GetClientRect(m_hWnd, &ClientRect);
 
-	const int ClientWidth = ClientRect.right - ClientRect.left;
+	const int ClientWidth  = ClientRect.right - ClientRect.left;
 	const int ClientHeight = ClientRect.bottom - ClientRect.top;
 
 	if (ClientWidth <= 0 || ClientHeight <= 0)
@@ -1055,11 +1074,11 @@ void BeebWin::PaintFileStore(HDC hDC)
 
 	// Draw into a 32-bit top-down DIB section, which also avoids flicker
 	BITMAPINFO bmi = {};
-	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bmi.bmiHeader.biWidth = ClientWidth;
-	bmi.bmiHeader.biHeight = -ClientHeight;
-	bmi.bmiHeader.biPlanes = 1;
-	bmi.bmiHeader.biBitCount = 32;
+	bmi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth       = ClientWidth;
+	bmi.bmiHeader.biHeight      = -ClientHeight;
+	bmi.bmiHeader.biPlanes      = 1;
+	bmi.bmiHeader.biBitCount    = 32;
 	bmi.bmiHeader.biCompression = BI_RGB;
 
 	void* pBits = nullptr;
@@ -1071,9 +1090,9 @@ void BeebWin::PaintFileStore(HDC hDC)
 	}
 
 	FileStoreCanvas Canvas;
-	Canvas.hDC = CreateCompatibleDC(hDC);
+	Canvas.hDC    = CreateCompatibleDC(hDC);
 	Canvas.Pixels = static_cast<DWORD*>(pBits);
-	Canvas.Width = ClientWidth;
+	Canvas.Width  = ClientWidth;
 	Canvas.Height = ClientHeight;
 
 	HGDIOBJ hPrevBitmap = SelectObject(Canvas.hDC, hBitmap);
@@ -1082,7 +1101,7 @@ void BeebWin::PaintFileStore(HDC hDC)
 
 	int DriveCount = 0;
 
-	for (int Drive = 0; Drive < 4; Drive++)
+	for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
 	{
 		if (!m_FileStoreUnitName[Drive].empty())
 		{
@@ -1093,22 +1112,22 @@ void BeebWin::PaintFileStore(HDC hDC)
 	// The FileStore is at the top with its hard drive units stacked
 	// underneath, scaled to fit the window
 	const int Margin = GetFileStoreMargin(ClientWidth);
-	const int Gap = GetFileStoreUnitGap(ClientWidth);
-	const int Units = 1 + DriveCount;
+	const int Gap    = GetFileStoreUnitGap(ClientWidth);
+	const int Units  = 1 + DriveCount;
 
-	int UnitWidth = ClientWidth - 2 * Margin;
+	int UnitWidth  = ClientWidth - 2 * Margin;
 	int UnitHeight = GetFileStoreUnitHeight(ClientWidth);
 
 	if (Units * (UnitHeight + Gap) + Margin > ClientHeight)
 	{
 		UnitHeight = (ClientHeight - Margin) / Units - Gap;
-		UnitWidth = UnitHeight * 5;
+		UnitWidth  = UnitHeight * 5;
 	}
 
 	FileStoreUnitLayout Unit;
-	Unit.Left = (ClientWidth - UnitWidth) / 2;
-	Unit.Top = Margin;
-	Unit.Width = UnitWidth;
+	Unit.Left   = (ClientWidth - UnitWidth) / 2;
+	Unit.Top    = Margin;
+	Unit.Width  = UnitWidth;
 	Unit.Height = UnitHeight;
 
 	// The same model label text size on every unit: the largest that fits
@@ -1117,9 +1136,9 @@ void BeebWin::PaintFileStore(HDC hDC)
 
 	{
 		const int FlapHeight = Unit.Y(FS_FLAP_BOTTOM) - Unit.Y(FS_FLAP_TOP);
-		const int Bevel = std::max(2, (int)(FlapHeight * FS_FLAP_BEVEL));
+		const int Bevel      = std::max(2, (int)(FlapHeight * FS_FLAP_BEVEL));
 		const int InnerWidth = Unit.X(FS_FLAP_RIGHT) - Unit.X(FS_FLAP_LEFT) - 2 * Bevel;
-		const int Pitch = std::max(4, InnerWidth / FS_STRIPES);
+		const int Pitch      = std::max(4, InnerWidth / FS_STRIPES);
 
 		Gdiplus::Graphics Graphics(Canvas.hDC);
 
@@ -1130,11 +1149,11 @@ void BeebWin::PaintFileStore(HDC hDC)
 		for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
 		{
 			const std::string Label = "FILESTORE " + m_FileStoreUnitName[Drive];
-			const float Width = GetTextWidth(Graphics, PanelFont::ModelLabel, 100.0f, Label.c_str());
+			const float Width       = GetTextWidth(Graphics, PanelFont::ModelLabel, 100.0f, Label.c_str());
 
 			if (!m_FileStoreUnitName[Drive].empty() && Width > LongestWidth)
 			{
-				Longest = Label;
+				Longest      = Label;
 				LongestWidth = Width;
 			}
 		}
@@ -1152,7 +1171,7 @@ void BeebWin::PaintFileStore(HDC hDC)
 	         "MODE", FileStoreModeLED, DiscInserted, LEDs.FloppyDisc, ModelTextSize);
 
 	// Hard drive units
-	for (int Drive = 0; Drive < 4; Drive++)
+	for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
 	{
 		if (m_FileStoreUnitName[Drive].empty())
 		{
@@ -1190,11 +1209,11 @@ static int GetFileStoreLEDState()
 	if (DiscInfo[0].Loaded)   State |= 0x100;
 	if (DiscInfo[1].Loaded)   State |= 0x200;
 
-	for (int i = 0; i < 4; i++)
+	for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)
 	{
-		if (LEDs.HDisc[i])
+		if (LEDs.HDisc[Drive])
 		{
-			State |= 0x10 << i;
+			State |= 0x10 << Drive;
 		}
 	}
 
@@ -1240,12 +1259,12 @@ bool BeebWin::BeginFileStoreShutdown(FileStoreShutdownAction Action, Model NewMo
 	{
 		// Already shutting down: the latest request wins
 		m_FileStoreShutdownAction = Action;
-		m_FileStoreShutdownModel = NewModelType;
+		m_FileStoreShutdownModel  = NewModelType;
 		return true;
 	}
 
 	m_FileStoreShutdownAction = Action;
-	m_FileStoreShutdownModel = NewModelType;
+	m_FileStoreShutdownModel  = NewModelType;
 
 	// Don't let the door be closed while the buffers are being flushed
 	EnableMenuItem(IDM_FILESTORE_DOOR_OPEN, false);

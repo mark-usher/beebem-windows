@@ -1898,7 +1898,8 @@ void BeebWin::SavePreferences(bool saveAll)
 		m_Preferences.EraseValue(CFG_BASIC_HARDWARE_ONLY_OLD);
 
 		// Econet is forced on in FileStore mode; save the user's own setting
-		m_Preferences.SetBoolValue(CFG_ECONET_ENABLED, m_FileStoreEconetForced ? m_EconetEnabledSetting : EconetEnabled); // Rob
+		m_Preferences.SetBoolValue(CFG_ECONET_ENABLED,
+		                           m_FileStoreEconetForced ? m_EconetEnabledSetting : EconetEnabled); // Rob
 		m_Preferences.SetBinaryValue(CFG_KEYBOARD_LINKS, &KeyboardLinks, sizeof(KeyboardLinks));
 
 		// Second processors
@@ -1912,8 +1913,10 @@ void BeebWin::SavePreferences(bool saveAll)
 		// Window size and position
 		// In FileStore mode the window is sized to fit the FileStore, so save
 		// the size used by the other models
-		m_Preferences.SetDecimalValue(CFG_VIEW_WIN_SIZE_X, m_FileStoreWindowFitted ? m_FileStoreSavedWinSize[0] : m_XLastWinSize);
-		m_Preferences.SetDecimalValue(CFG_VIEW_WIN_SIZE_Y, m_FileStoreWindowFitted ? m_FileStoreSavedWinSize[1] : m_YLastWinSize);
+		m_Preferences.SetDecimalValue(CFG_VIEW_WIN_SIZE_X,
+		                              m_FileStoreWindowFitted ? m_FileStoreSavedWinSize[0] : m_XLastWinSize);
+		m_Preferences.SetDecimalValue(CFG_VIEW_WIN_SIZE_Y,
+		                              m_FileStoreWindowFitted ? m_FileStoreSavedWinSize[1] : m_YLastWinSize);
 		m_Preferences.EraseValue(CFG_VIEW_WIN_SIZE);
 
 		RECT Rect;

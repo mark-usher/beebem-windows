@@ -190,11 +190,11 @@ Boston, MA  02110-1301, USA.
 static time_t RTCTimeOffset = 0;
 
 // Index into CMOSType::Register for each machine that has CMOS RAM
-constexpr int CMOS_MASTER_128 = 0;
-constexpr int CMOS_MASTER_ET  = 1;
+constexpr int CMOS_MASTER_128     = 0;
+constexpr int CMOS_MASTER_ET      = 1;
 constexpr int CMOS_FILESTORE_E01  = 2;
 constexpr int CMOS_FILESTORE_E01S = 3;
-constexpr int CMOS_COUNT = 4;
+constexpr int CMOS_COUNT          = 4;
 
 struct CMOSType
 {

@@ -355,6 +355,11 @@ public:
 	void DisplayFDCBoardInfo(HDC hDC, int x, int y);
 
 	void SetModel(Model NewModelType);
+	void ResetBeebSystem(Model NewModelType, bool LoadRoms);
+	void Break();
+	bool RebootSystem();
+
+	// FileStore front panel
 	void SetFileStoreDoorOpen(bool Open);
 	void UpdateFileStoreDiscMenu();
 	void UpdateFileStorePanel();
@@ -366,9 +371,6 @@ public:
 	void UpdateFileStoreLEDs();
 	bool BeginFileStoreShutdown(FileStoreShutdownAction Action, Model NewModelType);
 	void CompleteFileStoreShutdown();
-	void ResetBeebSystem(Model NewModelType, bool LoadRoms);
-	void Break();
-	bool RebootSystem();
 
 	void CreateArmCoPro();
 	void DestroyArmCoPro();
@@ -718,6 +720,17 @@ public:
 	bool m_FreezeWhenInactive;
 	bool m_Frozen;
 
+	// FileStore front panel
+	std::string m_FileStoreDriveLabel[4]; // Custom hard drive unit labels
+	std::string m_FileStoreUnitName[4]; // Hard drive unit names shown, empty if none
+	bool m_FileStoreWindowFitted; // Window resized to fit the FileStore units
+	int m_FileStoreSavedWinSize[2]; // Window size to restore for other models
+	int m_FileStoreLEDState; // LED state last drawn
+	FileStoreShutdownAction m_FileStoreShutdownAction; // What to do once the FileStore has flushed its buffers
+	Model m_FileStoreShutdownModel; // Model to change to after FileStore shutdown
+	bool m_FileStoreEconetForced; // Econet forced on for the FileStore
+	bool m_EconetEnabledSetting; // User's Econet setting while forced on
+
 	// Window size
 	int m_XWinSize; // Client area size
 	int m_YWinSize;
@@ -737,15 +750,6 @@ public:
 	HGDIOBJ m_hOldObj;
 	HDC m_hDCBitmap;
 	HGDIOBJ m_hBitmap;
-	std::string m_FileStoreDriveLabel[4]; // FileStore custom hard drive unit labels
-	std::string m_FileStoreUnitName[4]; // FileStore hard drive unit names shown, empty if none
-	bool m_FileStoreWindowFitted; // Window resized to fit the FileStore units
-	int m_FileStoreSavedWinSize[2]; // Window size to restore for other models
-	int m_FileStoreLEDState; // FileStore LED state last drawn
-	FileStoreShutdownAction m_FileStoreShutdownAction; // What to do once the FileStore has flushed its buffers
-	Model m_FileStoreShutdownModel; // Model to change to after FileStore shutdown
-	bool m_FileStoreEconetForced; // Econet forced on for the FileStore
-	bool m_EconetEnabledSetting; // User's Econet setting while forced on
 	BitmapInfo m_BitmapInfo;
 	MonitorType m_MonitorType;
 	char* m_screen;

@@ -1947,11 +1947,11 @@ void BeebWin::UpdateModelMenu()
 {
 	static const struct { UINT ID; Model Type; } MenuItems[] =
 	{
-		{ IDM_MODELB,     Model::B },
-		{ IDM_MODELBINT,  Model::IntegraB },
-		{ IDM_MODELBPLUS, Model::BPlus },
-		{ IDM_MASTER128,  Model::Master128 },
-		{ IDM_MASTER_ET,  Model::MasterET },
+		{ IDM_MODELB,         Model::B },
+		{ IDM_MODELBINT,      Model::IntegraB },
+		{ IDM_MODELBPLUS,     Model::BPlus },
+		{ IDM_MASTER128,      Model::Master128 },
+		{ IDM_MASTER_ET,      Model::MasterET },
 		{ IDM_FILESTORE_E01,  Model::FileStoreE01 },
 		{ IDM_FILESTORE_E01S, Model::FileStoreE01S }
 	};

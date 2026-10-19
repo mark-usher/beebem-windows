@@ -210,6 +210,7 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 		return;
 	}
 
+	// All I/O is on the 1MHz bus
 	SyncIO();
 	AdjustForIOWrite();
 
@@ -224,8 +225,6 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 			Value &= 0x0f;
 		}
 
-		SyncIO();
-		AdjustForIOWrite();
 		UserVIAWrite(Address & 0xf, Value);
 		return;
 	}
