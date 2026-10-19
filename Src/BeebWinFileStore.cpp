@@ -425,6 +425,9 @@ bool BeebWin::BeginFileStoreShutdown(FileStoreShutdownAction Action, Model NewMo
 	m_FileStoreShutdownAction = Action;
 	m_FileStoreShutdownModel = NewModelType;
 
+	// Don't let the door be closed while the buffers are being flushed
+	EnableMenuItem(IDM_FILESTORE_DOOR_OPEN, false);
+
 	if (FileStoreDoorOpen)
 	{
 		CompleteFileStoreShutdown();
@@ -448,6 +451,7 @@ void BeebWin::CompleteFileStoreShutdown()
 	// Close the door and leave command mode, ready for the next start
 	FileStoreDoorOpen = false;
 	CheckMenuItem(IDM_FILESTORE_DOOR_OPEN, false);
+	EnableMenuItem(IDM_FILESTORE_DOOR_OPEN, IsFileStore(MachineType));
 	FileStoreCommandMode = false;
 	CheckMenuItem(IDM_FILESTORE_COMMAND_MODE, false);
 
