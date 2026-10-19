@@ -30,6 +30,9 @@ Boston, MA  02110-1301, USA.
 // &FC08        Control latch (write), EPROM/RAM latch (read)
 // &FC0C-&FC0F  WD2793 FDC registers
 // &FC10-&FC1F  System VIA (emulated using BeebEm's user VIA)
+// &FC20-&FC23  MC68B54 ADLC (Econet)
+// &FC24        Econet INTOFF and station number (read)
+// &FC28        Econet INTON (read)
 // &FC2C        Front panel switches (read)
 // &FC30-&FC33  SCSI interface
 // &FD00-&FFFF  RAM
@@ -40,10 +43,12 @@ Boston, MA  02110-1301, USA.
 #include "6502core.h"
 #include "BeebMem.h"
 #include "Disc2793.h"
+#include "Econet.h"
 #include "Rtc.h"
 #include "Scsi.h"
 #include "UserVia.h"
 #include "Video.h"
+#include "DebugTrace.h"
 #include "Main.h"
 
 /****************************************************************************/
@@ -118,6 +123,49 @@ unsigned char FileStoreReadMem(int Address)
 		return Value;
 	}
 
+	// Econet ADLC
+	if (Address >= 0xfc20 && Address <= 0xfc23)
+	{
+		return EconetEnabled ? EconetRead(Address & 3) : 0xfe;
+	}
+
+	// Econet NMI disable (INTOFF) and station number
+	if (Address == 0xfc24 && EconetEnabled)
+	{
+		#ifdef DEBUG_ECONET_INTERRUPTS
+		DebugTrace("Econet: INTOFF\n");
+		#endif
+
+		EconetNMIEnabled = false;
+
+		return EconetReadStationID();
+	}
+
+	// Econet NMI enable (INTON)
+	if (Address == 0xfc28 && EconetEnabled)
+	{
+		#ifdef DEBUG_ECONET_INTERRUPTS
+		DebugTrace("Econet: INTON\n");
+		#endif
+
+		if (!EconetNMIEnabled)
+		{
+			EconetNMIEnabled = true;
+
+			// Assert a pending NMI
+			if (EconetInterruptRequest())
+			{
+				NMIStatus |= NMI_ECONET;
+
+				#ifdef DEBUG_ECONET_INTERRUPTS
+				DebugTrace("Econet: Delayed NMI asserted\n");
+				#endif
+			}
+		}
+
+		return 0xff;
+	}
+
 	// Front panel switches
 	if (Address == 0xfc2c)
 	{
@@ -185,6 +233,17 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 	if (Address >= 0xfc0c && Address <= 0xfc0f)
 	{
 		Write2793Register(static_cast<unsigned char>(Address - 0xfc0c), Value);
+		return;
+	}
+
+	// Econet ADLC
+	if (Address >= 0xfc20 && Address <= 0xfc23)
+	{
+		if (EconetEnabled)
+		{
+			EconetWrite(Address & 3, Value);
+		}
+
 		return;
 	}
 

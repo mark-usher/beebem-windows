@@ -807,6 +807,15 @@ bool EconetReset()
 		RTCWriteAddress(0xE);
 		RTCWriteData(EconetStationID);
 	}
+	else if (IsFileStore(MachineType))
+	{
+		// The FileStore also reads its station number from CMOS, followed
+		// by a check byte
+		RTCWriteAddress(0xE);
+		RTCWriteData(EconetStationID);
+		RTCWriteAddress(0xF);
+		RTCWriteData(static_cast<unsigned char>(0xff - EconetStationID));
+	}
 
 	// This call is what allows broadcast packets to be sent.
 	if (!EnableBroadcast(Socket))

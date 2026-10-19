@@ -892,6 +892,12 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 	SetDiscWriteProtects();
 	Disc8271Reset();
 
+	// The FileStore is an Econet file server, so always enable Econet
+	if (IsFileStore(MachineType))
+	{
+		EconetEnabled = true;
+	}
+
 	EconetReset();
 	UpdateEconetMenu();
 
