@@ -147,6 +147,15 @@ enum class MessageResult
 	Cancel
 };
 
+// What to do after the FileStore has been given time to flush its buffers
+enum class FileStoreShutdownAction
+{
+	None,
+	Reset,
+	Exit,
+	ChangeModel
+};
+
 enum class DisplayRendererType
 {
 	GDI,
@@ -352,6 +361,8 @@ public:
 	void PaintFileStore(HDC hDC);
 	void DrawFileStoreLEDs(HDC hDC);
 	void UpdateFileStoreLEDs();
+	bool BeginFileStoreShutdown(FileStoreShutdownAction Action, Model NewModelType);
+	void CompleteFileStoreShutdown();
 	void ResetBeebSystem(Model NewModelType, bool LoadRoms);
 	void Break();
 	bool RebootSystem();
@@ -724,6 +735,8 @@ public:
 	HGDIOBJ m_hBitmap;
 	HBITMAP m_hFileStoreBitmap; // FileStore front panel image
 	int m_FileStoreLEDState; // FileStore LED state last drawn
+	FileStoreShutdownAction m_FileStoreShutdownAction; // What to do once the FileStore has flushed its buffers
+	Model m_FileStoreShutdownModel; // Model to change to after FileStore shutdown
 	BitmapInfo m_BitmapInfo;
 	MonitorType m_MonitorType;
 	char* m_screen;
@@ -910,6 +923,7 @@ public:
 	static const UINT_PTR TIMER_PRINTER        = 3;
 	static const UINT_PTR TIMER_DEVICE_LOST    = 4;
 	static const UINT_PTR TIMER_FDC_CHANGED    = 5;
+	static const UINT_PTR TIMER_FILESTORE_SHUTDOWN = 6;
 
 	// Debug
 	bool m_WriteInstructionCounts;

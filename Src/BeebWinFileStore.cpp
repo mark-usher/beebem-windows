@@ -217,3 +217,81 @@ void BeebWin::UpdateFileStoreLEDs()
 }
 
 /****************************************************************************/
+
+// Before the FileStore is reset, closed or changed to another model, it
+// must flush its buffers to disc. Opening the drive door puts it into
+// maintenance mode, which does this, so open the door and wait two seconds
+// before carrying out the action. If the door is already open, the
+// buffers have already been flushed.
+//
+// Returns true if the action will be carried out later by
+// CompleteFileStoreShutdown(), or false if the caller should carry it out
+// now (not a FileStore).
+
+bool BeebWin::BeginFileStoreShutdown(FileStoreShutdownAction Action, Model NewModelType)
+{
+	if (!IsFileStore(MachineType))
+	{
+		return false;
+	}
+
+	if (m_FileStoreShutdownAction != FileStoreShutdownAction::None)
+	{
+		// Already shutting down: the latest request wins
+		m_FileStoreShutdownAction = Action;
+		m_FileStoreShutdownModel = NewModelType;
+		return true;
+	}
+
+	m_FileStoreShutdownAction = Action;
+	m_FileStoreShutdownModel = NewModelType;
+
+	if (FileStoreDoorOpen)
+	{
+		CompleteFileStoreShutdown();
+	}
+	else
+	{
+		SetFileStoreDoorOpen(true);
+		SetTimer(m_hWnd, TIMER_FILESTORE_SHUTDOWN, 2000, nullptr);
+	}
+
+	return true;
+}
+
+/****************************************************************************/
+
+void BeebWin::CompleteFileStoreShutdown()
+{
+	const FileStoreShutdownAction Action = m_FileStoreShutdownAction;
+	m_FileStoreShutdownAction = FileStoreShutdownAction::None;
+
+	// Close the door and leave command mode, ready for the next start
+	FileStoreDoorOpen = false;
+	CheckMenuItem(IDM_FILESTORE_DOOR_OPEN, false);
+	FileStoreCommandMode = false;
+	CheckMenuItem(IDM_FILESTORE_COMMAND_MODE, false);
+
+	switch (Action)
+	{
+		case FileStoreShutdownAction::Reset:
+			ResetBeebSystem(MachineType, false);
+			UpdateFileStoreDiscMenu();
+			break;
+
+		case FileStoreShutdownAction::Exit:
+			DestroyWindow(m_hWnd);
+			break;
+
+		case FileStoreShutdownAction::ChangeModel:
+			ResetBeebSystem(m_FileStoreShutdownModel, true);
+			UpdateModelMenu();
+			break;
+
+		case FileStoreShutdownAction::None:
+		default:
+			break;
+	}
+}
+
+/****************************************************************************/

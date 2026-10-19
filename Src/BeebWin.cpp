@@ -200,6 +200,8 @@ BeebWin::BeebWin()
 	m_hBitmap = nullptr;
 	m_hFileStoreBitmap = nullptr;
 	m_FileStoreLEDState = -1;
+	m_FileStoreShutdownAction = FileStoreShutdownAction::None;
+	m_FileStoreShutdownModel = Model::FileStoreE01;
 	ZeroMemory(&m_BitmapInfo, sizeof(m_BitmapInfo));
 	m_MonitorType = MonitorType::RGB;
 	m_screen = nullptr;
@@ -761,6 +763,12 @@ void BeebWin::SetModel(Model NewModelType)
 {
 	if (MachineType != NewModelType)
 	{
+		// Let the FileStore flush its buffers before changing model
+		if (BeginFileStoreShutdown(FileStoreShutdownAction::ChangeModel, NewModelType))
+		{
+			return;
+		}
+
 		ResetBeebSystem(NewModelType, true);
 		UpdateModelMenu();
 	}
@@ -2863,6 +2871,14 @@ LRESULT BeebWin::WndProc(UINT nMessage, WPARAM wParam, LPARAM lParam)
 			AMXButtons &= ~AMX_RIGHT_BUTTON;
 			break;
 
+		case WM_CLOSE:
+			// Let the FileStore flush its buffers before closing
+			if (!BeginFileStoreShutdown(FileStoreShutdownAction::Exit, MachineType))
+			{
+				DestroyWindow(m_hWnd);
+			}
+			break;
+
 		case WM_DESTROY: // Main window being destroyed
 			Shutdown();
 			PostQuitMessage(0);
@@ -4809,7 +4825,11 @@ void BeebWin::HandleCommand(UINT MenuID)
 		break;
 
 	case IDM_FILE_RESET:
-		ResetBeebSystem(MachineType, false);
+		// Let the FileStore flush its buffers before resetting
+		if (!BeginFileStoreShutdown(FileStoreShutdownAction::Reset, MachineType))
+		{
+			ResetBeebSystem(MachineType, false);
+		}
 		break;
 
 	case IDM_MODELB:
@@ -5286,8 +5306,9 @@ void BeebWin::OnActivate(bool Active)
 	{
 		m_Frozen = false;
 	}
-	else if (m_FreezeWhenInactive)
+	else if (m_FreezeWhenInactive && !IsFileStore(MachineType))
 	{
+		// The FileStore is a server, so keep it running when inactive
 		m_Frozen = true;
 	}
 
@@ -6082,6 +6103,11 @@ void BeebWin::OnTimer(UINT_PTR TimerID)
 		case TIMER_FDC_CHANGED:
 			KillTimer(m_hWnd, TIMER_FDC_CHANGED);
 			m_DisplayFDCBoardInfo = false;
+			break;
+
+		case TIMER_FILESTORE_SHUTDOWN:
+			KillTimer(m_hWnd, TIMER_FILESTORE_SHUTDOWN);
+			CompleteFileStoreShutdown();
 			break;
 	}
 }
