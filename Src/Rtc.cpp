@@ -52,16 +52,16 @@ Boston, MA  02110-1301, USA.
 // +----+----+-------------------------------------------------+---------------+
 // | Address | Description                                     |   DM=0    =1  |
 // +----+----+-------------------------------------------------+---------------+
-// | 00 | 00 | Seconds                                         | Binary or BCD |
-// | 01 | 01 | Seconds Alarm                                   | Binary or BCD |
-// | 02 | 02 | Minutes                                         | Binary or BCD |
-// | 03 | 03 | Minutes Alarm                                   | Binary or BCD |
-// | 04 | 04 | Hours                                           | Binary or BCD |
-// | 05 | 05 | Hours Alarm                                     | Binary or BCD |
-// | 06 | 06 | Day of Week (1 = Sun, 7 = Sat)                  | Binary or BCD |
-// | 07 | 07 | Date of Month                                   | Binary or BCD |
+// | 00 | 00 | Seconds (0 to 59)                               | Binary or BCD |
+// | 01 | 01 | Alarm Seconds (0 to 59)                         | Binary or BCD |
+// | 02 | 02 | Minutes (0 to 59)                               | Binary or BCD |
+// | 03 | 03 | Alarm Minutes (0 to 59)                         | Binary or BCD |
+// | 04 | 04 | Hours (0 to 23)                                 | Binary or BCD |
+// | 05 | 05 | Alarm Hours (0 to 23)                           | Binary or BCD |
+// | 06 | 06 | Day of week (1 = Sun, 7 = Sat)                  | Binary or BCD |
+// | 07 | 07 | Day of month (1 to 31)                          | Binary or BCD |
 // | 08 | 08 | Month (1 = Jan, 12 = Dec)                       | Binary or BCD |
-// | 09 | 09 | Year                                            | Binary or BCD |
+// | 09 | 09 | Year (last 2 digits)                            | Binary or BCD |
 // +----+----+-------------------------------------------------+---------------+
 // | 10 | 0A | Register A  |  UIP | DV2 | DV1 | DV0 |  RS3 | RS2 |  RS1  | RS0 |
 // | 11 | 0B | Register B  |  SET | PIE | AIE | UIE | SQWE |  DM | 24/12 | DSE |
