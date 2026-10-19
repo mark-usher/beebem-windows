@@ -1363,6 +1363,62 @@ static bool ReadRom(const std::string& RomFileName, int Bank)
 
 /*----------------------------------------------------------------------------*/
 
+// Load a FileStore ROM image straight into the 64K memory map. The FileStore
+// has no sideways ROM banks: the E01 has a 32K OS ROM at &8000 and a 32K FS
+// ROM at &0000, and the E01S has one 64K ROM covering the whole map.
+
+static bool ReadFileStoreRom(int Index, int Address, int Length)
+{
+	const std::string& RomName = RomConfig.GetFileName(MachineType, Index);
+	std::string RomFileName = GetRomFileName(RomName);
+
+	FILE *File = fopen(RomFileName.c_str(), "rb");
+
+	if (File == nullptr)
+	{
+		mainWin->Report(MessageType::Error,
+		                "Cannot open specified ROM:\n %s", RomFileName.c_str());
+
+		return false;
+	}
+
+	size_t BytesRead = fread(WholeRam + Address, 1, Length, File);
+	fclose(File);
+
+	if (BytesRead != (size_t)Length)
+	{
+		mainWin->Report(MessageType::Error,
+		                "ROM has wrong file size (expected %d bytes):\n %s",
+		                Length, RomFileName.c_str());
+
+		return false;
+	}
+
+	// Try to read ROM memory map:
+	std::string MapFileName = ReplaceFileExt(RomFileName, ".map");
+
+	DebugLoadMemoryMap(MapFileName.c_str(), 16);
+
+	return true;
+}
+
+/*----------------------------------------------------------------------------*/
+
+static void FileStoreReadRoms()
+{
+	if (MachineType == Model::FileStoreE01)
+	{
+		ReadFileStoreRom(0, 0x8000, 0x8000); // OS ROM
+		ReadFileStoreRom(1, 0x0000, 0x8000); // FS ROM
+	}
+	else
+	{
+		ReadFileStoreRom(0, 0x0000, 0x10000); // Combined OS and FS ROM
+	}
+}
+
+/*----------------------------------------------------------------------------*/
+
 void BeebReadRoms()
 {
 	// Clear ROMs
@@ -1374,6 +1430,12 @@ void BeebReadRoms()
 		memset(PALRom[bank].Rom, 0, sizeof(PALRom[bank].Rom));
 		PALRom[bank].Type = PALRomType::None;
 		PALRom[bank].Bank = 0;
+	}
+
+	if (IsFileStore(MachineType))
+	{
+		FileStoreReadRoms();
+		return;
 	}
 
 	// Read OS ROM
@@ -1495,8 +1557,13 @@ void BeebMemInit(bool LoadRoms, bool SkipIntegraBConfig)
 	  BeebReadRoms(); // Only load roms on start
   }
 
-  /* Put first ROM in */
-  memcpy(WholeRam + 0x8000, Roms[0xf], MAX_ROM_SIZE);
+  // The FileStore ROMs are loaded straight into WholeRam by BeebReadRoms()
+  if (!IsFileStore(MachineType))
+  {
+    /* Put first ROM in */
+    memcpy(WholeRam + 0x8000, Roms[0xf], MAX_ROM_SIZE);
+  }
+
   PagedRomReg=0xf;
 }
 

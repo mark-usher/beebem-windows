@@ -1309,6 +1309,8 @@ void Init6502Core()
 	{
 		case Model::Master128:
 		case Model::MasterET:
+		case Model::FileStoreE01:
+		case Model::FileStoreE01S:
 			CPUType = CPU::CPU65C12;
 			break;
 
@@ -3247,7 +3249,8 @@ void Exec6502Instruction()
 
 		OldNMIStatus = NMIStatus;
 
-		switch (TubeType)
+		// The FileStore has no Tube, so ignore any second processor setting
+		switch (IsFileStore(MachineType) ? TubeDevice::None : TubeType)
 		{
 			case TubeDevice::Acorn65C02: // 3MHz
 				SyncTubeProcessor();

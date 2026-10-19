@@ -225,7 +225,7 @@ void RomConfigDialog::OnMarkWritable()
 {
 	int Row = m_ROMListView.GetSelectionMark();
 
-	if (Row >= 1 && Row <= 16)
+	if (Row >= 1 && Row <= 16 && !IsFileStore(m_Model))
 	{
 		std::string RomFileName = m_RomConfig.GetFileName(m_Model, Row);
 
@@ -255,7 +255,7 @@ void RomConfigDialog::OnRAM()
 {
 	int Row = m_ROMListView.GetSelectionMark();
 
-	if (Row >= 1 && Row <= 16)
+	if (Row >= 1 && Row <= 16 && !IsFileStore(m_Model))
 	{
 		m_RomConfig.SetFileName(m_Model, Row, BANK_RAM);
 		UpdateROMField(Row);
@@ -270,7 +270,7 @@ void RomConfigDialog::OnEmpty()
 {
 	int Row = m_ROMListView.GetSelectionMark();
 
-	if (Row >= 1 && Row <= 16)
+	if (Row >= 1 && Row <= 16 && !IsFileStore(m_Model))
 	{
 		m_RomConfig.SetFileName(m_Model, Row, BANK_EMPTY);
 		UpdateROMField(Row);
@@ -285,7 +285,7 @@ void RomConfigDialog::OnMoveUp()
 {
 	int Row = m_ROMListView.GetSelectionMark();
 
-	if (Row >= 2)
+	if (Row >= 2 && !IsFileStore(m_Model))
 	{
 		int PreviousRow = Row - 1;
 
@@ -306,7 +306,7 @@ void RomConfigDialog::OnMoveDown()
 {
 	int Row = m_ROMListView.GetSelectionMark();
 
-	if (Row > 0)
+	if (Row > 0 && !IsFileStore(m_Model))
 	{
 		const int NextRow = Row + 1;
 		const int Count = m_ROMListView.GetItemCount();
@@ -346,6 +346,19 @@ void RomConfigDialog::FillROMList()
 	int Row = 0;
 	m_ROMListView.InsertItem(Row, 0, "OS", 16);
 	m_ROMListView.SetItemText(Row, 1, (LPTSTR)m_RomConfig.GetFileName(m_Model, 0).c_str());
+
+	if (m_Model == Model::FileStoreE01)
+	{
+		// The E01 has separate OS and FS ROMs, and no sideways ROM banks
+		m_ROMListView.InsertItem(1, 0, "FS", 15);
+		m_ROMListView.SetItemText(1, 1, (LPTSTR)m_RomConfig.GetFileName(m_Model, 1).c_str());
+		return;
+	}
+	else if (m_Model == Model::FileStoreE01S)
+	{
+		// The E01S has one combined OS and FS ROM
+		return;
+	}
 
 	for (Row = 1; Row <= 16; ++Row)
 	{

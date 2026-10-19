@@ -69,6 +69,8 @@ const char* const MachineTypeStr[] =
 	"BPlus",
 	"Master128",
 	"MasterET",
+	"FileStoreE01",
+	"FileStoreE01S",
 	nullptr
 };
 
@@ -378,6 +380,16 @@ void BeebWin::LoadHardwarePreferences(int Version)
 
 				case 3:
 					MachineType = Model::Master128;
+					break;
+
+				// Numbering used by the earlier FileStore branch, before
+				// Master ET was added
+				case 4:
+					MachineType = Model::FileStoreE01;
+					break;
+
+				case 5:
+					MachineType = Model::FileStoreE01S;
 					break;
 			}
 		}

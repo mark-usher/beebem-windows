@@ -25,11 +25,13 @@ enum class Model : unsigned char {
 	B,         // 0: BBC B
 	IntegraB,  // 1: BBC B with Integra B
 	BPlus,     // 2: BBC B+
-	Master128, // 3: BBC Master 128
-	MasterET   // 4: Master ET
+	Master128,     // 3: BBC Master 128
+	MasterET,      // 4: Master ET
+	FileStoreE01,  // 5: Acorn FileStore E01
+	FileStoreE01S  // 6: Acorn FileStore E01S
 };
 
-constexpr int MODEL_COUNT = 5;
+constexpr int MODEL_COUNT = 7;
 
 enum class CPU {
 	CPU6502,
@@ -37,5 +39,10 @@ enum class CPU {
 };
 
 const char* GetModelName(Model model);
+
+inline bool IsFileStore(Model model)
+{
+	return model == Model::FileStoreE01 || model == Model::FileStoreE01S;
+}
 
 #endif

@@ -770,7 +770,8 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 
 	SpeechStop();
 
-	if (NewModelType == Model::Master128 || NewModelType == Model::MasterET)
+	if (NewModelType == Model::Master128 || NewModelType == Model::MasterET ||
+	    IsFileStore(NewModelType))
 	{
 		SpeechEnabled = false;
 		CheckMenuItem(IDM_SPEECH, false);
@@ -819,7 +820,11 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 
 	RTCInit();
 
-	if (TubeType == TubeDevice::Acorn65C02)
+	if (IsFileStore(MachineType))
+	{
+		// The FileStore has no Tube
+	}
+	else if (TubeType == TubeDevice::Acorn65C02)
 	{
 		Init65C02Core();
 	}
@@ -1772,7 +1777,9 @@ void BeebWin::UpdateModelMenu()
 		{ IDM_MODELBINT,  Model::IntegraB },
 		{ IDM_MODELBPLUS, Model::BPlus },
 		{ IDM_MASTER128,  Model::Master128 },
-		{ IDM_MASTER_ET,  Model::MasterET }
+		{ IDM_MASTER_ET,  Model::MasterET },
+		{ IDM_FILESTORE_E01,  Model::FileStoreE01 },
+		{ IDM_FILESTORE_E01S, Model::FileStoreE01S }
 	};
 
 	UINT SelectedMenuItemID = 0;
@@ -1786,13 +1793,14 @@ void BeebWin::UpdateModelMenu()
 		}
 	}
 
-	CheckMenuRadioItem(IDM_MODELB, IDM_MASTER_ET, SelectedMenuItemID);
+	CheckMenuRadioItem(IDM_MODELB, IDM_FILESTORE_E01S, SelectedMenuItemID);
 
 	const bool IsMasterET = MachineType == Model::MasterET;
+	const bool IsFS = IsFileStore(MachineType);
 	const bool IsModelB = MachineType == Model::B || MachineType == Model::BPlus || MachineType == Model::IntegraB;
 
 	// File Menu Item
-	EnableMenuItem(IDM_RUNDISC, !IsMasterET);
+	EnableMenuItem(IDM_RUNDISC, !IsMasterET && !IsFS);
 	EnableMenuItem(IDM_LOADDISC0, !IsMasterET);
 	EnableMenuItem(IDM_LOADDISC1, !IsMasterET);
 	// Disc Options sub-menu
@@ -1804,7 +1812,7 @@ void BeebWin::UpdateModelMenu()
 	EnableMenuItem(IDM_WRITE_PROTECT_DISC1, !IsMasterET);
 	EnableMenuItem(IDM_WRITE_PROTECT_ON_LOAD, !IsMasterET);
 
-	EnableMenuItem(IDM_LOADTAPE, !IsMasterET);
+	EnableMenuItem(IDM_LOADTAPE, !IsMasterET && !IsFS);
 
 	// Edit Menu Item
 	EnableMenuItem(IDM_DISC_IMPORT_0 , !IsMasterET);
@@ -1818,16 +1826,16 @@ void BeebWin::UpdateModelMenu()
 
 	// Comms Menu Item
 	// Tape speed sub-menu
-	EnableMenuItem(IDM_TAPE_FAST, !IsMasterET);
-	EnableMenuItem(IDM_TAPE_MFAST, !IsMasterET);
-	EnableMenuItem(IDM_TAPE_MSLOW, !IsMasterET);
-	EnableMenuItem(IDM_TAPE_NORMAL, !IsMasterET);
+	EnableMenuItem(IDM_TAPE_FAST, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_TAPE_MFAST, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_TAPE_MSLOW, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_TAPE_NORMAL, !IsMasterET && !IsFS);
 
-	EnableMenuItem(IDM_REWINDTAPE, !IsMasterET);
-	EnableMenuItem(IDM_UNLOCKTAPE, !IsMasterET);
-	EnableMenuItem(IDM_TAPECONTROL, !IsMasterET);
-	EnableMenuItem(IDM_SERIAL, !IsMasterET);
-	EnableMenuItem(IDM_SELECT_SERIAL_DESTINATION, !IsMasterET);
+	EnableMenuItem(IDM_REWINDTAPE, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_UNLOCKTAPE, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_TAPECONTROL, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_SERIAL, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_SELECT_SERIAL_DESTINATION, !IsMasterET && !IsFS);
 
 	// View Menu Item
 	// LED sub-menu
@@ -1836,42 +1844,66 @@ void BeebWin::UpdateModelMenu()
 	EnableMenuItem(IDM_SHOW_DISCLEDS, !IsMasterET);
 
 	// Sound Menu Item
-	EnableMenuItem(IDM_MUSIC5000, !IsMasterET);
+	EnableMenuItem(IDM_MUSIC5000, !IsMasterET && !IsFS);
 
 	// AMX Menu Item
-	EnableMenuItem(IDM_AMXONOFF, !IsMasterET);
-	EnableMenuItem(IDM_CAPTUREMOUSE, AMXMouseEnabled && !IsMasterET);
-	EnableMenuItem(IDM_AMX_LRFORMIDDLE, !IsMasterET);
-	EnableMenuItem(IDM_AMX_LRFORMIDDLE, !IsMasterET);
-	EnableMenuItem(IDM_AMX_160X256, !IsMasterET);
-	EnableMenuItem(IDM_AMX_320X256, !IsMasterET);
-	EnableMenuItem(IDM_AMX_640X256, !IsMasterET);
-	EnableMenuItem(IDM_AMX_ADJUSTP50, !IsMasterET);
-	EnableMenuItem(IDM_AMX_ADJUSTP30, !IsMasterET);
-	EnableMenuItem(IDM_AMX_ADJUSTP10, !IsMasterET);
-	EnableMenuItem(IDM_AMX_ADJUSTM10, !IsMasterET);
-	EnableMenuItem(IDM_AMX_ADJUSTM30, !IsMasterET);
-	EnableMenuItem(IDM_AMX_ADJUSTM50, !IsMasterET);
+	EnableMenuItem(IDM_AMXONOFF, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_CAPTUREMOUSE, AMXMouseEnabled && !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_AMX_LRFORMIDDLE, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_AMX_LRFORMIDDLE, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_AMX_160X256, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_AMX_320X256, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_AMX_640X256, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_AMX_ADJUSTP50, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_AMX_ADJUSTP30, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_AMX_ADJUSTP10, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_AMX_ADJUSTM10, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_AMX_ADJUSTM30, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_AMX_ADJUSTM50, !IsMasterET && !IsFS);
 
 	// Hardware Menu
-	EnableMenuItem(IDM_AMX_ADJUSTM50, !IsMasterET);
+	EnableMenuItem(IDM_AMX_ADJUSTM50, !IsMasterET && !IsFS);
 	// Model B Floppy Controller sub-menu
 	EnableMenuItem(IDM_8271, IsModelB);
 	EnableMenuItem(IDM_FDC_DLL, IsModelB);
 
-	EnableMenuItem(IDM_BASIC_HARDWARE_ONLY, !IsMasterET);
-	EnableMenuItem(IDM_TELETEXT, !IsMasterET);
-	EnableMenuItem(IDM_SELECT_TELETEXT_DATA_SOURCE, !IsMasterET);
+	EnableMenuItem(IDM_BASIC_HARDWARE_ONLY, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_TELETEXT, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_SELECT_TELETEXT_DATA_SOURCE, !IsMasterET && !IsFS);
 	EnableMenuItem(IDM_SET_KEYBOARD_LINKS, IsModelB);
 	EnableMenuItem(IDM_FLOPPY_DRIVE, !IsMasterET);
 	EnableMenuItem(IDM_SCSI_HARD_DRIVE, !IsMasterET);
-	EnableMenuItem(IDM_IDE_HARD_DRIVE, !IsMasterET);
+	EnableMenuItem(IDM_IDE_HARD_DRIVE, !IsMasterET && !IsFS);
 	EnableMenuItem(IDM_SELECT_HARD_DRIVE_FOLDER, !IsMasterET);
-	EnableMenuItem(IDM_BREAKOUT, !IsMasterET);
-	EnableMenuItem(IDM_USER_PORT_RTC_MODULE, !IsMasterET);
+	EnableMenuItem(IDM_BREAKOUT, !IsMasterET && !IsFS);
+	EnableMenuItem(IDM_USER_PORT_RTC_MODULE, !IsMasterET && !IsFS);
 
 	// Options Menu
-	EnableMenuItem(IDM_CONFIGURE_JOYSTICK, !IsMasterET);
+	EnableMenuItem(IDM_CONFIGURE_JOYSTICK, !IsMasterET && !IsFS);
+
+	// The FileStore has no display, keyboard or Tube
+	EnableMenuItem(IDM_CAPTURESCREEN, !IsFS);
+	EnableMenuItem(IDM_CAPTUREVIDEO, !IsFS);
+	EnableMenuItem(IDM_ENDVIDEO, !IsFS);
+	EnableMenuItem(IDM_EDIT_COPY, !IsFS);
+	EnableMenuItem(IDM_EDIT_PASTE, !IsFS);
+	EnableMenuItem(IDM_TELETEXTHALFMODE, !IsFS);
+	EnableMenuItem(IDM_HIDECURSOR, !IsFS);
+	EnableMenuItem(IDM_DEFINEKEYMAP, !IsFS);
+	EnableMenuItem(IDM_LOADKEYMAP, !IsFS);
+	EnableMenuItem(IDM_SAVEKEYMAP, !IsFS);
+	EnableMenuItem(IDM_USERKYBDMAPPING, !IsFS);
+	EnableMenuItem(IDM_DEFAULTKYBDMAPPING, !IsFS);
+	EnableMenuItem(IDM_LOGICALKYBDMAPPING, !IsFS);
+	EnableMenuItem(IDM_MAPAS, !IsFS);
+	EnableMenuItem(IDM_MAPFUNCS, !IsFS);
+	EnableMenuItem(IDM_TUBE_NONE, !IsFS);
+	EnableMenuItem(IDM_TUBE_ACORN65C02, !IsFS);
+	EnableMenuItem(IDM_TUBE_MASTER512, !IsFS);
+	EnableMenuItem(IDM_TUBE_ACORNZ80, !IsFS);
+	EnableMenuItem(IDM_TUBE_TORCHZ80, !IsFS);
+	EnableMenuItem(IDM_TUBE_ACORNARM, !IsFS);
+	EnableMenuItem(IDM_TUBE_SPROWARM, !IsFS);
 }
 
 void BeebWin::UpdateSFXMenu()
@@ -4736,6 +4768,14 @@ void BeebWin::HandleCommand(UINT MenuID)
 
 	case IDM_MASTER_ET:
 		SetModel(Model::MasterET);
+		break;
+
+	case IDM_FILESTORE_E01:
+		SetModel(Model::FileStoreE01);
+		break;
+
+	case IDM_FILESTORE_E01S:
+		SetModel(Model::FileStoreE01S);
 		break;
 
 	case IDM_REWINDTAPE:

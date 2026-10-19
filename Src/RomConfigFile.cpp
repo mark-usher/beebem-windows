@@ -137,6 +137,46 @@ static const char* DefaultRoms[MODEL_COUNT][ROM_BANK_COUNT + 1] =
 		BANK_EMPTY,
 		BANK_EMPTY,
 		BANK_EMPTY
+	},
+	// Acorn FileStore E01: OS ROM, FS ROM (other entries unused)
+	{
+		"FILESTORE-E01\\E01-v140-MOS.rom",
+		"FILESTORE-E01\\E01-v140-FS.rom",
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY
+	},
+	// Acorn FileStore E01S: combined OS and FS ROM (other entries unused)
+	{
+		"FILESTORE-E01S\\E01S-v140.rom",
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY,
+		BANK_EMPTY
 	}
 };
 
