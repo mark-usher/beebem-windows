@@ -1,18 +1,19 @@
 # Rebase notes, October 2026: FileStore, Master ET and keyboard work onto Codeberg master
 
-Version 1.0, 19 Oct 2026. Written while building the branches.
+Version 1.1, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
 
 ## Summary
 
 | Branch | Base | Commits | State |
 |---|---|---|---|
-| `filestore-codeberg` | dccbcc8 | 11 + this notes commit | FileStore E01/E01S ported onto current upstream as logical commits. Needs a Visual Studio build and testing. |
+| `filestore-codeberg` | dccbcc8 | 11 + notes + 21 follow-ups | FileStore E01/E01S ported onto current upstream as logical commits, then the drawn front panel, hard drive unit settings, hardware accuracy from the service manual and the shared 1770/2793 FDC code (see "Changes after the port"). Builds warning-free with VS2019 (Debug x64); needs testing. |
 | `master-et-codeberg` | dccbcc8 | 0 | Everything worth keeping is already upstream; branch equals the base. |
 | `keyboard-fix-codeberg` | dccbcc8 | 1 | aff61a2 cherry-picked unchanged. Review recommends **not** merging as is. |
 
 - **Base used:** `codeberg-master` = **dccbcc8** "Added FixSerialULARead Preference setting" (14 Oct 2026). Codeberg itself could not be reached when the branches were built, so a newer Codeberg head was not checked. If Codeberg has moved on, rebase the three branches onto it; the FileStore commits touch few upstream lines, so this should be easy.
-- **Not built.** The cloud cannot run MSVC. Every source file was syntax-checked with MinGW-w64 g++ (`-fsyntax-only`, project defines incl. `NOMINMAX`), compared with a baseline of upstream dccbcc8: no new failures. Four upstream files fail under MinGW even unchanged (BeebWinDx, BeebWinSpeech, Debug, Speech: DirectX/SAPI/MSVC specifics); for those the error lists were compared and are identical. **A Visual Studio build on Windows is still needed.**
-- **.vcxproj/.filters** list every new file: `FileStore.cpp/.h`, `Disc2793.cpp/.h`, `BeebWinFileStore.cpp`, `Help/filestore.html` (also in the Inno Setup script).
+- **Built by Mark** on SURFACE7 with Visual Studio 2019, Debug x64, with no errors and no warnings (see "Build findings"). Every change is also syntax-checked with MinGW-w64 g++ (`-fsyntax-only`, project defines incl. `NOMINMAX`) first. Four upstream files fail under MinGW even unchanged (BeebWinDx, BeebWinSpeech, Debug, Speech: DirectX/SAPI/MSVC specifics). MinGW's GDI+ headers differ from the Windows SDK's, which hid one MSVC error (22463e5).
+- **.vcxproj/.filters** list every new file: `FileStore.cpp/.h`, `BeebWinFileStore.cpp`, `FileStorePanelArt.h`, `Help/filestore.html` (also in the Inno Setup script). `Disc2793.cpp/.h` were removed again by c79ac79.
+- **Tools** (not part of the build): `Tools/FileStorePanelArt/` generates `FileStorePanelArt.h` from the Vidaloka font (SIL OFL 1.1, licence included); `Tools/FileStoreIcon/` generates `FileStore.ico`.
 
 ## filestore-codeberg
 
@@ -29,7 +30,7 @@ Rather than threading `MachineType == FileStoreE01 || ...` tests through `BeebRe
 - `Model.h`: `FileStoreE01`, `FileStoreE01S` after `MasterET`, plus `IsFileStore(Model)`.
 - `FileStore.cpp` (new): the whole &FC00-&FCFF I/O page, front panel switches, control latch and per-frame polling. `BeebReadMem`/`BeebWriteMem` dispatch FileStore models to it first, so the B/B+/Integra-B/Master paths are untouched.
 - `BeebWinFileStore.cpp` (new): window side: drive door, disc menu enabling, front panel drawing, LEDs, shutdown sequence.
-- `Disc2793.cpp` (new): the 2793 FDC.
+- `Disc2793.cpp` (new): the 2793 FDC. Since c79ac79 the FileStore uses `Disc1770.cpp` instead, in WD2793 mode (see "Changes after the port").
 - Small hooks elsewhere (`6502core.cpp` PollHardware/PollVIAs/CPU type, `Rtc.cpp`, `Scsi.cpp`, `Econet.cpp`, `BeebWinIo.cpp`, `BeebWinPrefs.cpp`, `Debug.cpp`, menus).
 
 ### Commit mapping, old -> new
@@ -87,15 +88,15 @@ Old commits not carried over (already upstream, superseded or not FileStore):
 - **Register C** now returns its value and clears all flags and the IRQ on any read (old: only when it was exactly &90; otherwise returned 0 without clearing).
 - **SET bit** still does not move the FileStore clock (it always follows the PC clock), as before.
 - **Frame timing / speed regulation**: countdown of 40,000 cycles per frame, as before.
-- **FDC:** behaviour preserved, including that every Type I/II/III command waits for the 2793 spin-up delay (the "no motor-on bit" emulation). TR00 is never inverted in FileStore mode (old code could inherit the Watford board setting). `CurrentDisc` is cleared when its drive closes (was left dangling).
+- **FDC:** behaviour preserved, including that every Type I/II/III command waits for the 2793 spin-up delay (the "no motor-on bit" emulation). TR00 is never inverted in FileStore mode (old code could inherit the Watford board setting). `CurrentDisc` is cleared when its drive closes (was left dangling). Since c79ac79 this is `Disc1770.cpp` in WD2793 mode, so the FileStore also gets the later upstream 1770 fixes.
 - **E01 OS ROM at &8000-&BFFF**: the old BeebMemInit copied sideways ROM bank 15 over the first 16K of the E01 OS ROM after loading it; that copy is skipped for the FileStore now, so the whole 32K ROM image stays. (Worked before because that half of E01-v140-MOS.rom is almost empty: 16,344 of its 16,384 bytes are &FF, only 40 bytes are data.)
 - **Write Protect on Load** is not applied in FileStore mode (old code switched the preference off instead).
 - **Freeze when inactive** is ignored in FileStore mode (old code switched the preference off).
 - **Display renderer/window size** are no longer forced to GDI and 640x512 (the old code changed those preferences for every model). The panel is drawn with GDI whatever the renderer.
 - **Econet** is still forced on in FileStore mode, but the user's own setting is kept for other models and saved to Preferences.cfg (the old code overwrote it). The Econet menu item is disabled in FileStore mode.
-- **Shutdown**: reset/exit/model change open the door, wait 2 s, then act; door closed and command mode off afterwards. File > Reset, Break (F12), Exit/close, model change and Select Hard Drive Folder's "reset now" go through this. Loading preferences and Windows log-off/shutdown are not intercepted. A pending shutdown is cancelled if the model is changed some other way, and the door menu item is disabled while one is pending.
+- **Shutdown**: reset/exit/model change open the door, wait 2 s, then act; door closed afterwards. File > Reset, Break (F12), Exit/close, model change and Select Hard Drive Folder's "reset now" go through this. Loading preferences and Windows log-off/shutdown are not intercepted. A pending shutdown is cancelled if the model is changed some other way, and the door menu item is disabled while one is pending.
 - **Tube/co-processors** are not run in FileStore mode (old code skipped initialising them but still ran them, which could crash with an ARM/Z80 setting).
-- **Not available in FileStore mode** (menus disabled): Run Disc, tape, serial, Music 5000, AMX, teletext, IDE, user port breakout/RTC, joystick, key maps, copy/paste, screen/video capture, Tube, disc import/export (DFS only), **Save/Load State** (the UEF state format does not cover the FileStore hardware).
+- **Not available in FileStore mode** (menus disabled): Run Disc, tape, serial, Music 5000, AMX, teletext, IDE, user port breakout/RTC, joystick, key maps, copy/paste, screen/video capture, Tube, disc import/export (DFS only), **Save/Load State** (the UEF state format does not cover the FileStore hardware). Added later (96b4a9d, 6be08f6): Translate CR-LF, View > LEDs, Motion Blur, Allow SW RAM Write, Solidisk SW RAM Board, Floppy Drive On/Off, Disable Keys; sub-menus whose items are all disabled are greyed too.
 - **User port devices** (AMX mouse, User Port RTC, breakout box) are ignored in FileStore mode, because BeebEm's user VIA is the FileStore's system VIA. The printer output stays connected.
 - **RTC address** written to &FC00 (and by the Master's system VIA) is masked to 6 bits, as on the 146818. Before, an address of &40 or more read or wrote past that model's CMOS RAM.
 - **Floppies** loaded in FileStore mode are writable unless the image file is read only.
@@ -111,20 +112,55 @@ Old commits not carried over (already upstream, superseded or not FileStore):
 - After review: Break (F12) reset the co-processor (null pointer with an ARM Tube setting) instead of the FileStore; Quick Save/Load shortcuts and dropped state files bypassed the disabled menus; a failed disc reload left `CurrentDisc` pointing at a closed file; floppies could load write-protected from a stale shared flag; AMX/User Port RTC could drive the FileStore system VIA.
 - The old write path set `LEDs.ShowKB/ShowFS/ShowDisc/CapsLock` on every unhandled I/O write ("temporary"); removed.
 
-### Front panel (new, fa69bfb)
+### Front panel (new, fa69bfb; redrawn from photos since)
 
-At Mark's request the three 24-bit BMPs (about 465 KB) are replaced by a GDI drawing scaled to the window: the E01/E01S unit (label differs only), door flap closed or open showing floppy drives 4 and 5 with green activity LEDs, green power and red MODE LEDs; below it one hard drive unit per `scsiN.dat` found in the hard drive folder, labelled E20/E40S/E60S from the image size (<=25/45/70 MB, otherwise "SCSI drive"), with green power and red activity LEDs. Drawn off screen and copied; redrawn when an LED changes (checked once per emulated frame), on door/SCSI changes and on resize. Proportions and colours are a first approximation; Mark is sending photos to refine them.
+At Mark's request the three 24-bit BMPs (about 465 KB) are replaced by a drawing scaled to the window, refined from Mark's photos of real units (ff41e68 to 4aa562f):
+
+- The FileStore at the top with one hard drive unit per attached SCSI drive stacked underneath (none for a floppy-only FileStore). The window height is fitted to the units, and the window size used by other models is kept and restored.
+- Cream case and recessed base; see-through amber flap over a very dark black-brown fascia, with a bevelled edge and 60 evenly spaced stripes on a whole-pixel pitch.
+- Black model label ("FILESTORE E01", "E01 S", "E20", "E40 S", "E60 S" or a custom label, with a half space before a trailing S) and Acorn badge. Lettering is Vidaloka (chosen by Mark), compiled in as outlines because GDI+ cannot load CFF OpenType fonts; the Acorn logo is traced from a photo of a badge. Both are in `FileStorePanelArt.h`.
+- Door open: two floppy bays, each a blank panel and a 3.5" drive, with a black shutter when empty or a thin filled-in disc when loaded, and the lime activity LED. The LEDs glow through the closed door.
+- MODE (red) and POWER (green) LEDs with tan labels; on hard drive units the red DRIVE LED shows disc activity and is always red (the View > LEDs colour does not apply).
+- Drawn into a 32-bit DIB section with per-pixel blending, GDI+ for text and logo; redrawn when an LED or disc changes (checked once per emulated frame), on door/drive changes and on resize.
+
+### Changes after the port (19-20 Oct 2026)
+
+| Commits | Change |
+|---|---|
+| ff41e68, 7654fea, c1ffe55, 966fbc1, a784f09, 6e5713c, 93446bf, 726bd12, 4aa562f | Front panel redrawn from Mark's photos (see "Front panel"); Vidaloka lettering and traced Acorn logo |
+| 22463e5, 1a12875, 2d128f2, 998e5db | Build fixes and warnings (see "Build findings"); style tidy-up to match the BeebEm code |
+| 91ca359, 6be08f6 | Hardware > FileStore Hard Drive Units: each of drives 0-3 is None, Auto (attached if `scsiN.dat` exists, labelled from its size), E20, E40S, E60S or a custom label of up to 4 characters. Saved as `FileStoreDrive0`-`3` in the preferences file; a custom label is set there (any value that is not a keyword). A drive set to None is not attached, and a missing image for an Auto drive no longer gives an error. Changing a drive restarts the FileStore after flushing. |
+| 6be08f6 | File > FileStore Command Mode removed; &FC2C bit 7 reads as off. `BeebWin::EnableSubMenu()` greys a sub-menu found from an item in it (by position, as sub-menus have no command ID). |
+| 96b4a9d, bd91b03 | More menus disabled in FileStore mode; floppy drives cannot be switched off; the I/O page is not slowed to 1MHz (the FileStore's bus runs at 2MHz); DRIVE LED always red |
+| 998e5db | Fix: VIA writes were stretched twice |
+| 436db67 | From the service manual: the 6522A is clocked at 2MHz, so its timers count at 2MHz on the FileStore (`UserVia.cpp`, counts halved for the interrupt lead time); page &FC repeats every &40 and the RTC, latch, INTON/INTOFF and switch registers answer on 4 addresses each; DRAM refresh holds the CPU for one cycle at the first opcode fetch after every 30 cycles (about 3% slower than a plain 2MHz) |
+| 96b4a9d, c79ac79 | Fix from upstream: the "confusion spin" time-out was an unbraced `if` in the 2793 copy |
+| c79ac79 | `Disc2793.cpp/.h` removed. The FileStore uses `Disc1770.cpp` with `Set1770FDCType(FDCType::WD2793)`, set in `ResetBeebSystem()`. WD2793 differences kept from the original port: no Motor On status bit (bit 7 is Not Ready, and the drives are always ready), so every command waits for the head to load; index bit cleared when idle; density check on Type I commands and not on Read Address; settle 60,000 and revolution 333,333 cycles; floppies cannot be disabled. `BeebWin::Load2793DiscImage()` is now `LoadFileStoreDiscImage()`; write protecting a FileStore disc now acts on the drive the FileStore uses. |
+| 1a4c98b | `FileStore.ico` for a shortcut |
+
+References used (on the `reference-docs` branch, not for merging): FileStore Service Manual v2 (Mark Ferns / Mark Usher, 2010) and the WD279X-02 data sheet.
+
+### Build findings (SURFACE7, Visual Studio 2019)
+
+- `DXSDK_Dir` must be set in `Src/BeebEm.user.props` (copy of `BeebEm.user.props.example`).
+- `afxres.h` not found: install the MFC component of VS2019.
+- Set BeebEm (not ZipFile) as the startup project.
+- Opening the solution in VS2019 retargets the projects from `v140_xp` to `v141_xp`, which gives warning MSB8051 (XP support deprecated). Retargeting locally to `v142` removes it; this stays a local change, the repo still targets VS2015.
+- `gdiplus.h` needs `using std::min/max` before it (NOMINMAX), as elsewhere in BeebEm (22463e5).
+- Upstream warnings fixed: C4267 in Debug.cpp (1a12875); C4996 from `sphelper.h` with the Windows 8.1 SDK (2d128f2).
+- A Rebuild empties `Src\x64\Debug`; the `.snd` samples and `Teletext.fnt` are not always copied back by the build. Copy them by hand if BeebEm reports them missing.
+- Run with your own data folder, e.g. `-Data "C:\BeebEm-FileStore\TestData" -Prefs FSE01.cfg -Roms Roms_FS.cfg -ecostn 243`, so the repo's UserData stays upstream.
 
 ### Questions for Mark (FileStore)
 
 1. **RTC update period.** Keep 10 ms (as the old timer) or use the real 1 s? If the FileStore ROM counts update-ended interrupts for its time-outs, 10 ms makes them 100x faster.
-2. **E01 CPU.** The E01 has a Rockwell 65C102 (with BBR/BBS/RMB/SMB). BeebEm emulates the Master's 65SC12 instruction set for it, as before. Does the FileStore ROM use the Rockwell bit instructions? (No problem was seen on the old branch.)
+2. **E01 CPU.** The E01 has a Rockwell 65C102 (with BBR/BBS/RMB/SMB). BeebEm emulates the Master's 65SC12 instruction set for it, as before. Does the FileStore ROM use the Rockwell bit instructions? (No problem was seen on the old branch.) *Still open (20 Oct): Mark is checking the FileStore source/ROMs.*
 3. **Door and SET bit.** Should the FileStore be able to set its own clock (`*FSDATE`-style), i.e. honour the SET bit like the Master? Currently not, as before.
-4. **System VIA write timing.** Every write to &FC10-&FC1F stretches the cycle twice (SyncIO/AdjustForIOWrite for the page and again for the VIA), as on the old branch. Upstream does it once. Kept for now so timing is unchanged; drop the inner pair if testing shows no difference.
+4. **System VIA write timing.** *Resolved (20 Oct):* the FileStore's I/O bus runs at 2MHz (Mark; service manual), so FileStore I/O accesses are no longer stretched at all (96b4a9d), and the 6522A's timers count at 2MHz (436db67).
 5. **Station number.** EconetReset() overwrites FileStore CMOS bytes 14/15 with the station from Econet.cfg / `-EcoStn` on every reset, as before. Keep?
 6. **Save state** is disabled for FileStore. Worth adding later (64K RAM, VIA, RTC/CMOS, 2793, SCSI, front panel)?
-7. **WD17xx subclassing.** Disc2793.cpp is a copy of the 2022 1770 code with these differences: no Motor On status bit, spin-up never disabled, density check on Type I, index bit cleared when idle, SETTLE_TIME/ONE_REV_TIME, no TR00 inversion, control-register bit order, no CreateADFSImage/UEF. Recommended next step: turn Disc1770 into a class with a 2793 variant, as a separate change (it touches Master/B+ FDC code and pulls upstream's later 1770 fixes into the FileStore).
-8. **Knowledge sheets.** Facts worth writing back to the Acorn knowledge sheets: FileStore memory map &FC00-&FC33 as implemented here; control latch &FC08 bits; front panel switches &FC2C (b6 door, b7 command E01); SCSI drive = selected target ID bit (1/2/4/8 -> 0-3); RTC update-ended IRQ used by the FileStore; CMOS defaults above.
+7. **WD17xx subclassing.** *Resolved (20 Oct, c79ac79):* Mark chose an FDC type rather than a class. `Disc1770.cpp` has `Set1770FDCType(FDCType::WD1770 / WD2793)`; the WD2793 keeps the differences listed in "Changes after the port". The control register needed no change (the FileStore latch is mapped to the 1770 layout in FileStore.cpp).
+8. **Knowledge sheets.** Facts worth writing back to the Acorn knowledge sheets: FileStore memory map &FC00-&FC33 as implemented here, repeating every &40 with 4-byte aliases (service manual 4.13.3); control latch &FC08 bits; front panel switches &FC2C (b6 door, b7 command E01; SW3, the COMMAND/USER input, is the optical door sensor, Mark 20 Oct); SCSI drive = selected target ID bit (1/2/4/8 -> 0-3); RTC update-ended IRQ used by the FileStore; CMOS defaults above; 65C102 at 2MHz from an 8MHz crystal; 6522A VIA on φ2 (2MHz); DRAM refresh holds the CPU for one cycle at the first opcode fetch after every 30 cycles (refresh every 15µs); 2793 at 250kbps MFM (1MHz FDC clock, so the 1770's step and settle times apply).
 
 ### Manual test plan (Windows, after a Visual Studio build)
 
@@ -134,14 +170,16 @@ Use a copy of the UserData folder so your normal Preferences.cfg is not changed.
 2. **Old preferences:** start with a Preferences.cfg saved by the old FileStore build (MachineType=04 or 05). Expect it to come up as E01/E01S, with its CMOSRamE01/E01S kept.
 3. **Econet:** with Econet.cfg giving the FileStore a station (e.g. 254), log on from an emulated or real station (`*I AM SYST`), catalogue, save and load a file. Check the station number in CMOS with the debugger: `state c` (bytes &0E/&0F).
 4. **SCSI drives:** Hardware > SCSI Hard Drive on, with scsi0.dat (and scsi1.dat) in the hard drive folder. Expect one drive unit per image under the FileStore, labelled by size, red LED flashing on access, and files on both drives reachable. (This is the 99e3eb5 target ID mapping.)
-5. **Floppies:** File > FileStore Door Open; expect the drive picture, Load Disc enabled. Load an ADFS/AFS0 floppy into drive 4, close the door, and use it from a station. Try loading an .ssd: expect "The FileStore can only use ADFS discs".
-6. **Command mode (E01):** File > FileStore Command Mode, and check the FileStore responds as it does on real hardware; the option is greyed for the E01S.
+5. **Floppies:** File > FileStore Door Open; expect the drive picture, Load Disc enabled. Load an ADFS/AFS0 floppy into drive 4, close the door, and use it from a station (`*CAT`, `*SDISC`). The floppy LED should glow through the closed door during access. Try loading an .ssd: expect "The FileStore can only use ADFS discs". (Repeat after any change to Disc1770.cpp, which now serves both machines.)
+6. **Hard drive units:** Hardware > FileStore Hard Drive Units: set drives to None/Auto/E20/E40 S/E60 S; the FileStore restarts after flushing, and the units shown follow the settings. Put `FileStoreDrive2=CUST` in the preferences file and check the custom label and its menu item.
 7. **Shutdown flush:** write a file from a station, then File > Reset. Expect the door to open, a 2 s pause, then the reset, with the file intact afterwards. Repeat with File > Exit, with F12, and with a model change to Master 128. With the door already open, File > Reset should reset at once (this used to recurse and crash).
 8. **RTC:** `*TIME`-style date/time on a station from the FileStore matches the PC clock; the FileStore keeps working for more than a few minutes (RTC interrupt, see open questions 1 and the IRQ mask change).
 9. **Inactive window:** with Options > Freeze when inactive ticked, switch to another window; the FileStore must keep serving. Switch to Master 128 and check the option still works there.
 10. **Other models unaffected:** Model B with DFS, Master 128 with ADFS floppy, Master ET with Econet: load and run discs, Save/Load State, AMX mouse, User Port RTC. Expect no change from upstream. Econet on/off setting for those models must be what it was before using the FileStore.
 11. **Debugger:** with the debugger open on a FileStore, tick CMOS trace; expect RTC reads/writes in the log. `state c` shows the clock registers.
 12. **Renderers:** try the FileStore with GDI, DirectDraw and DirectX9 renderers and resize the window; the panel should redraw cleanly in each.
+13. **Start-up sequence** (service manual 5): power and MODE LEDs light, any hard drive unit's LED flickers, the floppy LED lights, then only power stays on.
+14. **Timing:** the FileStore clock keeps time, and printer/Econet time-outs behave as on the real unit (VIA timers now at 2MHz, refresh wait states added).
 
 ## master-et-codeberg
 
@@ -426,9 +464,9 @@ Before building a mechanism, it is worth first showing that the lost key-up happ
 
 ## Next steps for Mark
 
-1. Build all three branches in Visual Studio (Release and Debug) on SURFACE7; fix anything MSVC reports that MinGW did not.
+1. Build the Release configuration as well (Debug x64 builds warning-free); build master-et-codeberg and keyboard-fix-codeberg.
 2. Run the FileStore test plan above, and the keyboard test plan if you still want that change.
-3. Answer the open questions in each section (FileStore 1-8, Master ET 1-4, keyboard 1-3).
+3. Answer the remaining open questions (FileStore 1, 2, 3, 5, 6; Master ET 1-4; keyboard 1-3).
 4. Only then ask Chris to delete `filestore`, `filestore-2` and `LocalMaster` on Codeberg (and stardot), as in Part A step 5.
 
 ## Change log
@@ -436,3 +474,4 @@ Before building a mechanism, it is worth first showing that the lost key-up happ
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 19 Oct 2026 | First version, written while building the branches |
+| 1.1 | 20 Oct 2026 | Added "Changes after the port" and "Build findings"; front panel, behaviour changes, open questions (4 and 7 resolved), test plan and next steps updated for the work up to 1a4c98b |
