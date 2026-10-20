@@ -1,6 +1,6 @@
 # Rebase notes, October 2026: FileStore, Master ET and keyboard work onto Codeberg master
 
-Version 1.4, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
+Version 1.5, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
 
 ## Summary
 
@@ -180,6 +180,27 @@ Use a copy of the UserData folder so your normal Preferences.cfg is not changed.
 12. **Renderers:** try the FileStore with GDI, DirectDraw and DirectX9 renderers and resize the window; the panel should redraw cleanly in each.
 13. **Start-up sequence** (service manual 5): power and MODE LEDs light, any hard drive unit's LED flickers, the floppy LED lights, then only power stays on.
 14. **Timing:** the FileStore clock keeps time, and printer/Econet time-outs behave as on the real unit (VIA timers now at 2MHz, refresh wait states added).
+
+## filestore-econet (FileStore with econet-reworking-2)
+
+On 20 Oct 2026 Mark fetched Codeberg: **master is still dccbcc8**, so filestore-codeberg, master-et-codeberg and keyboard-fix-codeberg are already on the current upstream master and need no rebase. Copies of the Codeberg branches are on GitHub as `codeberg-master-20261020` and `codeberg-econet-reworking-2`.
+
+`econet-reworking-2` (4c0b74b, 116 commits by Chris Needham and ZXGuesser) reworks Econet: I/O completion port sockets (`UdpServer`), `EconetConfig`, station auto-configuration and discovery, gateway discovery, an Econet timer, and an Econet Network dialog with a log. It branched from master before dccbcc8 (merge base c1e0ea3).
+
+`filestore-econet` = filestore-codeberg + a merge of econet-reworking-2 (4595eb1). Conflicts and how they were resolved:
+
+| File | Conflict | Resolution |
+|---|---|---|
+| Resource.h | FileStore menu IDs 40327-40329 clashed with IDM_ECONET_NETWORK, IDM_COPY, IDM_SELECT_ALL | FileStore IDs moved to 40330-40357 |
+| BeebWin.h | TIMER_ECONET and TIMER_FILESTORE_SHUTDOWN both 6 | TIMER_FILESTORE_SHUTDOWN = 7 |
+| BeebWin.cpp SetModel() | FileStore shutdown vs `PreferredStationID = 0` | Shutdown first, then clear; also cleared when the delayed FileStore shutdown changes the model |
+| BeebWin.cpp ResetBeebSystem() | FileStore Econet forcing vs `ResetEconet()` | Force Econet on for the FileStore, then `ResetEconet()` (starts the Econet timer) |
+| BeebWin.cpp timers | Both new timers | Both handled |
+| BeebEm.rc | Chris's new menu accelerators vs FileStore menus | Both; accelerators added to the FileStore and RTC items (Acorn &FileStore E01, E01&S, FileStore Hard &Drive Units, RTC &Clock Offset) |
+
+The FileStore needed no code changes for the new Econet: it only uses `EconetRead/Write`, `EconetReadStationID`, `EconetInterruptRequest`, `EconetNMIEnabled`, `EconetEnabled` and the CMOS station write in `EconetReset()`, all unchanged. The station number still comes from Econet.cfg/AUNMap or `-EcoStn` for the FileStore: the new "use the CMOS station number" auto-configuration is Master only. MinGW syntax check: the only failures are in Chris's files and also occur on econet-reworking-2 alone (goto past initialisations, `SOCKADDR_STORAGE_XP`).
+
+Test on this branch: everything in the FileStore test plan, plus Hardware > View Econet Network with the FileStore running (log shows its traffic), AUN gateway/discovery if used, and a Master/Model B station logging on to the FileStore over the new code.
 
 ## master-et-codeberg
 
@@ -474,6 +495,7 @@ Before building a mechanism, it is worth first showing that the lost key-up happ
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 19 Oct 2026 | First version, written while building the branches |
+| 1.5 | 20 Oct 2026 | Codeberg master unchanged (dccbcc8); new branch filestore-econet merging econet-reworking-2 |
 | 1.4 | 20 Oct 2026 | Clock option generalised: Hardware > RTC Clock Offset for all models, `RTCClockOffset` in the preferences file |
 | 1.3 | 20 Oct 2026 | FileStore questions 1, 3, 5 and 6 answered; 146818 timing emulation and the FileStore clock option |
 | 1.2 | 20 Oct 2026 | FileStore question 2 (Rockwell instructions) resolved: not used by the FileStore source |
