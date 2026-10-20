@@ -332,8 +332,8 @@ BEGIN
             MENUITEM "BBC &Master 128",             IDM_MASTER128
             MENUITEM "BBC Master &ET",              IDM_MASTER_ET
             MENUITEM SEPARATOR
-            MENUITEM "Acorn FileStore E01",         IDM_FILESTORE_E01
-            MENUITEM "Acorn FileStore E01S",        IDM_FILESTORE_E01S
+            MENUITEM "Acorn &FileStore E01",        IDM_FILESTORE_E01
+            MENUITEM "Acorn FileStore E01&S",       IDM_FILESTORE_E01S
         END
         POPUP "Model B &Floppy Controller"
         BEGIN
@@ -351,7 +351,7 @@ BEGIN
             MENUITEM "&Sprow ARM7TDMI Co-Processor", IDM_TUBE_SPROWARM
         END
         MENUITEM SEPARATOR
-        POPUP "&Allow SW RAM Write"
+        POPUP "Allow SW RAM &Write"
         BEGIN
             MENUITEM "Rom &0",                      IDM_ALLOWWRITES_ROM0, CHECKED
             MENUITEM "Rom &1",                      IDM_ALLOWWRITES_ROM1, CHECKED
@@ -371,22 +371,24 @@ BEGIN
             MENUITEM "Rom &F",                      IDM_ALLOWWRITES_ROMF, CHECKED
         END
         MENUITEM "Solidisk SW RAM Board On/Off", IDM_SOLIDISK_SWRAM_BOARD
-        MENUITEM "Edit ROM Configuration",      IDM_ROMCONFIG
+        MENUITEM "Edit &ROM Configuration",     IDM_ROMCONFIG
         MENUITEM SEPARATOR
         MENUITEM "Basic &Hardware Only",        IDM_BASIC_HARDWARE_ONLY
         MENUITEM "&Teletext Half Mode",         IDM_TELETEXTHALFMODE
         MENUITEM SEPARATOR
-        MENUITEM "Econet On/Off",               IDM_ECONET
-        MENUITEM "Teletext Adapter On/Off",     IDM_TELETEXT
+        MENUITEM "&Econet On/Off",              IDM_ECONET
+        MENUITEM "&View Econet Network",        IDM_ECONET_NETWORK
+        MENUITEM SEPARATOR
+        MENUITEM "Teletext &Adapter On/Off",    IDM_TELETEXT
         MENUITEM "Select &Teletext Data Source", IDM_SELECT_TELETEXT_DATA_SOURCE
         MENUITEM SEPARATOR
         MENUITEM "Set &Keyboard Links...",      IDM_SET_KEYBOARD_LINKS
         MENUITEM SEPARATOR
         MENUITEM "Floppy Drive On/Off",         IDM_FLOPPY_DRIVE
         MENUITEM "SCSI Hard Drive On/Off",      IDM_SCSI_HARD_DRIVE
-        MENUITEM "IDE Hard Drive On/Off",       IDM_IDE_HARD_DRIVE
-        MENUITEM "Select Hard Drive Folder...", IDM_SELECT_HARD_DRIVE_FOLDER
-        POPUP "FileStore Hard Drive Units"
+        MENUITEM "&IDE Hard Drive On/Off",      IDM_IDE_HARD_DRIVE
+        MENUITEM "Select &Hard Drive Folder...", IDM_SELECT_HARD_DRIVE_FOLDER
+        POPUP "FileStore Hard &Drive Units"
         BEGIN
             POPUP "Drive &0"
             BEGIN
@@ -426,9 +428,9 @@ BEGIN
             END
         END
         MENUITEM SEPARATOR
-        MENUITEM "User Port Breakout Box",      IDM_BREAKOUT
+        MENUITEM "&User Port Breakout Box",     IDM_BREAKOUT
         MENUITEM "User Port RTC Module",        IDM_USER_PORT_RTC_MODULE
-        MENUITEM "RTC Clock Offset",            IDM_RTC_CLOCK_OFFSET
+        MENUITEM "RTC &Clock Offset",           IDM_RTC_CLOCK_OFFSET
     END
     POPUP "&Options"
     BEGIN
@@ -480,10 +482,20 @@ END
 // Accelerator
 //
 
-IDR_ACCELERATORS ACCELERATORS
+IDR_DEBUG ACCELERATORS
 BEGIN
-    VK_UP,          ID_ACCELUP,             VIRTKEY, NOINVERT
-    VK_DOWN,        ID_ACCELDOWN,           VIRTKEY, NOINVERT
+    "C",            IDM_COPY,               VIRTKEY, CONTROL, NOINVERT
+    "A",            IDM_SELECT_ALL,         VIRTKEY, CONTROL, NOINVERT
+    VK_UP,          IDM_UP,                 VIRTKEY, NOINVERT
+    VK_DOWN,        IDM_DOWN,               VIRTKEY, NOINVERT
+END
+
+IDR_ECONET ACCELERATORS
+BEGIN
+    "C",            IDM_COPY,               VIRTKEY, CONTROL, NOINVERT
+    "A",            IDM_SELECT_ALL,         VIRTKEY, CONTROL, NOINVERT
+    VK_UP,          IDM_UP,                 VIRTKEY, NOINVERT
+    VK_DOWN,        IDM_DOWN,               VIRTKEY, NOINVERT
 END
 
 
@@ -857,6 +869,57 @@ BEGIN
     PUSHBUTTON      "&Refresh",IDC_REFRESH,258,47,50,14
 END
 
+IDD_ECONET_NETWORK DIALOGEX 0, 0, 311, 193
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_CHILD | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+CAPTION "Network"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "Stations:",IDC_STATIC,7,7,30,8
+    CONTROL         "",IDC_STATIONS_LIST,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,7,20,144,148
+    LTEXT           "Networks:",IDC_STATIC,161,7,34,8
+    CONTROL         "",IDC_NETWORKS_LIST,"SysListView32",LVS_REPORT | LVS_ALIGNLEFT | WS_BORDER | WS_TABSTOP,161,20,144,148
+    LTEXT           "Gateway:",IDC_STATIC,7,176,32,8
+    LTEXT           "Static",IDC_GATEWAY,43,176,73,8
+END
+
+IDD_ECONET_SETTINGS DIALOGEX 0, 0, 311, 180
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_CHILD | WS_CAPTION | WS_SYSMENU
+CAPTION "Settings"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    GROUPBOX        "Options",IDC_STATIC,7,7,297,67
+    CHECKBOX        "Auto Configure",IDC_AUTO_CONFIGURE,16,19,65,10
+    CHECKBOX        "Massage Nets",IDC_MASSAGE_NETWORKS,16,35,61,10
+    CHECKBOX        "Find Gateways",IDC_FIND_GATEWAYS,16,51,63,10
+    LTEXT           "Gateway IP Address",IDC_STATIC,93,52,75,8
+    EDITTEXT        IDC_GATEWAY_IP_ADDRESS,166,51,55,14,ES_AUTOHSCROLL | ES_READONLY
+    LTEXT           "Port",IDC_STATIC,228,52,14,8
+    EDITTEXT        IDC_GATEWAY_PORT,250,51,31,14,ES_AUTOHSCROLL | ES_READONLY
+    LTEXT           "Default Network ID",IDC_STATIC,93,20,62,8
+    EDITTEXT        IDC_DEFAULT_NETWORK_ID,166,17,23,14,ES_AUTOHSCROLL | ES_READONLY
+    GROUPBOX        "Timeouts",IDC_STATIC,7,77,297,95
+    LTEXT           "Flag Fill Timeout",IDC_STATIC,16,92,55,8
+    EDITTEXT        IDC_FLAG_FILL_TIMEOUT_EDIT,122,90,40,14,ES_AUTOHSCROLL | ES_READONLY
+    LTEXT           "Scout Ack Timeout",IDC_STATIC,16,112,62,8
+    EDITTEXT        IDC_SCOUT_ACK_TIMEOUT_EDIT,122,110,40,14,ES_AUTOHSCROLL | ES_READONLY
+    LTEXT           "Four Way Handshake Timeout",IDC_STATIC,16,132,99,8
+    EDITTEXT        IDC_FOUR_WAY_TIMEOUT_EDIT,122,130,40,14,ES_AUTOHSCROLL | ES_READONLY
+    LTEXT           "Time Between Bytes",IDC_STATIC,16,152,67,8
+    EDITTEXT        IDC_TIME_BETWEEN_BYTES_EDIT,122,150,40,14,ES_AUTOHSCROLL | ES_READONLY
+END
+
+IDD_ECONET_LOG DIALOGEX 0, 0, 311, 207
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_CHILD | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+CAPTION "Log"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    LTEXT           "",IDC_LOG,7,7,295,108
+    PUSHBUTTON      "Clear",IDC_CLEAR,7,186,50,14
+    LISTBOX         IDC_DETAIL,7,135,297,47,LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Show broadcast announcements",IDC_SHOW_BROADCASTS,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,120,122,10
+END
+
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -965,6 +1028,30 @@ BEGIN
         RIGHTMARGIN, 308
         TOPMARGIN, 9
         BOTTOMMARGIN, 153
+    END
+
+    IDD_ECONET_NETWORK, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 304
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 186
+    END
+
+    IDD_ECONET_SETTINGS, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 304
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 173
+    END
+
+    IDD_ECONET_LOG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 304
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 200
     END
 END
 #endif    // APSTUDIO_INVOKED

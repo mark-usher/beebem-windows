@@ -40,6 +40,7 @@ using std::max;
 #include "BeebWin.h"
 #include "BeebMem.h"
 #include "DiscInfo.h"
+#include "Econet.h"
 #include "FileUtils.h"
 #include "FileStore.h"
 #include "FileStorePanelArt.h"
@@ -1373,6 +1374,9 @@ void BeebWin::CompleteFileStoreShutdown()
 			break;
 
 		case FileStoreShutdownAction::ChangeModel:
+			// Clear this so we don't carry an Econet station number over
+			// when changing to a Master, as in SetModel()
+			PreferredStationID = 0;
 			ResetBeebSystem(m_FileStoreShutdownModel, true);
 			UpdateModelMenu();
 			break;

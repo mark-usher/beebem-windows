@@ -44,6 +44,7 @@ Boston, MA  02110-1301, USA.
 #include "Arm.h"
 #include "ArmDisassembler.h"
 #include "BeebMem.h"
+#include "Clipboard.h"
 #include "DebugTrace.h"
 #include "Econet.h"
 #include "FileDialog.h"
@@ -1203,12 +1204,9 @@ void DebugOpenDialog(HINSTANCE hInstance, HWND /* hwndParent */)
 
 	DebugEnabled = true;
 
-	haccelDebug = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDR_ACCELERATORS));
+	haccelDebug = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDR_DEBUG));
 	hwndDebug = CreateDialog(hInstance, MAKEINTRESOURCE(IDD_DEBUG),
 	                         hwndInvisibleOwner, DebugDlgProc);
-
-	hCurrentDialog = hwndDebug;
-	hCurrentAccelTable = haccelDebug;
 
 	DisableRoundedCorners(hwndDebug);
 	ShowWindow(hwndDebug, SW_SHOW);
@@ -1221,8 +1219,7 @@ void DebugCloseDialog()
 	DestroyWindow(hwndDebug);
 	hwndDebug = nullptr;
 	hwndInfo = nullptr;
-	hCurrentDialog = nullptr;
-	hCurrentAccelTable = nullptr;
+
 	DebugEnabled = false;
 	DebugSource = DebugType::None;
 	LinesDisplayed = 0;
@@ -1234,6 +1231,27 @@ void DebugCloseDialog()
 	LastAddrInOS = false;
 	LastAddrInBIOS = false;
 	LastAddrInROM = false;
+}
+
+/****************************************************************************/
+
+bool DebugHandleMessage(MSG* pMsg)
+{
+	BOOL bHandled = FALSE;
+
+	HWND hwndFocus = GetFocus();
+
+	if (hwndFocus == hwndDebug || IsChild(hwndDebug, hwndFocus))
+	{
+		bHandled = TranslateAccelerator(hwndDebug, haccelDebug, pMsg);
+	}
+
+	if (!bHandled)
+	{
+		bHandled = IsDialogMessage(hwndDebug, pMsg);
+	}
+
+	return !!bHandled;
 }
 
 /****************************************************************************/
@@ -1291,6 +1309,61 @@ void DebugDisplayInfo(const char *info)
 	if (LinesDisplayed > LINES_IN_INFO)
 	{
 		SendMessage(hwndInfo, LB_SETTOPINDEX, LinesDisplayed - LINES_IN_INFO, 0);
+	}
+}
+
+/****************************************************************************/
+
+static void DebugSelectAll()
+{
+	int Count = SendMessage(hwndInfo, LB_GETCOUNT, 0, 0);
+
+	if (Count > 0)
+	{
+		SendMessage(hwndInfo, LB_SELITEMRANGE, TRUE, MAKELPARAM(0, Count - 1));
+	}
+}
+
+/****************************************************************************/
+
+static void DebugCopy()
+{
+	int Count = SendMessage(hwndInfo, LB_GETSELCOUNT, 0, 0);
+
+	if (Count > 0 && Count != LB_ERR)
+	{
+		int* pItems = new(std::nothrow) int[Count];
+
+		SendMessage(hwndInfo, LB_GETSELITEMS, Count, (LPARAM)pItems);
+
+		size_t Size = 0;
+
+		for (int i = 0; i < Count; i++)
+		{
+			Size += SendMessage(hwndInfo, LB_GETTEXTLEN, pItems[i], 0);
+			Size += 2;
+		}
+
+		Size += 1; // For the NUL terminator.
+
+		auto CopyData = [=](unsigned char* pData)
+		{
+			for (int i = 0; i < Count; i++)
+			{
+				SendMessage(hwndInfo, LB_GETTEXT, pItems[i], (LPARAM)pData);
+
+				pData += strlen((const char*)pData);
+
+				*pData++ = '\r';
+				*pData++ = '\n';
+			}
+
+			*pData = '\0';
+		};
+
+		::CopyToClipboard(hwndDebug, Size, CopyData);
+
+		delete [] pItems;
 	}
 }
 
@@ -1361,34 +1434,29 @@ static INT_PTR CALLBACK DebugDlgProc(HWND hWnd, UINT Message, WPARAM wParam, LPA
 			return TRUE;
 		}
 
-		case WM_ACTIVATE:
-			if (LOWORD(wParam) == WA_INACTIVE)
-			{
-				hCurrentDialog = NULL;
-				hCurrentAccelTable = NULL;
-			}
-			else
-			{
-				hCurrentDialog = hWnd;
-				hCurrentAccelTable = haccelDebug;
-			}
-			break;
-
 		case WM_COMMAND:
 			switch (LOWORD(wParam))
 			{
-				case ID_ACCELUP:
+				case IDM_UP:
 					if (GetFocus() == GetDlgItem(hWnd, IDC_DEBUGCOMMAND))
 					{
 						DebugHistoryMove(-1);
 					}
 					break;
 
-				case ID_ACCELDOWN:
+				case IDM_DOWN:
 					if (GetFocus() == GetDlgItem(hWnd, IDC_DEBUGCOMMAND))
 					{
 						DebugHistoryMove(1);
 					}
+					break;
+
+				case IDM_SELECT_ALL:
+					DebugSelectAll();
+					break;
+
+				case IDM_COPY:
+					DebugCopy();
 					break;
 
 				case IDC_DEBUGBREAK:

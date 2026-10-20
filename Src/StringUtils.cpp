@@ -147,10 +147,33 @@ int ParseNumber(const char* Name, const std::string& str, int Min, int Max)
 
 	if (Value < Min || Value > Max)
 	{
-		throw std::out_of_range(Name);
+		char Message[100];
+		sprintf(Message, "%s %d out of range (min: %d, max: %d)", Name, Value, Min, Max);
+
+		throw std::out_of_range(Message);
 	}
 
 	return Value;
+}
+
+/****************************************************************************/
+
+bool IsNumber(const char* str)
+{
+	if (str == nullptr || str[0] == '\0')
+	{
+		return false;
+	}
+
+	for (; *str != '\0'; str++)
+	{
+		if (!isdigit(*str))
+		{
+			return false;
+		}
+	}
+
+	return true;
 }
 
 /****************************************************************************/

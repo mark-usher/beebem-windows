@@ -28,10 +28,12 @@ int GetLastSocketError();
 bool SetSocketBlocking(SOCKET Socket, bool Blocking);
 bool WouldBlock(int Error);
 bool EnableBroadcast(SOCKET Socket);
+bool SetReuseAddr(SOCKET Socket);
+bool SetExclusiveAddrUse(SOCKET Socket);
 unsigned long ParseIPAddress(const char* Name, const std::string& Value);
-
-#define S_ADDR(s) (s).sin_addr.s_addr
-
-#define IN_ADDR(addr) (addr).s_addr
+int ParseIPAddress(int Family, const char* pszName, void* pAddr);
+bool IPAddressToString(int Family, const void* pAddress,
+                       std::string& Dest);
+std::string IPAddressStr(unsigned long IPAddress);
 
 #endif

@@ -32,16 +32,17 @@ Boston, MA  02110-1301, USA.
 #include "Main.h"
 #include "6502core.h"
 #include "BeebWin.h"
+#include "Debug.h"
+#include "EconetDialog.h"
 #include "Log.h"
 #include "SelectKeyDialog.h"
+#include "TapeControlDialog.h"
 
 /****************************************************************************/
 
 Model MachineType;
 BeebWin *mainWin = nullptr;
 HINSTANCE hInst;
-HWND hCurrentDialog = nullptr;
-HACCEL hCurrentAccelTable = nullptr;
 
 /****************************************************************************/
 
@@ -78,26 +79,31 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE /* hPrevInstance */,
 				break;
 			}
 
-			if (hCurrentDialog != nullptr && hCurrentAccelTable != nullptr)
+			if (g_pEconetDialog != nullptr && g_pEconetDialog->HandleMessage(&msg))
 			{
-				TranslateAccelerator(hCurrentDialog, hCurrentAccelTable, &msg);
-			}
-
-			if (hCurrentDialog == nullptr)
-			{
-				TranslateMessage(&msg); // Translates virtual key codes
-				DispatchMessage(&msg); // Dispatches message to window
+				if (!g_pEconetDialog->IsOpen())
+				{
+					mainWin->EconetDialogClosed();
+				}
 			}
 			else
 			{
-				bool handled = false;
+				bool bHandled = false;
 
-				if (g_pSelectKeyDialog != nullptr)
+				if (g_pTapeControlDialog != nullptr)
 				{
-					handled = g_pSelectKeyDialog->HandleMessage(msg);
+					bHandled = g_pTapeControlDialog->HandleMessage(&msg);
+				}
+				else if (g_pSelectKeyDialog != nullptr)
+				{
+					bHandled = g_pSelectKeyDialog->HandleMessage(&msg);
+				}
+				else if (hwndDebug != nullptr)
+				{
+					bHandled = DebugHandleMessage(&msg);
 				}
 
-				if (!handled && !IsDialogMessage(hCurrentDialog, &msg))
+				if (!bHandled)
 				{
 					TranslateMessage(&msg); // Translates virtual key codes
 					DispatchMessage(&msg); // Dispatches message to window

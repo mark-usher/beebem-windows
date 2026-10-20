@@ -67,6 +67,8 @@ using std::max;
 #include "Disc8271.h"
 #include "DiscInfo.h"
 #include "Econet.h" // Rob O'Donnell Christmas 2004.
+#include "EconetDialog.h"
+#include "EconetLog.h"
 #include "Ext1770.h"
 #include "FileStore.h"
 #include "FolderSelectDialog.h"
@@ -79,6 +81,7 @@ using std::max;
 #include "KeyboardLinksDialog.h"
 #include "KeyMap.h"
 #include "Log.h"
+#include "LogView.h"
 #include "Main.h"
 #include "Master512CoPro.h"
 #include "Messages.h"
@@ -284,6 +287,9 @@ BeebWin::BeebWin()
 
 	InitKeyMap();
 
+	// Econet
+	m_ShowEconetBroadcasts = true;
+
 	// File paths
 
 	// Get the applications path - used for non-user files
@@ -428,6 +434,12 @@ bool BeebWin::Initialise()
 	}
 
 	LoadPreferences();
+	
+	// Enable Econet automatically if we got a station number with -EcoStn.
+	if (PreferredStationID != 0)
+	{
+		EconetEnabled = true;
+	}
 
 	// Read disc images path from registry
 	if (!RegGetStringValue(HKEY_CURRENT_USER, CFG_REG_KEY, "DiscsPath",
@@ -484,9 +496,14 @@ bool BeebWin::Initialise()
 
 	WSADATA WsaData;
 
-	if (WSAStartup(MAKEWORD(1, 1), &WsaData) != 0)
+	if (WSAStartup(MAKEWORD(2, 2), &WsaData) != 0)
 	{
-		Report(MessageType::Error, "WSA initialisation failed");
+		Report(MessageType::Error, "Windows Sockets initialisation failed");
+		return false;
+	}
+
+	if (!LogView::InitClass(hInst))
+	{
 		return false;
 	}
 
@@ -730,7 +747,7 @@ void BeebWin::Shutdown()
 	CloseTape();
 
 	EconetEnabled = false;
-	EconetReset();
+	ResetEconet();
 
 	WSACleanup();
 
@@ -769,6 +786,10 @@ void BeebWin::SetModel(Model NewModelType)
 		{
 			return;
 		}
+
+		// Clear this so we don't carry an Econet station number over
+		// when changing to a Master.
+		PreferredStationID = 0;
 
 		ResetBeebSystem(NewModelType, true);
 		UpdateModelMenu();
@@ -921,7 +942,7 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 		m_FileStoreEconetForced = false;
 	}
 
-	EconetReset();
+	ResetEconet();
 	UpdateEconetMenu();
 
 	// The FileStore's WD2793 is emulated by the 1770 code
@@ -1097,7 +1118,7 @@ void BeebWin::Break()
 		Reset1770();
 	}
 
-	EconetReset();
+	ResetEconet();
 	UpdateEconetMenu();
 
 	if (MachineType != Model::MasterET)
@@ -1314,6 +1335,7 @@ void BeebWin::ReleaseBitmap()
 }
 
 /****************************************************************************/
+
 bool BeebWin::InitClass()
 {
 	WNDCLASS wc;
@@ -3083,6 +3105,10 @@ LRESULT BeebWin::WndProc(UINT nMessage, WPARAM wParam, LPARAM lParam)
 			OnInitJoystick();
 			break;
 
+		case WM_ECONET_APPEND_LOG:
+			OnEconetAppendLog(wParam != 0);
+			break;
+
 		default: // Passes it on if unprocessed
 			return DefWindowProc(m_hWnd, nMessage, wParam, lParam);
 	}
@@ -4250,7 +4276,7 @@ void BeebWin::ToggleEconet()
 	}
 	else
 	{
-		EconetReset();
+		ResetEconet();
 	}
 
 	UpdateWindowTitle();
@@ -4258,9 +4284,82 @@ void BeebWin::ToggleEconet()
 	UpdateEconetMenu();
 }
 
+/****************************************************************************/
+
+void BeebWin::ResetEconet()
+{
+	EconetReset();
+
+	if (EconetEnabled)
+	{
+		SetTimer(m_hWnd, TIMER_ECONET, ECONET_TIMER_PERIOD * 1000, nullptr);
+	}
+	else
+	{
+		KillTimer(m_hWnd, TIMER_ECONET);
+	}
+}
+
+/****************************************************************************/
+
 void BeebWin::UpdateEconetMenu()
 {
 	CheckMenuItem(IDM_ECONET, EconetEnabled);
+}
+
+/****************************************************************************/
+
+void BeebWin::OnEconetNetwork()
+{
+	if (g_pEconetDialog != nullptr)
+	{
+		return;
+	}
+
+	g_pEconetDialog = new(std::nothrow) EconetDialog(hInst,
+	                                                 m_hWnd,
+	                                                 GetEconetLogBuffer(),
+	                                                 m_ShowEconetBroadcasts);
+
+	if (g_pEconetDialog == nullptr)
+	{
+		return;
+	}
+
+	if (g_pEconetDialog->Open())
+	{
+		EnableMenuItem(IDM_ECONET_NETWORK, false);
+	}
+	else
+	{
+		delete g_pEconetDialog;
+		g_pEconetDialog = nullptr;
+	}
+}
+
+/****************************************************************************/
+
+void BeebWin::EconetDialogClosed()
+{
+	if (g_pEconetDialog->ApplyChanges())
+	{
+		m_ShowEconetBroadcasts = g_pEconetDialog->GetShowBroadcasts();
+	}
+
+	delete g_pEconetDialog;
+	g_pEconetDialog = nullptr;
+
+	EnableMenuItem(IDM_ECONET_NETWORK, true);
+}
+
+/****************************************************************************/
+
+void BeebWin::OnEconetAppendLog(bool BufferFull)
+{
+	if (g_pEconetDialog != nullptr)
+	{
+		g_pEconetDialog->AppendLog(BufferFull);
+	}
 }
 
 /****************************************************************************/
@@ -4418,6 +4517,10 @@ void BeebWin::HandleCommand(UINT MenuID)
 	//Rob
 	case IDM_ECONET:
 		ToggleEconet();
+		break;
+
+	case IDM_ECONET_NETWORK:
+		OnEconetNetwork();
 		break;
 
 	case IDM_DISPGDI:
@@ -5814,28 +5917,57 @@ void BeebWin::ParseCommandLine()
 			}
 			else if (StrCaseCmp(__argv[i], "-EcoStn") == 0)
 			{
-				int Value = atoi(__argv[++i]);
+				++i;
 
-				if (Value < 1 || Value > 254)
+				const char* dot = strchr(__argv[i], '.');
+				int Value = atoi(__argv[i]); // first digit
+
+				if (dot == nullptr)
 				{
-					Invalid = true;
+					// only one digit
+					if (Value >= 1 && Value <= 254)
+					{
+						PreferredStationID = static_cast<unsigned char>(Value);
+					}
+					else
+					{
+						Invalid = true;
+					}
 				}
 				else
 				{
-					EconetStationID = static_cast<unsigned char>(Value);
+					if (Value >= 1 && Value <= 127)
+					{
+						PreferredNetworkID = static_cast<unsigned char>(Value);
+
+						Value = atoi(dot + 1); // second digit
+
+						if (Value >= 1 && Value <= 254)
+						{
+							PreferredStationID = static_cast<unsigned char>(Value);
+						}
+						else
+						{
+							Invalid = true;
+						}
+					}
+					else
+					{
+						Invalid = true;
+					}
 				}
 			}
 			else if (StrCaseCmp(__argv[i], "-EcoFF") == 0)
 			{
 				int Value = atoi(__argv[++i]);
 
-				if (Value < 1)
+				if (Value >= 1)
 				{
-					Invalid = true;
+					EconetConfig.FlagFillTimeout = Value;
 				}
 				else
 				{
-					EconetFlagFillTimeout = Value;
+					Invalid = true;
 				}
 			}
 			else if (StrCaseCmp(__argv[i], "-KbdCmd") == 0)
@@ -5858,13 +5990,13 @@ void BeebWin::ParseCommandLine()
 			{
 				int Value = atoi(__argv[++i]);
 
-				if (Value < 1)
+				if (Value >= 1)
 				{
-					Invalid = true;
+					m_AutoBootDelay = Value;
 				}
 				else
 				{
-					m_AutoBootDelay = Value;
+					Invalid = true;
 				}
 			}
 			else if (StrCaseCmp(__argv[i], "-Model") == 0)
@@ -6263,6 +6395,10 @@ void BeebWin::OnTimer(UINT_PTR TimerID)
 		case TIMER_FDC_CHANGED:
 			KillTimer(m_hWnd, TIMER_FDC_CHANGED);
 			m_DisplayFDCBoardInfo = false;
+			break;
+
+		case TIMER_ECONET:
+			EconetTimer();
 			break;
 
 		case TIMER_FILESTORE_SHUTDOWN:

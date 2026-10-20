@@ -449,7 +449,11 @@ public:
 
 	// Econet
 	void ToggleEconet();
+	void ResetEconet();
 	void UpdateEconetMenu();
+	void OnEconetNetwork();
+	void EconetDialogClosed();
+	void OnEconetAppendLog(bool BufferFull);
 
 	void DisableWindowsKeys();
 	void UpdateDisableKeysMenu();
@@ -818,6 +822,9 @@ public:
 	bool m_ShiftBooted;
 	int m_vkeyPressed[256][2][2];
 
+	// Econet
+	bool m_ShowEconetBroadcasts;
+
 	// File paths
 	char m_AppPath[MAX_PATH];
 	char m_UserDataPath[MAX_PATH];
@@ -931,12 +938,13 @@ public:
 	char m_TextViewScreen[MAX_TEXTVIEW_SCREEN_LEN + 1];
 
 	// Timers
-	static const UINT_PTR TIMER_KEYBOARD       = 1;
-	static const UINT_PTR TIMER_AUTOBOOT_DELAY = 2;
-	static const UINT_PTR TIMER_PRINTER        = 3;
-	static const UINT_PTR TIMER_DEVICE_LOST    = 4;
-	static const UINT_PTR TIMER_FDC_CHANGED    = 5;
-	static const UINT_PTR TIMER_FILESTORE_SHUTDOWN = 6;
+	static const UINT_PTR TIMER_KEYBOARD           = 1;
+	static const UINT_PTR TIMER_AUTOBOOT_DELAY     = 2;
+	static const UINT_PTR TIMER_PRINTER            = 3;
+	static const UINT_PTR TIMER_DEVICE_LOST        = 4;
+	static const UINT_PTR TIMER_FDC_CHANGED        = 5;
+	static const UINT_PTR TIMER_ECONET             = 6;
+	static const UINT_PTR TIMER_FILESTORE_SHUTDOWN = 7;
 
 	// Debug
 	bool m_WriteInstructionCounts;
