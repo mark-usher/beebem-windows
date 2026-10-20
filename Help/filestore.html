@@ -137,10 +137,17 @@ FileStoreDrive3=None
         file as <span class="file">CMOSRamE01</span> and
         <span class="file">CMOSRamE01S</span>. The debugger command
         <span class="cmd">state c</span> shows the clock registers and CMOS RAM.
-        Saved state files are not supported for the FileStore. The station
-        number in CMOS RAM is always set from
-        <span class="file">Econet.cfg</span> or the
-        <span class="cmd">-EcoStn</span> command line option.
+        Saved state files are not supported for the FileStore.
+      </p>
+
+      <p>
+        The FileStore's station number is taken from the
+        <span class="cmd">-EcoStn</span> command line option if given.
+        Otherwise, as on the Master, with <span class="file">AUTOCONFIGURE</span>
+        enabled in <span class="file">Econet.cfg</span> the station number in
+        the FileStore's CMOS RAM is used (254 by default), and without it the
+        station configured in <span class="file">Econet.cfg</span> for this
+        PC. The station number in use is written back to CMOS RAM.
       </p>
 
       <h2>Clock</h2>

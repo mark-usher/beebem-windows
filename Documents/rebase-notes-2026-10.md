@@ -1,6 +1,6 @@
 # Rebase notes, October 2026: FileStore, Master ET and keyboard work onto Codeberg master
 
-Version 1.5, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
+Version 1.6, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
 
 ## Summary
 
@@ -157,7 +157,7 @@ References used (on the `reference-docs` branch, not for merging): FileStore Ser
 2. **E01 CPU.** The E01 has a Rockwell 65C102 (with BBR/BBS/RMB/SMB). BeebEm emulates the Master's 65SC12 instruction set for it, as before. Does the FileStore ROM use the Rockwell bit instructions? (No problem was seen on the old branch.) *Resolved (20 Oct): a search of the FileStore source (Mark's source-history repo, all files) finds no RMB/SMB/BBR/BBS, so the 65SC12 emulation is sufficient.*
 3. **Door and SET bit.** Should the FileStore be able to set its own clock (`*FSDATE`-style), i.e. honour the SET bit like the Master? Currently not, as before. *Resolved (20 Oct): the clock can be set on every 146818 machine (as upstream on the Master), kept as an offset from the PC clock. New option Hardware > RTC Clock Offset, for all models: when ticked, the offset is kept over a reset and saved as `RTCClockOffset` (seconds) in the preferences file; when not, the clock goes back to the PC clock on a reset (upstream behaviour). The FileStore clock is normally set with a CMOS utility (see WS-7).*
 4. **System VIA write timing.** *Resolved (20 Oct):* the FileStore's I/O bus runs at 2MHz (Mark; service manual), so FileStore I/O accesses are no longer stretched at all (96b4a9d), and the 6522A's timers count at 2MHz (436db67).
-5. **Station number.** EconetReset() overwrites FileStore CMOS bytes 14/15 with the station from Econet.cfg / `-EcoStn` on every reset, as before. Keep? *Resolved (20 Oct): yes, always from Econet.cfg or -EcoStn.*
+5. **Station number.** EconetReset() overwrites FileStore CMOS bytes 14/15 with the station from Econet.cfg / `-EcoStn` on every reset, as before. Keep? *Resolved (20 Oct): yes, always from Econet.cfg or -EcoStn. Refined on filestore-econet: with econet-reworking-2's AUTOCONFIGURE, the FileStore takes its station from its own CMOS (byte 14, saved as CMOSRamE01/E01S) when -EcoStn isn't given, as the Master does.*
 6. **Save state** is disabled for FileStore. Worth adding later (64K RAM, VIA, RTC/CMOS, 2793, SCSI, front panel)? *Resolved (20 Oct): no; the FileStore should be shut down properly.*
 7. **WD17xx subclassing.** *Resolved (20 Oct, c79ac79):* Mark chose an FDC type rather than a class. `Disc1770.cpp` has `Set1770FDCType(FDCType::WD1770 / WD2793)`; the WD2793 keeps the differences listed in "Changes after the port". The control register needed no change (the FileStore latch is mapped to the 1770 layout in FileStore.cpp).
 8. **Knowledge sheets.** Facts worth writing back to the Acorn knowledge sheets: FileStore memory map &FC00-&FC33 as implemented here, repeating every &40 with 4-byte aliases (service manual 4.13.3); control latch &FC08 bits; front panel switches &FC2C (b6 door, b7 command E01; SW3, the COMMAND/USER input, is the optical door sensor, Mark 20 Oct); SCSI drive = selected target ID bit (1/2/4/8 -> 0-3); RTC update-ended IRQ used by the FileStore; CMOS defaults above; 65C102 at 2MHz from an 8MHz crystal; 6522A VIA on φ2 (2MHz); DRAM refresh holds the CPU for one cycle at the first opcode fetch after every 30 cycles (refresh every 15µs); 2793 at 250kbps MFM (1MHz FDC clock, so the 1770's step and settle times apply).
@@ -198,7 +198,7 @@ On 20 Oct 2026 Mark fetched Codeberg: **master is still dccbcc8**, so filestore-
 | BeebWin.cpp timers | Both new timers | Both handled |
 | BeebEm.rc | Chris's new menu accelerators vs FileStore menus | Both; accelerators added to the FileStore and RTC items (Acorn &FileStore E01, E01&S, FileStore Hard &Drive Units, RTC &Clock Offset) |
 
-The FileStore needed no code changes for the new Econet: it only uses `EconetRead/Write`, `EconetReadStationID`, `EconetInterruptRequest`, `EconetNMIEnabled`, `EconetEnabled` and the CMOS station write in `EconetReset()`, all unchanged. The station number still comes from Econet.cfg/AUNMap or `-EcoStn` for the FileStore: the new "use the CMOS station number" auto-configuration is Master only. MinGW syntax check: the only failures are in Chris's files and also occur on econet-reworking-2 alone (goto past initialisations, `SOCKADDR_STORAGE_XP`).
+The FileStore needed no code changes for the new Econet: it only uses `EconetRead/Write`, `EconetReadStationID`, `EconetInterruptRequest`, `EconetNMIEnabled`, `EconetEnabled` and the CMOS station write in `EconetReset()`, all unchanged. Station number (d-commit after the merge): `-EcoStn` if given; otherwise, with AUTOCONFIGURE, the station number in the FileStore's own CMOS (byte 14, default 254), as for the Master; otherwise the Econet.cfg entry for this PC. EconetReset() writes the station in use back to CMOS bytes 14/15. Writing CMOS byte 14 (e.g. from a FileStore utility) makes the next reset use the new number. MinGW syntax check: the only failures are in Chris's files and also occur on econet-reworking-2 alone (goto past initialisations, `SOCKADDR_STORAGE_XP`).
 
 Test on this branch: everything in the FileStore test plan, plus Hardware > View Econet Network with the FileStore running (log shows its traffic), AUN gateway/discovery if used, and a Master/Model B station logging on to the FileStore over the new code.
 
@@ -495,6 +495,7 @@ Before building a mechanism, it is worth first showing that the lost key-up happ
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 19 Oct 2026 | First version, written while building the branches |
+| 1.6 | 20 Oct 2026 | filestore-econet: FileStore station number from its CMOS with AUTOCONFIGURE, as the Master |
 | 1.5 | 20 Oct 2026 | Codeberg master unchanged (dccbcc8); new branch filestore-econet merging econet-reworking-2 |
 | 1.4 | 20 Oct 2026 | Clock option generalised: Hardware > RTC Clock Offset for all models, `RTCClockOffset` in the preferences file |
 | 1.3 | 20 Oct 2026 | FileStore questions 1, 3, 5 and 6 answered; 146818 timing emulation and the FileStore clock option |

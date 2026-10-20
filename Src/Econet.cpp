@@ -1085,9 +1085,11 @@ bool EconetReset()
 
 	if (EconetConfig.AutoConfigure &&
 	    PreferredStationID == 0 &&
-	    (MachineType == Model::Master128 || MachineType == Model::MasterET))
+	    (MachineType == Model::Master128 || MachineType == Model::MasterET ||
+	     IsFileStore(MachineType)))
 	{
 		// No PreferredStationID has been set so try to use the station number in CMOS.
+		// The FileStore also keeps its station number in CMOS.
 		RTCWriteAddress(0xE);
 		PreferredStationID = RTCReadData();
 	}
