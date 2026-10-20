@@ -71,7 +71,7 @@ static unsigned char Status;      // Status register, without the IRQ bit
 static bool IRQ;                  // Interrupt request
 static bool IRQEnable;            // Written to +03
 static unsigned char HostData;    // Last byte the host wrote (data or select)
-static unsigned char TargetData;  // Data register, as the drive set it
+static unsigned char TargetData;  // Data register, as the host or the drive last wrote it
 static bool Ack;                  // The host has read or written the data register
 static bool Select;               // The host has written the select register
 static bool HostRestarted;        // A selection or reset ended a wait for Ack
@@ -242,7 +242,10 @@ void SCSIWrite(int Address, unsigned char Value)
 	switch (Address)
 	{
 		case 0x00: // Data register: the host has written a byte
+			// The data register keeps it: ADFS and the FileStore check
+			// that the host adaptor is there by reading back what they wrote
 			HostData = Value;
+			TargetData = Value;
 			SetStatus(STATUS_REQ, false);
 			Ack = true;
 			RunDrive();

@@ -43,6 +43,12 @@ int main()
    SCSIDriveEnabled = true;
    SCSIReset();
    char why[200]; static uint8_t in[70000]; int n;
+   // ADFS (&9A6C) and the FileStore MOS (&FA1E) check the adaptor is there
+   // by writing the data register and reading it back
+   SCSIWrite(0, 0x5A); SCSIWrite(3, 0); uint8_t r1 = SCSIRead(0);
+   SCSIWrite(0, 0xA5); SCSIWrite(3, 0); uint8_t r2 = SCSIRead(0);
+   snprintf(why, sizeof why, "read %02X %02X (want 5A A5)", r1, r2);
+   check("data register reads back what the host wrote (adaptor present)", r1 == 0x5A && r2 == 0xA5, why);
    const uint8_t tur[6] = { 0, 0, 0, 0, 0, 0 };
    int s = cmd(1, tur, 6, 0, 0, in, &n);
    snprintf(why, sizeof why, "status %d", s); check("TEST UNIT READY on drive 0 before it starts: not ready (as Pi1MHz)", s == 2, why);
