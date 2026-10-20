@@ -852,9 +852,12 @@ void RTCSetClockOffset(int Offset)
 	RTCTimeOffset = Offset;
 }
 
+// The current clock setting, as an offset in seconds from the PC clock. The
+// clock runs with the PC clock, so the offset stays the same over time.
+
 int RTCGetClockOffset()
 {
-	return static_cast<int>(RTCClockOffset);
+	return static_cast<int>(RTCClockOffsetEnabled ? RTCTimeOffset : RTCClockOffset);
 }
 
 /*-------------------------------------------------------------------------*/

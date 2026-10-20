@@ -60,10 +60,13 @@
           Setting the clock is kept as an offset from the PC's clock. Normally
           the clock goes back to the PC's clock on a reset. To keep the clock
           setting, tick <span class="ui">Hardware &rarr; RTC Clock
-          Offset</span>: the offset is then kept over a reset and saved in the
+          Offset</span>: the offset is then kept over a reset, saved in the
           preferences file as <span class="file">RTCClockOffset</span> (in
-          seconds), and used the next time BeebEm starts. Unticking it goes
-          back to the PC's clock. This also applies to the FileStore.
+          seconds) when BeebEm exits, and used the next time BeebEm starts.
+          The clock keeps running with the PC's clock, so if BeebEm is started
+          again five days later, the clock has also moved on five days.
+          Unticking the option goes back to the PC's clock. This applies to
+          the Master 128, Master ET and FileStore.
         </p>
 
         <p>

@@ -707,8 +707,11 @@ void BeebWin::Shutdown()
 
 	EndVideo();
 
+	// Also save the RTC clock offset if it's enabled, or remove it if it
+	// has been disabled
 	if (m_AutoSavePrefsCMOS || m_AutoSavePrefsFolders ||
-	    m_AutoSavePrefsAll || m_AutoSavePrefsChanged)
+	    m_AutoSavePrefsAll || m_AutoSavePrefsChanged ||
+	    RTCIsClockOffsetEnabled() || m_Preferences.HasValue(CFG_RTC_CLOCK_OFFSET))
 	{
 		SavePreferences(m_AutoSavePrefsAll);
 	}

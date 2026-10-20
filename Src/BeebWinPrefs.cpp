@@ -2148,16 +2148,18 @@ void BeebWin::SavePreferences(bool saveAll)
 		m_Preferences.SetBinaryValue(CFG_CMOS_FILESTORE_E01, RTCGetCMOSData(Model::FileStoreE01), 50);
 		m_Preferences.SetBinaryValue(CFG_CMOS_FILESTORE_E01S, RTCGetCMOSData(Model::FileStoreE01S), 50);
 
-		if (RTCIsClockOffsetEnabled())
-		{
-			m_Preferences.SetDecimalValue(CFG_RTC_CLOCK_OFFSET, RTCGetClockOffset());
-		}
-		else
-		{
-			m_Preferences.EraseValue(CFG_RTC_CLOCK_OFFSET);
-		}
-
 		m_Preferences.SetBinaryValue(CFG_USER_PORT_RTC_REGISTERS, UserPortRTCRegisters, sizeof(UserPortRTCRegisters));
+	}
+
+	// The RTC clock offset, if enabled, is always saved, so the clock keeps
+	// its setting the next time BeebEm starts
+	if (RTCIsClockOffsetEnabled())
+	{
+		m_Preferences.SetDecimalValue(CFG_RTC_CLOCK_OFFSET, RTCGetClockOffset());
+	}
+	else
+	{
+		m_Preferences.EraseValue(CFG_RTC_CLOCK_OFFSET);
 	}
 
 	// Preferences auto-save
