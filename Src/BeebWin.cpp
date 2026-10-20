@@ -6308,7 +6308,7 @@ void BeebWin::HandleCommandLineFile(int Drive, const char *FileName)
 	}
 	else if (MachineType == Model::Master128)
 	{
-		if (Type == FileType::FSD)
+		if (Type == FileType::DSD)
 		{
 			Load1770DiscImage(FileName, Drive, DiscType::DSD);
 		}
