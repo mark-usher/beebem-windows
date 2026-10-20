@@ -1,6 +1,6 @@
 # Rebase notes, October 2026: FileStore, Master ET and keyboard work onto Codeberg master
 
-Version 1.1, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
+Version 1.2, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
 
 ## Summary
 
@@ -154,7 +154,7 @@ References used (on the `reference-docs` branch, not for merging): FileStore Ser
 ### Questions for Mark (FileStore)
 
 1. **RTC update period.** Keep 10 ms (as the old timer) or use the real 1 s? If the FileStore ROM counts update-ended interrupts for its time-outs, 10 ms makes them 100x faster.
-2. **E01 CPU.** The E01 has a Rockwell 65C102 (with BBR/BBS/RMB/SMB). BeebEm emulates the Master's 65SC12 instruction set for it, as before. Does the FileStore ROM use the Rockwell bit instructions? (No problem was seen on the old branch.) *Still open (20 Oct): Mark is checking the FileStore source/ROMs.*
+2. **E01 CPU.** The E01 has a Rockwell 65C102 (with BBR/BBS/RMB/SMB). BeebEm emulates the Master's 65SC12 instruction set for it, as before. Does the FileStore ROM use the Rockwell bit instructions? (No problem was seen on the old branch.) *Resolved (20 Oct): a search of the FileStore source (Mark's source-history repo, all files) finds no RMB/SMB/BBR/BBS, so the 65SC12 emulation is sufficient.*
 3. **Door and SET bit.** Should the FileStore be able to set its own clock (`*FSDATE`-style), i.e. honour the SET bit like the Master? Currently not, as before.
 4. **System VIA write timing.** *Resolved (20 Oct):* the FileStore's I/O bus runs at 2MHz (Mark; service manual), so FileStore I/O accesses are no longer stretched at all (96b4a9d), and the 6522A's timers count at 2MHz (436db67).
 5. **Station number.** EconetReset() overwrites FileStore CMOS bytes 14/15 with the station from Econet.cfg / `-EcoStn` on every reset, as before. Keep?
@@ -466,7 +466,7 @@ Before building a mechanism, it is worth first showing that the lost key-up happ
 
 1. Build the Release configuration as well (Debug x64 builds warning-free); build master-et-codeberg and keyboard-fix-codeberg.
 2. Run the FileStore test plan above, and the keyboard test plan if you still want that change.
-3. Answer the remaining open questions (FileStore 1, 2, 3, 5, 6; Master ET 1-4; keyboard 1-3).
+3. Answer the remaining open questions (FileStore 1, 3, 5, 6; Master ET 1-4; keyboard 1-3).
 4. Only then ask Chris to delete `filestore`, `filestore-2` and `LocalMaster` on Codeberg (and stardot), as in Part A step 5.
 
 ## Change log
@@ -474,4 +474,5 @@ Before building a mechanism, it is worth first showing that the lost key-up happ
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 19 Oct 2026 | First version, written while building the branches |
+| 1.2 | 20 Oct 2026 | FileStore question 2 (Rockwell instructions) resolved: not used by the FileStore source |
 | 1.1 | 20 Oct 2026 | Added "Changes after the port" and "Build findings"; front panel, behaviour changes, open questions (4 and 7 resolved), test plan and next steps updated for the work up to 1a4c98b |
