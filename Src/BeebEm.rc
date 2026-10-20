@@ -425,6 +425,7 @@ BEGIN
                 MENUITEM "Custom (set in the .cfg file)",     IDM_FILESTORE_DRIVE3_CUSTOM
             END
         END
+        MENUITEM "FileStore Clock Can Be Set",  IDM_FILESTORE_CLOCK_SETTABLE
         MENUITEM SEPARATOR
         MENUITEM "User Port Breakout Box",      IDM_BREAKOUT
         MENUITEM "User Port RTC Module",        IDM_USER_PORT_RTC_MODULE

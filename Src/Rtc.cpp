@@ -213,17 +213,23 @@ const unsigned char RTC146818_REG_C = 0x0C;
 const unsigned char RTC146818_REG_D = 0x0D;
 
 const unsigned char RTC146818_REG_A_UIP    = 0x80;
+const unsigned char RTC146818_REG_A_DV     = 0x70; // Time base divider
+const unsigned char RTC146818_REG_A_RS     = 0x0f; // Periodic interrupt rate
 
 const unsigned char RTC146818_REG_B_SET    = 0x80;
 const unsigned char RTC146818_REG_B_PIE    = 0x40;
 const unsigned char RTC146818_REG_B_AIE    = 0x20;
 const unsigned char RTC146818_REG_B_UIE    = 0x10;
+const unsigned char RTC146818_REG_B_SQWE   = 0x08;
 const unsigned char RTC146818_REG_B_BINARY = 0x04;
+const unsigned char RTC146818_REG_B_24HOUR = 0x02;
 
 const unsigned char RTC146818_REG_C_IRQF   = 0x80;
 const unsigned char RTC146818_REG_C_PF     = 0x40;
 const unsigned char RTC146818_REG_C_AF     = 0x20;
 const unsigned char RTC146818_REG_C_UF     = 0x10;
+
+const unsigned char RTC146818_REG_D_VRT    = 0x80; // Valid RAM and time
 
 // Master 128 CMOS defaults from byte 14 (RAM bytes only)
 
@@ -315,12 +321,27 @@ const unsigned char CMOSDefault_FileStore[50] =
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00  // 57-63
 };
 
-// FileStore RTC update cycle period, in 2MHz CPU cycles. A real 146818 has
-// one update cycle per second; the earlier FileStore emulation used a 10ms
-// Windows timer, which is kept here.
-constexpr int RTC_UPDATE_CYCLES = 20000;
+// FileStore 146818 timing. The FileStore has a 32.768kHz crystal, and
+// relies on the update cycle and interrupts, so these are emulated in CPU
+// cycles for the FileStore:
+// - One update cycle per second. UIP is set 244us (8 ticks) before it
+//   starts, and is cleared when it ends 1984us (65 ticks) later, when UF is
+//   set and the alarm is checked.
+// - The periodic interrupt, at the rate selected by register A RS3-RS0.
+constexpr int RTC_CPU_CLOCK          = 2000000;
+constexpr int RTC_TIME_BASE          = 32768;  // Ticks per second
+constexpr int RTC_UIP_TICKS          = 8;      // UIP set before an update
+constexpr int RTC_UPDATE_TICKS       = 65;     // Length of an update cycle
+constexpr unsigned char RTC_DV_RESET = 0x60;   // DV2 and DV1 set: divider held in reset
 
-static int RTCUpdateCycles = RTC_UPDATE_CYCLES;
+static int RTCTickCycles = 0;   // CPU cycles towards the next tick, times RTC_TIME_BASE
+static int RTCSecondTicks = 0;  // Ticks since the last update cycle started
+static int RTCPeriodicTicks = 0;
+
+// The FileStore's clock normally follows the PC clock. If it is allowed to
+// set its own clock, it is kept as an offset from the PC clock.
+static bool FileStoreClockSettable = false;
+static time_t FileStoreClockOffset = 0;
 
 // Pointer used to switch between the CMOS RAM for the different machines
 unsigned char* pCMOS = nullptr;
@@ -418,6 +439,8 @@ static void RTCSetTimeAndDateRegisters(const struct tm* pTime)
 
 /*-------------------------------------------------------------------------*/
 
+static void RTCUpdate();
+
 void RTCInit()
 {
 	// Select CMOS memory
@@ -439,15 +462,27 @@ void RTCInit()
 
 	if (IsFileStore(MachineType))
 	{
-		// Clear registers A-D: the FileStore ROM sets them up
-		pCMOS[RTC146818_REG_A] = 0;
-		pCMOS[RTC146818_REG_B] = 0;
+		// Registers A-D aren't kept in the preferences file, so start as a
+		// battery-backed chip would be: 32.768kHz time base, no periodic
+		// interrupt, 24 hour BCD, and the battery good. Then as on a reset:
+		// the interrupt enables and flags are cleared.
+		if ((pCMOS[RTC146818_REG_A] & RTC146818_REG_A_DV) != 0x20)
+		{
+			pCMOS[RTC146818_REG_A] = 0x20;
+			pCMOS[RTC146818_REG_B] = RTC146818_REG_B_24HOUR;
+		}
+
+		pCMOS[RTC146818_REG_A] &= ~RTC146818_REG_A_UIP;
+		pCMOS[RTC146818_REG_B] &= ~(RTC146818_REG_B_PIE | RTC146818_REG_B_AIE |
+		                            RTC146818_REG_B_UIE | RTC146818_REG_B_SQWE);
 		pCMOS[RTC146818_REG_C] = 0;
-		pCMOS[RTC146818_REG_D] = 0;
+		pCMOS[RTC146818_REG_D] = RTC146818_REG_D_VRT;
 
 		IntStatus &= ~IRQ_RTC;
 
-		RTCUpdateCycles = RTC_UPDATE_CYCLES;
+		RTCTickCycles = 0;
+		RTCSecondTicks = 0;
+		RTCPeriodicTicks = 0;
 	}
 
 	time_t SysTime;
@@ -457,6 +492,12 @@ void RTCInit()
 	RTCSetTimeAndDateRegisters(CurTime);
 
 	RTCTimeOffset = SysTime - RTCConvertClock();
+
+	if (IsFileStore(MachineType) && FileStoreClockSettable)
+	{
+		RTCTimeOffset = FileStoreClockOffset;
+		RTCUpdate();
+	}
 
 	#ifdef DEBUG_RTC
 	DebugTrace("RTCInit: RTCTimeOffset set to %d\n", (int)RTCTimeOffset);
@@ -544,10 +585,10 @@ void RTCWriteData(unsigned char Value)
 	{
 		// Control register B
 		// Bit-7 SET - 0=clock running, 1=clock update halted
-		if (IsFileStore(MachineType))
+		if (IsFileStore(MachineType) && !FileStoreClockSettable)
 		{
-			// The FileStore clock always follows the PC clock, as in the
-			// earlier FileStore emulation
+			// The FileStore clock follows the PC clock, unless it's allowed
+			// to set its own clock
 		}
 		else if (Value & RTC146818_REG_B_SET)
 		{
@@ -559,6 +600,11 @@ void RTCWriteData(unsigned char Value)
 			time_t SysTime;
 			time(&SysTime);
 			RTCTimeOffset = SysTime - RTCConvertClock();
+
+			if (IsFileStore(MachineType))
+			{
+				FileStoreClockOffset = RTCTimeOffset;
+			}
 
 			#ifdef DEBUG_RTC
 			DebugTrace("RTCWriteData: RTCTimeOffset set to %d\n", (int)RTCTimeOffset);
@@ -665,47 +711,14 @@ void RTCSetCMOSData(Model model, const unsigned char* pData, int Size)
 
 /*-------------------------------------------------------------------------*/
 
-// Called from FileStorePoll(). The FileStore relies on the update-in-progress
-// and update-ended flags, and on the update-ended interrupt, so emulate an
-// update cycle every RTC_UPDATE_CYCLES.
+// Set IRQF and the interrupt when any flag is set with its interrupt enabled
 
-void RTCPoll(int Cycles)
+static void RTCUpdateIRQ()
 {
-	if (pCMOS == nullptr)
-	{
-		return;
-	}
+	const unsigned char Flags = pCMOS[RTC146818_REG_C] & pCMOS[RTC146818_REG_B] &
+	                            (RTC146818_REG_C_PF | RTC146818_REG_C_AF | RTC146818_REG_C_UF);
 
-	RTCUpdateCycles -= Cycles;
-
-	if (RTCUpdateCycles > 0)
-	{
-		return;
-	}
-
-	RTCUpdateCycles += RTC_UPDATE_CYCLES;
-
-	// No update cycles while the SET bit is set
-	if (pCMOS[RTC146818_REG_B] & RTC146818_REG_B_SET)
-	{
-		return;
-	}
-
-	pCMOS[RTC146818_REG_A] |= RTC146818_REG_A_UIP;
-
-	RTCUpdate();
-
-	// Alarms are not emulated
-
-	// The update-ended flag is set after each update cycle
-	pCMOS[RTC146818_REG_C] |= RTC146818_REG_C_UF;
-
-	// IRQF is set when any flag is set with its interrupt enabled
-	// (UIE/UF, AIE/AF, PIE/PF)
-	const unsigned char Enabled = pCMOS[RTC146818_REG_B] &
-	                              (RTC146818_REG_B_PIE | RTC146818_REG_B_AIE | RTC146818_REG_B_UIE);
-
-	if (pCMOS[RTC146818_REG_C] & Enabled)
+	if (Flags != 0)
 	{
 		pCMOS[RTC146818_REG_C] |= RTC146818_REG_C_IRQF;
 		IntStatus |= IRQ_RTC;
@@ -715,12 +728,136 @@ void RTCPoll(int Cycles)
 		pCMOS[RTC146818_REG_C] &= ~RTC146818_REG_C_IRQF;
 		IntStatus &= ~IRQ_RTC;
 	}
+}
 
-	pCMOS[RTC146818_REG_A] &= ~RTC146818_REG_A_UIP;
+/*-------------------------------------------------------------------------*/
 
-	#ifdef DEBUG_RTC
-	DebugTrace("RTC: Update cycle, register C %02X\n", pCMOS[RTC146818_REG_C]);
-	#endif
+// True if an alarm register (1, 3 or 5) matches its time register. Values
+// of &C0 and over are "don't care".
+
+static bool RTCAlarmMatches(int Alarm)
+{
+	return pCMOS[Alarm] >= 0xc0 || pCMOS[Alarm] == pCMOS[Alarm - 1];
+}
+
+/*-------------------------------------------------------------------------*/
+
+// One tick of the 32.768kHz time base
+
+static void RTCTick()
+{
+	// Periodic interrupt. Rates 1 and 2 are the same as 8 and 9.
+	int Rate = pCMOS[RTC146818_REG_A] & RTC146818_REG_A_RS;
+
+	if (Rate == 1 || Rate == 2)
+	{
+		Rate += 7;
+	}
+
+	if (Rate != 0 && ++RTCPeriodicTicks >= (1 << (Rate - 1)))
+	{
+		RTCPeriodicTicks = 0;
+		pCMOS[RTC146818_REG_C] |= RTC146818_REG_C_PF;
+		RTCUpdateIRQ();
+	}
+
+	// Update cycle, once a second. None while the SET bit is set.
+	if (++RTCSecondTicks >= RTC_TIME_BASE)
+	{
+		RTCSecondTicks = 0;
+	}
+
+	if (pCMOS[RTC146818_REG_B] & RTC146818_REG_B_SET)
+	{
+		pCMOS[RTC146818_REG_A] &= ~RTC146818_REG_A_UIP;
+		return;
+	}
+
+	if (RTCSecondTicks == RTC_TIME_BASE - RTC_UIP_TICKS)
+	{
+		pCMOS[RTC146818_REG_A] |= RTC146818_REG_A_UIP;
+	}
+	else if (RTCSecondTicks == RTC_UPDATE_TICKS)
+	{
+		RTCUpdate();
+
+		pCMOS[RTC146818_REG_A] &= ~RTC146818_REG_A_UIP;
+		pCMOS[RTC146818_REG_C] |= RTC146818_REG_C_UF;
+
+		if (RTCAlarmMatches(1) && RTCAlarmMatches(3) && RTCAlarmMatches(5))
+		{
+			pCMOS[RTC146818_REG_C] |= RTC146818_REG_C_AF;
+		}
+
+		RTCUpdateIRQ();
+
+		#ifdef DEBUG_RTC
+		DebugTrace("RTC: Update cycle, register C %02X\n", pCMOS[RTC146818_REG_C]);
+		#endif
+	}
+}
+
+/*-------------------------------------------------------------------------*/
+
+// Called from FileStorePoll() with the number of CPU cycles since the last
+// call. Counts 32.768kHz ticks while the time base divider is running.
+
+void RTCPoll(int Cycles)
+{
+	if (pCMOS == nullptr)
+	{
+		return;
+	}
+
+	if ((pCMOS[RTC146818_REG_A] & RTC_DV_RESET) == RTC_DV_RESET)
+	{
+		// Divider held in reset
+		RTCTickCycles = 0;
+		RTCSecondTicks = 0;
+		pCMOS[RTC146818_REG_A] &= ~RTC146818_REG_A_UIP;
+		return;
+	}
+
+	RTCTickCycles += Cycles * RTC_TIME_BASE;
+
+	while (RTCTickCycles >= RTC_CPU_CLOCK)
+	{
+		RTCTickCycles -= RTC_CPU_CLOCK;
+		RTCTick();
+	}
+}
+
+/*-------------------------------------------------------------------------*/
+
+void RTCSetFileStoreClockSettable(bool Settable)
+{
+	FileStoreClockSettable = Settable;
+
+	if (!Settable)
+	{
+		FileStoreClockOffset = 0;
+	}
+
+	if (IsFileStore(MachineType) && pCMOS != nullptr)
+	{
+		RTCTimeOffset = FileStoreClockOffset;
+		RTCUpdate();
+	}
+}
+
+bool RTCGetFileStoreClockSettable()
+{
+	return FileStoreClockSettable;
+}
+
+void RTCSetFileStoreClockOffset(int Offset)
+{
+	FileStoreClockOffset = FileStoreClockSettable ? Offset : 0;
+}
+
+int RTCGetFileStoreClockOffset()
+{
+	return static_cast<int>(FileStoreClockOffset);
 }
 
 /*-------------------------------------------------------------------------*/

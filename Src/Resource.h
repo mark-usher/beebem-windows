@@ -502,6 +502,7 @@
 #define IDM_FILESTORE_DRIVE3_E40S       40352
 #define IDM_FILESTORE_DRIVE3_E60S       40353
 #define IDM_FILESTORE_DRIVE3_CUSTOM     40354
+#define IDM_FILESTORE_CLOCK_SETTABLE    40355
 
 // Next default values for new objects
 // 
@@ -509,7 +510,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        123
-#define _APS_NEXT_COMMAND_VALUE         40355
+#define _APS_NEXT_COMMAND_VALUE         40356
 #define _APS_NEXT_CONTROL_VALUE         1152
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

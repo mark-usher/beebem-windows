@@ -182,6 +182,8 @@ const char* const CFG_FLOPPY_DRIVE_ENABLED         = "FloppyDriveEnabled";
 const char* const CFG_SCSI_DRIVE_ENABLED           = "SCSIDriveEnabled";
 const char* const CFG_IDE_DRIVE_ENABLED            = "IDEDriveEnabled";
 const char* const CFG_FILESTORE_DRIVE              = "FileStoreDrive%d"; // %d = 0 to 3
+const char* const CFG_FILESTORE_CLOCK_SETTABLE     = "FileStoreClockSettable";
+const char* const CFG_FILESTORE_CLOCK_OFFSET       = "FileStoreClockOffset"; // Seconds
 
 // User port RTC
 const char* const CFG_USER_PORT_RTC_ENABLED        = "UserPortRTCEnabled";

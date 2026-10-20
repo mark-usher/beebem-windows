@@ -137,7 +137,28 @@ FileStoreDrive3=None
         file as <span class="file">CMOSRamE01</span> and
         <span class="file">CMOSRamE01S</span>. The debugger command
         <span class="cmd">state c</span> shows the clock registers and CMOS RAM.
-        Saved state files are not supported for the FileStore.
+        Saved state files are not supported for the FileStore. The station
+        number in CMOS RAM is always set from
+        <span class="file">Econet.cfg</span> or the
+        <span class="cmd">-EcoStn</span> command line option.
+      </p>
+
+      <h2>Clock</h2>
+
+      <p>
+        The FileStore's clock normally follows the PC clock. To let the
+        FileStore set its own clock, for example with a clock setting
+        utility, tick <span class="ui">Hardware &rarr; FileStore Clock Can Be
+        Set</span>. The clock is then kept as an offset from the PC clock,
+        saved in the preferences file as
+        <span class="file">FileStoreClockOffset</span> (in seconds).
+        Unticking the option goes back to the PC clock.
+      </p>
+
+      <p>
+        The 146818's update cycle (once a second), periodic interrupt (at the
+        rate the FileStore sets) and alarm are emulated, as the FileStore
+        uses them for its timing.
       </p>
     </main>
 
