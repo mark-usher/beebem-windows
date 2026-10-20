@@ -1,6 +1,6 @@
 # Rebase notes, October 2026: FileStore, Master ET and keyboard work onto Codeberg master
 
-Version 1.3, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
+Version 1.4, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
 
 ## Summary
 
@@ -155,7 +155,7 @@ References used (on the `reference-docs` branch, not for merging): FileStore Ser
 
 1. **RTC update period.** Keep 10 ms (as the old timer) or use the real 1 s? If the FileStore ROM counts update-ended interrupts for its time-outs, 10 ms makes them 100x faster. *Resolved (20 Oct): the FileStore depends on timings, so the 146818 is now emulated as the data sheet: a 32.768kHz time base in CPU cycles, one update cycle a second (UIP 244µs before, UF at the end), the periodic interrupt at the rate set in register A, and the alarm. A FileStore reset acts like the RESET pin; register D reports a good battery.*
 2. **E01 CPU.** The E01 has a Rockwell 65C102 (with BBR/BBS/RMB/SMB). BeebEm emulates the Master's 65SC12 instruction set for it, as before. Does the FileStore ROM use the Rockwell bit instructions? (No problem was seen on the old branch.) *Resolved (20 Oct): a search of the FileStore source (Mark's source-history repo, all files) finds no RMB/SMB/BBR/BBS, so the 65SC12 emulation is sufficient.*
-3. **Door and SET bit.** Should the FileStore be able to set its own clock (`*FSDATE`-style), i.e. honour the SET bit like the Master? Currently not, as before. *Resolved (20 Oct): new option Hardware > FileStore Clock Can Be Set (preference `FileStoreClockSettable`, default off = follow the PC clock). When on, setting the clock (SET bit) stores an offset from the PC clock, saved as `FileStoreClockOffset`. The clock is normally set with a CMOS utility (see WS-7).*
+3. **Door and SET bit.** Should the FileStore be able to set its own clock (`*FSDATE`-style), i.e. honour the SET bit like the Master? Currently not, as before. *Resolved (20 Oct): the clock can be set on every 146818 machine (as upstream on the Master), kept as an offset from the PC clock. New option Hardware > RTC Clock Offset, for all models: when ticked, the offset is kept over a reset and saved as `RTCClockOffset` (seconds) in the preferences file; when not, the clock goes back to the PC clock on a reset (upstream behaviour). The FileStore clock is normally set with a CMOS utility (see WS-7).*
 4. **System VIA write timing.** *Resolved (20 Oct):* the FileStore's I/O bus runs at 2MHz (Mark; service manual), so FileStore I/O accesses are no longer stretched at all (96b4a9d), and the 6522A's timers count at 2MHz (436db67).
 5. **Station number.** EconetReset() overwrites FileStore CMOS bytes 14/15 with the station from Econet.cfg / `-EcoStn` on every reset, as before. Keep? *Resolved (20 Oct): yes, always from Econet.cfg or -EcoStn.*
 6. **Save state** is disabled for FileStore. Worth adding later (64K RAM, VIA, RTC/CMOS, 2793, SCSI, front panel)? *Resolved (20 Oct): no; the FileStore should be shut down properly.*
@@ -474,6 +474,7 @@ Before building a mechanism, it is worth first showing that the lost key-up happ
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 19 Oct 2026 | First version, written while building the branches |
+| 1.4 | 20 Oct 2026 | Clock option generalised: Hardware > RTC Clock Offset for all models, `RTCClockOffset` in the preferences file |
 | 1.3 | 20 Oct 2026 | FileStore questions 1, 3, 5 and 6 answered; 146818 timing emulation and the FileStore clock option |
 | 1.2 | 20 Oct 2026 | FileStore question 2 (Rockwell instructions) resolved: not used by the FileStore source |
 | 1.1 | 20 Oct 2026 | Added "Changes after the port" and "Build findings"; front panel, behaviour changes, open questions (4 and 7 resolved), test plan and next steps updated for the work up to 1a4c98b |

@@ -502,7 +502,7 @@
 #define IDM_FILESTORE_DRIVE3_E40S       40352
 #define IDM_FILESTORE_DRIVE3_E60S       40353
 #define IDM_FILESTORE_DRIVE3_CUSTOM     40354
-#define IDM_FILESTORE_CLOCK_SETTABLE    40355
+#define IDM_RTC_CLOCK_OFFSET            40355
 
 // Next default values for new objects
 // 

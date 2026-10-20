@@ -1785,14 +1785,18 @@ void BeebWin::LoadCMOSPreferences()
 		RTCSetCMOSDefaults(Model::FileStoreE01S);
 	}
 
-	// The FileStore's clock, if it's allowed to set it
-	bool ClockSettable;
-	m_Preferences.GetBoolValue(CFG_FILESTORE_CLOCK_SETTABLE, ClockSettable, false);
-	RTCSetFileStoreClockSettable(ClockSettable);
-
+	// The RTC clock offset is enabled if it's in the preferences file
 	int ClockOffset;
-	m_Preferences.GetDecimalValue(CFG_FILESTORE_CLOCK_OFFSET, ClockOffset, 0);
-	RTCSetFileStoreClockOffset(ClockOffset);
+
+	if (m_Preferences.GetDecimalValue(CFG_RTC_CLOCK_OFFSET, ClockOffset, 0))
+	{
+		RTCSetClockOffset(ClockOffset);
+		RTCEnableClockOffset(true);
+	}
+	else
+	{
+		RTCEnableClockOffset(false);
+	}
 }
 
 /****************************************************************************/
@@ -2104,8 +2108,6 @@ void BeebWin::SavePreferences(bool saveAll)
 			}
 		}
 
-		m_Preferences.SetBoolValue(CFG_FILESTORE_CLOCK_SETTABLE, RTCGetFileStoreClockSettable());
-
 		// User port RTC
 		m_Preferences.SetBoolValue(CFG_USER_PORT_RTC_ENABLED, UserPortRTCEnabled);
 		m_Preferences.EraseValue(CFG_USER_PORT_RTC_ENABLED_OLD);
@@ -2145,7 +2147,15 @@ void BeebWin::SavePreferences(bool saveAll)
 		m_Preferences.SetBinaryValue(CFG_CMOS_MASTER_ET, RTCGetCMOSData(Model::MasterET), 50);
 		m_Preferences.SetBinaryValue(CFG_CMOS_FILESTORE_E01, RTCGetCMOSData(Model::FileStoreE01), 50);
 		m_Preferences.SetBinaryValue(CFG_CMOS_FILESTORE_E01S, RTCGetCMOSData(Model::FileStoreE01S), 50);
-		m_Preferences.SetDecimalValue(CFG_FILESTORE_CLOCK_OFFSET, RTCGetFileStoreClockOffset());
+
+		if (RTCIsClockOffsetEnabled())
+		{
+			m_Preferences.SetDecimalValue(CFG_RTC_CLOCK_OFFSET, RTCGetClockOffset());
+		}
+		else
+		{
+			m_Preferences.EraseValue(CFG_RTC_CLOCK_OFFSET);
+		}
 
 		m_Preferences.SetBinaryValue(CFG_USER_PORT_RTC_REGISTERS, UserPortRTCRegisters, sizeof(UserPortRTCRegisters));
 	}

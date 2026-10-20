@@ -182,8 +182,6 @@ const char* const CFG_FLOPPY_DRIVE_ENABLED         = "FloppyDriveEnabled";
 const char* const CFG_SCSI_DRIVE_ENABLED           = "SCSIDriveEnabled";
 const char* const CFG_IDE_DRIVE_ENABLED            = "IDEDriveEnabled";
 const char* const CFG_FILESTORE_DRIVE              = "FileStoreDrive%d"; // %d = 0 to 3
-const char* const CFG_FILESTORE_CLOCK_SETTABLE     = "FileStoreClockSettable";
-const char* const CFG_FILESTORE_CLOCK_OFFSET       = "FileStoreClockOffset"; // Seconds
 
 // User port RTC
 const char* const CFG_USER_PORT_RTC_ENABLED        = "UserPortRTCEnabled";
@@ -210,6 +208,7 @@ const char* const CFG_CMOS_MASTER128               = "CMOSRam";
 const char* const CFG_CMOS_MASTER_ET               = "CMOSRamMasterET";
 const char* const CFG_CMOS_FILESTORE_E01           = "CMOSRamE01";
 const char* const CFG_CMOS_FILESTORE_E01S          = "CMOSRamE01S";
+const char* const CFG_RTC_CLOCK_OFFSET             = "RTCClockOffset"; // Seconds, if enabled
 
 // Sideways RAM
 const char* const CFG_SWRAM_WRITABLE               = "SWRAMWritable";

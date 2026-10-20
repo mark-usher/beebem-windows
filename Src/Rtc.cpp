@@ -338,10 +338,12 @@ static int RTCTickCycles = 0;   // CPU cycles towards the next tick, times RTC_T
 static int RTCSecondTicks = 0;  // Ticks since the last update cycle started
 static int RTCPeriodicTicks = 0;
 
-// The FileStore's clock normally follows the PC clock. If it is allowed to
-// set its own clock, it is kept as an offset from the PC clock.
-static bool FileStoreClockSettable = false;
-static time_t FileStoreClockOffset = 0;
+// The RTC follows the PC clock, but the machine can set it (e.g. with TIME$
+// on the Master), which is kept as an offset from the PC clock. Normally the
+// clock goes back to the PC clock on a reset. With the RTC clock offset
+// option, the offset is kept, and saved in the preferences file.
+static bool RTCClockOffsetEnabled = false;
+static time_t RTCClockOffset = 0;
 
 // Pointer used to switch between the CMOS RAM for the different machines
 unsigned char* pCMOS = nullptr;
@@ -493,9 +495,9 @@ void RTCInit()
 
 	RTCTimeOffset = SysTime - RTCConvertClock();
 
-	if (IsFileStore(MachineType) && FileStoreClockSettable)
+	if (RTCClockOffsetEnabled)
 	{
-		RTCTimeOffset = FileStoreClockOffset;
+		RTCTimeOffset = RTCClockOffset;
 		RTCUpdate();
 	}
 
@@ -585,12 +587,7 @@ void RTCWriteData(unsigned char Value)
 	{
 		// Control register B
 		// Bit-7 SET - 0=clock running, 1=clock update halted
-		if (IsFileStore(MachineType) && !FileStoreClockSettable)
-		{
-			// The FileStore clock follows the PC clock, unless it's allowed
-			// to set its own clock
-		}
-		else if (Value & RTC146818_REG_B_SET)
+		if (Value & RTC146818_REG_B_SET)
 		{
 			RTCUpdate();
 		}
@@ -601,9 +598,9 @@ void RTCWriteData(unsigned char Value)
 			time(&SysTime);
 			RTCTimeOffset = SysTime - RTCConvertClock();
 
-			if (IsFileStore(MachineType))
+			if (RTCClockOffsetEnabled)
 			{
-				FileStoreClockOffset = RTCTimeOffset;
+				RTCClockOffset = RTCTimeOffset;
 			}
 
 			#ifdef DEBUG_RTC
@@ -829,35 +826,35 @@ void RTCPoll(int Cycles)
 
 /*-------------------------------------------------------------------------*/
 
-void RTCSetFileStoreClockSettable(bool Settable)
+// Enabling the option keeps the current clock setting. Disabling it goes
+// back to the PC clock.
+
+void RTCEnableClockOffset(bool Enable)
 {
-	FileStoreClockSettable = Settable;
+	RTCClockOffsetEnabled = Enable;
+	RTCClockOffset = Enable ? RTCTimeOffset : 0;
 
-	if (!Settable)
+	if (pCMOS != nullptr)
 	{
-		FileStoreClockOffset = 0;
-	}
-
-	if (IsFileStore(MachineType) && pCMOS != nullptr)
-	{
-		RTCTimeOffset = FileStoreClockOffset;
+		RTCTimeOffset = RTCClockOffset;
 		RTCUpdate();
 	}
 }
 
-bool RTCGetFileStoreClockSettable()
+bool RTCIsClockOffsetEnabled()
 {
-	return FileStoreClockSettable;
+	return RTCClockOffsetEnabled;
 }
 
-void RTCSetFileStoreClockOffset(int Offset)
+void RTCSetClockOffset(int Offset)
 {
-	FileStoreClockOffset = FileStoreClockSettable ? Offset : 0;
+	RTCClockOffset = Offset;
+	RTCTimeOffset = Offset;
 }
 
-int RTCGetFileStoreClockOffset()
+int RTCGetClockOffset()
 {
-	return static_cast<int>(FileStoreClockOffset);
+	return static_cast<int>(RTCClockOffset);
 }
 
 /*-------------------------------------------------------------------------*/

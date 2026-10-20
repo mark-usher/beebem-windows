@@ -1582,7 +1582,7 @@ void BeebWin::InitMenu(void)
 	CheckMenuItem(IDM_WRITE_PROTECT_DISC1, m_WriteProtectDisc[1]);
 	CheckMenuItem(IDM_WRITE_PROTECT_ON_LOAD, m_WriteProtectOnLoad);
 	CheckMenuItem(IDM_FILESTORE_DOOR_OPEN, FileStoreDoorOpen);
-	CheckMenuItem(IDM_FILESTORE_CLOCK_SETTABLE, RTCGetFileStoreClockSettable());
+	CheckMenuItem(IDM_RTC_CLOCK_OFFSET, RTCIsClockOffsetEnabled());
 
 	// File -> Capture Options
 	UpdateBitmapCaptureFormatMenu();
@@ -2057,7 +2057,6 @@ void BeebWin::UpdateModelMenu()
 	UpdateFileStoreDriveMenu();
 	EnableMenuItem(IDM_FILESTORE_DOOR_OPEN, IsFS && m_FileStoreShutdownAction == FileStoreShutdownAction::None);
 	EnableMenuItem(IDM_ECONET, !IsFS);
-	EnableMenuItem(IDM_FILESTORE_CLOCK_SETTABLE, IsFS);
 
 	// Saved state files don't include the FileStore hardware
 	EnableMenuItem(IDM_LOADSTATE, !IsFS);
@@ -5018,9 +5017,9 @@ void BeebWin::HandleCommand(UINT MenuID)
 		SetFileStoreDoorOpen(!FileStoreDoorOpen);
 		break;
 
-	case IDM_FILESTORE_CLOCK_SETTABLE:
-		RTCSetFileStoreClockSettable(!RTCGetFileStoreClockSettable());
-		CheckMenuItem(IDM_FILESTORE_CLOCK_SETTABLE, RTCGetFileStoreClockSettable());
+	case IDM_RTC_CLOCK_OFFSET:
+		RTCEnableClockOffset(!RTCIsClockOffsetEnabled());
+		CheckMenuItem(IDM_RTC_CLOCK_OFFSET, RTCIsClockOffsetEnabled());
 		break;
 
 	case IDM_REWINDTAPE:

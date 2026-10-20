@@ -57,6 +57,16 @@
         </p>
 
         <p>
+          Setting the clock is kept as an offset from the PC's clock. Normally
+          the clock goes back to the PC's clock on a reset. To keep the clock
+          setting, tick <span class="ui">Hardware &rarr; RTC Clock
+          Offset</span>: the offset is then kept over a reset and saved in the
+          preferences file as <span class="file">RTCClockOffset</span> (in
+          seconds), and used the next time BeebEm starts. Unticking it goes
+          back to the PC's clock. This also applies to the FileStore.
+        </p>
+
+        <p>
           Note that the Master MOS does not display dates from the year 2000
           onwards correctly. Only the last two digits of the year are stored.
           The MOS still displays years as 19xx, but will accept any century when

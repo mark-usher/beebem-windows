@@ -45,12 +45,12 @@ unsigned char RTCReadData();
 
 void RTCPoll(int Cycles);
 
-// The FileStore's clock follows the PC clock unless it's allowed to set
-// its own clock, which is then kept as an offset in seconds
-void RTCSetFileStoreClockSettable(bool Settable);
-bool RTCGetFileStoreClockSettable();
-void RTCSetFileStoreClockOffset(int Offset);
-int RTCGetFileStoreClockOffset();
+// The machine's clock setting, as an offset in seconds from the PC clock,
+// is kept over a reset and saved if the clock offset is enabled
+void RTCEnableClockOffset(bool Enable);
+bool RTCIsClockOffsetEnabled();
+void RTCSetClockOffset(int Offset);
+int RTCGetClockOffset();
 
 void DebugRTCState();
 
