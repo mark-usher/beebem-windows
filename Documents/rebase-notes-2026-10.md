@@ -1,6 +1,6 @@
 # Rebase notes, October 2026: FileStore, Master ET and keyboard work onto Codeberg master
 
-Version 1.8, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
+Version 1.9, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
 
 ## Summary
 
@@ -205,6 +205,20 @@ Fixes to Chris's code needed for the VS2019 v142 build (to pass on to Chris): `U
 Bug in econet-reworking-2 found in testing (to pass on to Chris): with a fixed `GATEWAY` and `FINDGATEWAYS 0`, `EconetReset()` never started the gateway keep-alive, although its comment says it should; the keep-alive timer was only set inside `if (EconetConfig.FindGateways)`. A station that only answers (such as a FileStore) then never sends anything through the gateway, so the Pi Econet Bridge never switches it to gateway mode and real stations get "not present". Fixed: the keep-alive starts whenever a gateway is known, and discovery only when `FINDGATEWAYS` is on and none is known. A failed bind to a configured station's port is now also written to the Econet log, since BeebEm otherwise moves silently to the next configured station for this PC.
 
 Prefs files written by the old `filestore` branch (no `PrefsVersion`) store `MachineType` as a number with that branch's numbering (4 = E01, 5 = E01S). Hand-edited files using the new enum values (5 = E01, 6 = E01S, 4 = Master ET) load as the wrong machine; open each in BeebEm, choose the model and save the preferences to convert it to version 3.
+
+Tested with the real Econet on 20 Oct 2026: SURFACE7 runs BeebEm on its own net 7 (Master 7.105, FileStore E01 7.243, E01S 7.244; Econet.cfg `DEFAULTNET 7`, `GATEWAY 192.168.0.62 16384`, ports 3<net><station>, e.g. 37243). The Pi Econet Bridge on apt-office-pieb-wifi maps those three stations with `AUN MAP HOST 7.x ON 192.168.0.10 PORT 37x NONE` and runs the AUN gateway, which can only be set in its JSON config (`"aun-gateway": "192.168.0.62:16384"` in `general`); the bridge reads the JSON only while it is newer than `econet-hpbridge.cfg`. A BBC on the real Econet (2.21) logs on to the emulated FileStore at 7.243.
+
+Changes on this branch since v1.8, each also offered to Chris on Codeberg as a pull request against his branch (Mark opened the PRs from his fork, markusher/beebem-windows):
+
+| Commit here | PR branch (GitHub) | Codeberg PR base | Change |
+|---|---|---|---|
+| 61f1c06 | `pr/econet-gateway-keepalive` | `econet-reworking-2` | Gateway keep-alive also sent when `GATEWAY` is set (above) |
+| 06129f5 | `pr/makefilename-separator` | `master` | `MakeFileName()` checked the string terminator instead of the last character, so it always added a separator (`...\\txt0.dat` in the preferences) |
+| b1a907d | `pr/econet-gateway-stations` | `econet-reworking-2` | Econet Network dialog: stations heard through the gateway are listed after the others in the Stations list, with the gateway's address and port, in the system hot-track colour (blue). Tested: 2.21 appears when it logs on to 7.243 |
+
+The failed-bind log line (61f1c06) is only on this branch.
+
+History rewrite (20 Oct 2026): at Mark's request, the commits on `filestore`, `keyboard-fix`, `archive/rtc-comments`, `filestore-codeberg`, `filestore-econet`, `keyboard-fix-codeberg` and `reference-docs` were rewritten so that mark-usher is the author and committer throughout, with no co-author lines, and every version of these notes was reworded to match. Only these notes changed; the code in every commit is identical. Commit hashes quoted in these notes are the rewritten ones. Clones made before the rewrite must be moved with `git reset --hard origin/<branch>` (or `git branch -f`), not pulled.
 
 Test on this branch: everything in the FileStore test plan, plus Hardware > View Econet Network with the FileStore running (log shows its traffic), AUN gateway/discovery if used, and a Master/Model B station logging on to the FileStore over the new code.
 
@@ -503,6 +517,7 @@ Before building a mechanism, it is worth first showing that the lost key-up happ
 | 1.0 | 19 Oct 2026 | First version, written while building the branches |
 | 1.7 | 20 Oct 2026 | FileStore station from CMOS with session-only -EcoStn override; build fixes for Chris's code |
 | 1.8 | 20 Oct 2026 | Fixed gateway keep-alive with a fixed GATEWAY; log failed station binds; note on old numeric MachineType |
+| 1.9 | 20 Oct 2026 | Real Econet test set-up (net 7, bridge gateway); stations heard through the gateway shown in the Econet Network dialog; Codeberg PRs; history rewrite to mark-usher authorship |
 | 1.6 | 20 Oct 2026 | filestore-econet: FileStore station number from its CMOS with AUTOCONFIGURE, as the Master |
 | 1.5 | 20 Oct 2026 | Codeberg master unchanged (dccbcc8); new branch filestore-econet merging econet-reworking-2 |
 | 1.4 | 20 Oct 2026 | Clock option generalised: Hardware > RTC Clock Offset for all models, `RTCClockOffset` in the preferences file |
