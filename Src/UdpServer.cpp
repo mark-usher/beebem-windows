@@ -152,12 +152,14 @@ bool UdpSocket::Create(HANDLE iocp)
 
 	m_iocp = iocp;
 
-	m_Socket = WSASocket(AF_INET,
-	                     SOCK_DGRAM,
-	                     IPPROTO_UDP,
-	                     nullptr,
-	                     0,
-	                     WSA_FLAG_OVERLAPPED);
+	// WSASocketW: the ANSI version is deprecated (C4996), and there are no
+	// strings here
+	m_Socket = WSASocketW(AF_INET,
+	                      SOCK_DGRAM,
+	                      IPPROTO_UDP,
+	                      nullptr,
+	                      0,
+	                      WSA_FLAG_OVERLAPPED);
 
 	if (m_Socket == INVALID_SOCKET)
 	{

@@ -212,6 +212,8 @@ unsigned char EconetNetworkID = 0; // Default Network ID
 
 unsigned char PreferredStationID = 0;
 unsigned char PreferredNetworkID = 0;
+unsigned char CommandLineStationID = 0;
+unsigned char CommandLineNetworkID = 0;
 
 static unsigned short EconetListenPort = 0; // Default listen port
 static unsigned long EconetListenIP = 0; // IP address
@@ -569,6 +571,37 @@ static void AddStation(unsigned char Station,
 	           IPAddressStr(IPAddress).c_str(),
 	           Port);
 	#endif
+}
+
+/****************************************************************************/
+
+// Without AUTOCONFIGURE, the FileStore's station needs an entry in Econet.cfg
+// for this PC. If there isn't one, add one for this session only, as the
+// station list is read from Econet.cfg again on each reset.
+
+static void AddFileStoreStation()
+{
+	if (PreferredStationID == 0 || LocalIPAddresses.empty())
+	{
+		return;
+	}
+
+	for (const EconetHost& Station : Stations)
+	{
+		if (Station.Station == PreferredStationID &&
+		    Station.Network == PreferredNetworkID)
+		{
+			return;
+		}
+	}
+
+	const unsigned short Port = static_cast<unsigned short>(10000 + (PreferredNetworkID << 8) + PreferredStationID);
+
+	AddStation(PreferredStationID, PreferredNetworkID, LocalIPAddresses[0], Port, BroadcastSource::Unknown);
+
+	EconetLog(EconetLogMessageType::Status,
+	          "Added station %d.%d on port %u for this session",
+	          PreferredNetworkID, PreferredStationID, Port);
 }
 
 /****************************************************************************/
@@ -1083,13 +1116,35 @@ bool EconetReset()
 
 	GetLocalNetworkAddresses(LocalIPAddresses, BroadcastAddresses);
 
-	if (EconetConfig.AutoConfigure &&
-	    PreferredStationID == 0 &&
-	    (MachineType == Model::Master128 || MachineType == Model::MasterET ||
-	     IsFileStore(MachineType)))
+	if (IsFileStore(MachineType))
+	{
+		// The FileStore's station number is in its CMOS. -EcoStn overrides
+		// it for this session only.
+		if (CommandLineStationID != 0)
+		{
+			PreferredStationID = CommandLineStationID;
+
+			if (CommandLineNetworkID != 0)
+			{
+				PreferredNetworkID = CommandLineNetworkID;
+			}
+		}
+		else
+		{
+			const unsigned char Station = RTCGetData(MachineType, 0xE);
+			PreferredStationID = Station >= 1 && Station <= 254 ? Station : 0;
+		}
+
+		if (!EconetConfig.AutoConfigure)
+		{
+			AddFileStoreStation();
+		}
+	}
+	else if (EconetConfig.AutoConfigure &&
+	         PreferredStationID == 0 &&
+	         (MachineType == Model::Master128 || MachineType == Model::MasterET))
 	{
 		// No PreferredStationID has been set so try to use the station number in CMOS.
-		// The FileStore also keeps its station number in CMOS.
 		RTCWriteAddress(0xE);
 		PreferredStationID = RTCReadData();
 	}
@@ -1133,11 +1188,12 @@ bool EconetReset()
 	else if (IsFileStore(MachineType))
 	{
 		// The FileStore also reads its station number from CMOS, followed
-		// by a check byte
-		RTCWriteAddress(0xE);
-		RTCWriteData(EconetStationID);
-		RTCWriteAddress(0xF);
-		RTCWriteData(static_cast<unsigned char>(0xff - EconetStationID));
+		// by a check byte. A station number given with -EcoStn is for this
+		// session only, so isn't saved.
+		const bool Temporary = CommandLineStationID != 0;
+
+		RTCSetCMOSByte(0xE, EconetStationID, Temporary);
+		RTCSetCMOSByte(0xF, static_cast<unsigned char>(0xff - EconetStationID), Temporary);
 	}
 
 	// This call is what allows broadcast packets to be sent.

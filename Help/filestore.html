@@ -141,13 +141,15 @@ FileStoreDrive3=None
       </p>
 
       <p>
-        The FileStore's station number is taken from the
-        <span class="cmd">-EcoStn</span> command line option if given.
-        Otherwise, as on the Master, with <span class="file">AUTOCONFIGURE</span>
-        enabled in <span class="file">Econet.cfg</span> the station number in
-        the FileStore's CMOS RAM is used (254 by default), and without it the
-        station configured in <span class="file">Econet.cfg</span> for this
-        PC. The station number in use is written back to CMOS RAM.
+        The FileStore's station number is the one in its CMOS RAM (254 by
+        default). The <span class="cmd">-EcoStn</span> command line option
+        overrides it for that session only: the FileStore sees the new number
+        in its CMOS RAM, but the original number is kept in the preferences
+        file. Without <span class="file">AUTOCONFIGURE</span> in
+        <span class="file">Econet.cfg</span>, if there is no entry for the
+        FileStore's station on this PC, one is added for the session (port
+        10000 + 256 &times; network + station); nothing is written to
+        <span class="file">Econet.cfg</span>.
       </p>
 
       <h2>Clock</h2>

@@ -208,6 +208,28 @@ struct CMOSType
 
 static CMOSType CMOS;
 
+// CMOS RAM bytes changed for this session only, e.g. the FileStore's
+// station number given with -EcoStn. The original values are kept, and
+// saved in the preferences file instead.
+static int TemporaryCMOS[CMOS_COUNT][64];
+static bool TemporaryCMOSInitialised = false;
+
+static void InitTemporaryCMOS()
+{
+	if (!TemporaryCMOSInitialised)
+	{
+		for (int Index = 0; Index < CMOS_COUNT; Index++)
+		{
+			for (int Address = 0; Address < 64; Address++)
+			{
+				TemporaryCMOS[Index][Address] = -1;
+			}
+		}
+
+		TemporaryCMOSInitialised = true;
+	}
+}
+
 const unsigned char RTC146818_REG_A = 0x0A;
 const unsigned char RTC146818_REG_B = 0x0B;
 const unsigned char RTC146818_REG_C = 0x0C;
@@ -621,6 +643,10 @@ void RTCWriteData(unsigned char Value)
 		// User RAM
 		pCMOS[CMOS.Address] = Value;
 
+		// A change made by the machine itself is permanent
+		InitTemporaryCMOS();
+		TemporaryCMOS[GetCMOSIndex(MachineType)][CMOS.Address] = -1;
+
 		if (CMOS.Address == 0x0E)
 		{
 			// Writing to Econet station number byte so ensure we will use it
@@ -697,11 +723,57 @@ unsigned char RTCGetData(Model model, unsigned char Address)
 
 /*-------------------------------------------------------------------------*/
 
+// The CMOS RAM bytes from 14, as saved in the preferences file
+
 const unsigned char* RTCGetCMOSData(Model model)
 {
 	const int Index = GetCMOSIndex(model);
 
-	return &CMOS.Register[Index][14];
+	static unsigned char Data[50];
+	memcpy(Data, &CMOS.Register[Index][14], 50);
+
+	InitTemporaryCMOS();
+
+	for (int Address = 14; Address < 64; Address++)
+	{
+		if (TemporaryCMOS[Index][Address] >= 0)
+		{
+			Data[Address - 14] = static_cast<unsigned char>(TemporaryCMOS[Index][Address]);
+		}
+	}
+
+	return Data;
+}
+
+/*-------------------------------------------------------------------------*/
+
+// Set a CMOS RAM byte for the current machine. If Temporary, the original
+// value is kept, and saved in the preferences file instead.
+
+void RTCSetCMOSByte(unsigned char Address, unsigned char Value, bool Temporary)
+{
+	if (pCMOS == nullptr || Address < 14 || Address >= 64)
+	{
+		return;
+	}
+
+	InitTemporaryCMOS();
+
+	int& Original = TemporaryCMOS[GetCMOSIndex(MachineType)][Address];
+
+	if (Temporary)
+	{
+		if (Original < 0)
+		{
+			Original = pCMOS[Address];
+		}
+	}
+	else
+	{
+		Original = -1;
+	}
+
+	pCMOS[Address] = Value;
 }
 
 /*-------------------------------------------------------------------------*/

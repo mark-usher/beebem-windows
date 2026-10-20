@@ -79,6 +79,10 @@ extern unsigned char EconetNetworkID;
 extern unsigned char PreferredStationID;
 extern unsigned char PreferredNetworkID;
 
+// Station number given with -EcoStn, 0 if none
+extern unsigned char CommandLineStationID;
+extern unsigned char CommandLineNetworkID;
+
 extern char EconetCfgPath[MAX_PATH];
 extern char AUNMapPath[MAX_PATH];
 

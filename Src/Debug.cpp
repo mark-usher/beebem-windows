@@ -1316,7 +1316,7 @@ void DebugDisplayInfo(const char *info)
 
 static void DebugSelectAll()
 {
-	int Count = SendMessage(hwndInfo, LB_GETCOUNT, 0, 0);
+	int Count = static_cast<int>(SendMessage(hwndInfo, LB_GETCOUNT, 0, 0));
 
 	if (Count > 0)
 	{
@@ -1328,7 +1328,7 @@ static void DebugSelectAll()
 
 static void DebugCopy()
 {
-	int Count = SendMessage(hwndInfo, LB_GETSELCOUNT, 0, 0);
+	int Count = static_cast<int>(SendMessage(hwndInfo, LB_GETSELCOUNT, 0, 0));
 
 	if (Count > 0 && Count != LB_ERR)
 	{

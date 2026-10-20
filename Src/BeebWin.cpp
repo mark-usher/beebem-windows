@@ -5956,6 +5956,14 @@ void BeebWin::ParseCommandLine()
 						Invalid = true;
 					}
 				}
+
+				// Remember the station number given, which overrides the
+				// FileStore's CMOS station number for this session
+				if (!Invalid)
+				{
+					CommandLineStationID = PreferredStationID;
+					CommandLineNetworkID = PreferredNetworkID;
+				}
 			}
 			else if (StrCaseCmp(__argv[i], "-EcoFF") == 0)
 			{

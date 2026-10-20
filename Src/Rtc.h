@@ -57,6 +57,7 @@ void DebugRTCState();
 void RTCSetCMOSDefaults(Model model);
 unsigned char RTCGetData(Model model, unsigned char Address);
 const unsigned char* RTCGetCMOSData(Model model);
+void RTCSetCMOSByte(unsigned char Address, unsigned char Value, bool Temporary);
 void RTCSetCMOSData(Model model, const unsigned char* pData, int Size);
 
 #endif
