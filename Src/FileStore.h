@@ -51,6 +51,7 @@ extern FileStoreDriveType FileStoreDrive[FILESTORE_MAX_DRIVES];
 void FileStoreReset();
 unsigned char FileStoreReadMem(int Address);
 void FileStoreWriteMem(int Address, unsigned char Value);
+unsigned int FileStoreRefreshWait(unsigned int Cycles);
 void FileStorePoll(int Cycles);
 
 #endif

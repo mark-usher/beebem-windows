@@ -418,6 +418,17 @@ void UserVIATriggerCA1Int()
 
 /*--------------------------------------------------------------------------*/
 
+// The timer counts are in 2MHz CPU cycles, and count down at 1MHz. The
+// FileStore's 6522A is clocked at 2MHz, so its timers count down twice as
+// fast, and the number of CPU cycles until a timer interrupt is halved.
+
+static int GetCyclesToTimerInt(int Count)
+{
+	return IsFileStore(MachineType) ? (3 + Count) / 2 : 3 + Count;
+}
+
+/*--------------------------------------------------------------------------*/
+
 static void UserVIAPollReal()
 {
 	static bool t1int = false;
@@ -440,7 +451,7 @@ static void UserVIAPollReal()
 
 			if ((UserVIAState.ier & IFR_TIMER1) && CyclesToInt == NO_TIMER_INT_DUE)
 			{
-				CyclesToInt = 3 + UserVIAState.timer1c;
+				CyclesToInt = GetCyclesToTimerInt(UserVIAState.timer1c);
 			}
 
 			UserVIAState.timer1hasshot = true;
@@ -464,7 +475,7 @@ static void UserVIAPollReal()
 
 			if ((UserVIAState.ier & IER_TIMER2) && CyclesToInt == NO_TIMER_INT_DUE)
 			{
-				CyclesToInt = 3 + UserVIAState.timer2c;
+				CyclesToInt = GetCyclesToTimerInt(UserVIAState.timer2c);
 			}
 
 			UserVIAState.timer2hasshot = true; // Added by K.Lowe 24/08/03
@@ -482,11 +493,14 @@ void UserVIAPoll(unsigned int Cycles)
 {
 	// Converted to a proc to allow shift register functions
 
-	UserVIAState.timer1c -= Cycles;
+	// The FileStore's VIA is clocked at 2MHz
+	const int Ticks = IsFileStore(MachineType) ? Cycles * 2 : Cycles;
+
+	UserVIAState.timer1c -= Ticks;
 
 	if (!(UserVIAState.acr & ACR_TIMER2_CONTROL))
 	{
-		UserVIAState.timer2c -= Cycles;
+		UserVIAState.timer2c -= Ticks;
 	}
 
 	if (UserVIAState.timer1c < 0 || UserVIAState.timer2c < 0)

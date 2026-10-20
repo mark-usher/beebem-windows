@@ -25,16 +25,17 @@ Boston, MA  02110-1301, USA.
 //
 // &0000-&FBFF  RAM. The ROM images are loaded directly into RAM, see
 //              BeebReadRoms()
-// &FC00        146818 RTC address register (write only)
-// &FC04        146818 RTC data register (when enabled by &FC08 bit 3)
-// &FC08        Control latch (write), EPROM/RAM latch (read)
+// &FC00-&FC03  146818 RTC address register (write only)
+// &FC04-&FC07  146818 RTC data register (when enabled by &FC08 bit 3)
+// &FC08-&FC0B  Control latch (write), EPROM/RAM latch (read)
 // &FC0C-&FC0F  WD2793 FDC registers
 // &FC10-&FC1F  System VIA (emulated using BeebEm's user VIA)
 // &FC20-&FC23  MC68B54 ADLC (Econet)
-// &FC24        Econet INTOFF and station number (read)
-// &FC28        Econet INTON (read)
-// &FC2C        Front panel switches (read)
+// &FC24-&FC27  Econet INTOFF and station number (read)
+// &FC28-&FC2B  Econet INTON (read)
+// &FC2C-&FC2F  Front panel switches (read)
 // &FC30-&FC33  SCSI interface
+// &FC40-&FCFF  Repeats of &FC00-&FC3F
 // &FD00-&FFFF  RAM
 //
 // Unlike the BBC Micro, the FileStore runs its I/O bus at 2MHz, so I/O
@@ -89,6 +90,12 @@ static int FrameCycles = FS_FRAME_CYCLES;
 // FDC master reset line from the control latch: false = held in reset
 static bool FDCResetLine = false;
 
+// DRAM refresh: 30 cycles after the last refresh, the next opcode fetch
+// holds the CPU for one cycle (Ready low) while a refresh is done
+constexpr unsigned int FS_REFRESH_CYCLES = 30;
+
+static unsigned int RefreshCycles = 0;
+
 /****************************************************************************/
 
 void FileStoreReset()
@@ -96,6 +103,7 @@ void FileStoreReset()
 	FileStoreModeLED = false;
 	FrameCycles = FS_FRAME_CYCLES;
 	FDCResetLine = false;
+	RefreshCycles = 0;
 
 	RTCChipEnable(false);
 }
@@ -109,10 +117,16 @@ unsigned char FileStoreReadMem(int Address)
 		return WholeRam[Address];
 	}
 
+	// Page &FC repeats every &40 bytes, and the RTC, control latch, Econet
+	// interrupt and front panel registers also appear at the three
+	// addresses after each one
+	Address = 0xfc00 | (Address & 0x3f);
+	const int Group = Address & ~0x3;
+
 	// EPROM/RAM latch. This is only read once by a BIT instruction at the
 	// start of the MOS initialisation (&EB94), which switches from reading
 	// EPROM to reading RAM. The ROMs are already loaded into RAM.
-	if (Address == 0xfc08)
+	if (Group == 0xfc08)
 	{
 		return 0xff;
 	}
@@ -136,7 +150,7 @@ unsigned char FileStoreReadMem(int Address)
 	}
 
 	// Econet NMI disable (INTOFF) and station number
-	if (Address == 0xfc24 && EconetEnabled)
+	if (Group == 0xfc24 && EconetEnabled)
 	{
 		#ifdef DEBUG_ECONET_INTERRUPTS
 		DebugTrace("Econet: INTOFF\n");
@@ -148,7 +162,7 @@ unsigned char FileStoreReadMem(int Address)
 	}
 
 	// Econet NMI enable (INTON)
-	if (Address == 0xfc28 && EconetEnabled)
+	if (Group == 0xfc28 && EconetEnabled)
 	{
 		#ifdef DEBUG_ECONET_INTERRUPTS
 		DebugTrace("Econet: INTON\n");
@@ -173,7 +187,7 @@ unsigned char FileStoreReadMem(int Address)
 	}
 
 	// Front panel switches
-	if (Address == 0xfc2c)
+	if (Group == 0xfc2c)
 	{
 		unsigned char Value = 0x00;
 
@@ -192,7 +206,7 @@ unsigned char FileStoreReadMem(int Address)
 	}
 
 	// RTC data register. The RTC address register at &FC00 is write only.
-	if (Address == 0xfc04 && RTCIsChipEnable())
+	if (Group == 0xfc04 && RTCIsChipEnable())
 	{
 		return RTCReadData();
 	}
@@ -209,6 +223,12 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 		WholeRam[Address] = Value;
 		return;
 	}
+
+	// Page &FC repeats every &40 bytes, and the RTC, control latch, Econet
+	// interrupt and front panel registers also appear at the three
+	// addresses after each one
+	Address = 0xfc00 | (Address & 0x3f);
+	const int Group = Address & ~0x3;
 
 	// System VIA
 	if ((Address & ~0xf) == 0xfc10)
@@ -251,14 +271,14 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 	}
 
 	// RTC address register
-	if (Address == 0xfc00)
+	if (Group == 0xfc00)
 	{
 		RTCWriteAddress(Value);
 		return;
 	}
 
 	// RTC data register
-	if (Address == 0xfc04)
+	if (Group == 0xfc04)
 	{
 		if (RTCIsChipEnable())
 		{
@@ -269,7 +289,7 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 	}
 
 	// Control latch
-	if (Address == 0xfc08)
+	if (Group == 0xfc08)
 	{
 		RTCChipEnable((Value & FS_CONTROL_CMOS_ENABLE) != 0);
 
@@ -305,6 +325,24 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 
 		return;
 	}
+}
+
+/****************************************************************************/
+
+// Called after each instruction with its number of cycles. Returns the
+// number of extra cycles the CPU is held for by the DRAM refresh.
+
+unsigned int FileStoreRefreshWait(unsigned int Cycles)
+{
+	RefreshCycles += Cycles;
+
+	if (RefreshCycles >= FS_REFRESH_CYCLES)
+	{
+		RefreshCycles = 0;
+		return 1;
+	}
+
+	return 0;
 }
 
 /****************************************************************************/

@@ -3222,6 +3222,13 @@ void Exec6502Instruction()
 		Cycles += CyclesTable[CurrentInstruction] -
 		          CyclesToMemRead[CurrentInstruction] - CyclesToMemWrite[CurrentInstruction];
 
+		// The FileStore's DRAM refresh holds the CPU for a cycle at the
+		// next opcode fetch
+		if (IsFileStore(MachineType))
+		{
+			Cycles += FileStoreRefreshWait(Cycles);
+		}
+
 		PollVIAs(Cycles - ViaCycles);
 		PollHardware(Cycles);
 
