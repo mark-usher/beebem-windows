@@ -393,8 +393,9 @@ static const COLORREF FS_SWITCH_SHADOW    = RGB(150, 144, 130);
 
 // Opacity (out of 256) of the flap tint, and of the glow of a lit LED seen
 // through the flap
-constexpr int FS_FLAP_TINT_ALPHA = 70;
-constexpr int FS_LED_GLOW_ALPHA  = 150;
+constexpr int FS_FLAP_TINT_ALPHA   = 70;
+constexpr int FS_LED_GLOW_ALPHA    = 150;
+constexpr int FS_FLOPPY_GLOW_ALPHA = 200;
 
 /****************************************************************************/
 
@@ -742,15 +743,53 @@ constexpr double FS_LED_Y       = 0.54; // Fraction of the flap height
 // eject button at the bottom right. Left and Right are fractions of the
 // unit's width.
 
-static void DrawFloppyDrive(HDC hDC, const FileStoreUnitLayout& Unit, double Left, double Right,
+// The floppy drive bays, as fractions of the unit width
+constexpr double FS_FLOPPY_BAY_LEFT[2]  = { 0.025, 0.375 };
+constexpr double FS_FLOPPY_BAY_RIGHT[2] = { 0.355, 0.705 };
+
+// Each drive bay has a blank panel on the left, then the 3.5" drive
+
+static RECT GetFloppyDriveBezel(const FileStoreUnitLayout& Unit, int Drive)
+{
+	const double Left  = FS_FLOPPY_BAY_LEFT[Drive];
+	const double Right = FS_FLOPPY_BAY_RIGHT[Drive];
+
+	RECT Bezel;
+	Bezel.left   = Unit.X(Left + (Right - Left) * 0.163);
+	Bezel.right  = Unit.X(Right);
+	Bezel.top    = Unit.Y(0.11);
+	Bezel.bottom = Unit.Y(0.59);
+
+	return Bezel;
+}
+
+// The floppy drive activity LED, in the bottom left of the drive
+
+static RECT GetFloppyDriveLED(const FileStoreUnitLayout& Unit, int Drive)
+{
+	const RECT Bezel = GetFloppyDriveBezel(Unit, Drive);
+	const int Width  = Bezel.right - Bezel.left;
+	const int Height = Bezel.bottom - Bezel.top;
+
+	RECT LED;
+	LED.left   = Bezel.left + (int)(0.17 * Width);
+	LED.right  = Bezel.left + (int)(0.22 * Width);
+	LED.top    = Bezel.top + (int)(0.78 * Height);
+	LED.bottom = Bezel.top + (int)(0.85 * Height);
+
+	return LED;
+}
+
+static void DrawFloppyDrive(HDC hDC, const FileStoreUnitLayout& Unit, int Drive,
                             bool DiscInserted, bool LED)
 {
-	// Each drive bay has a blank panel on the left, then the 3.5" drive
-	const int BayLeft     = Unit.X(Left);
-	const int BezelLeft   = Unit.X(Left + (Right - Left) * 0.163);
-	const int BezelRight  = Unit.X(Right);
-	const int BezelTop    = Unit.Y(0.11);
-	const int BezelBottom = Unit.Y(0.59);
+	const RECT Bezel = GetFloppyDriveBezel(Unit, Drive);
+
+	const int BayLeft     = Unit.X(FS_FLOPPY_BAY_LEFT[Drive]);
+	const int BezelLeft   = Bezel.left;
+	const int BezelRight  = Bezel.right;
+	const int BezelTop    = Bezel.top;
+	const int BezelBottom = Bezel.bottom;
 	const int BezelWidth  = BezelRight - BezelLeft;
 	const int BezelHeight = BezelBottom - BezelTop;
 
@@ -789,7 +828,10 @@ static void DrawFloppyDrive(HDC hDC, const FileStoreUnitLayout& Unit, double Lef
 	FillSolidRect(hDC, DX(0.26), DY(0.59), DX(0.77), DY(0.59) + 1, FS_DRIVE_EDGE);
 
 	// Activity LED
-	FillSolidRect(hDC, DX(0.17), DY(0.78), DX(0.22), DY(0.85), LED ? FS_DRIVE_LED_ON : FS_DRIVE_LED_OFF);
+	const RECT LEDRect = GetFloppyDriveLED(Unit, Drive);
+
+	FillSolidRect(hDC, LEDRect.left, LEDRect.top, LEDRect.right, LEDRect.bottom,
+	              LED ? FS_DRIVE_LED_ON : FS_DRIVE_LED_OFF);
 
 	// Eject button
 	FillSolidRect(hDC, DX(0.77), DY(0.68), DX(0.94), DY(0.84),
@@ -871,8 +913,8 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 
 	if (FileStore)
 	{
-		DrawFloppyDrive(hDC, Unit, 0.025, 0.355, DiscInserted[0], FloppyLED[0]);
-		DrawFloppyDrive(hDC, Unit, 0.375, 0.705, DiscInserted[1], FloppyLED[1]);
+		DrawFloppyDrive(hDC, Unit, 0, DiscInserted[0], FloppyLED[0]);
+		DrawFloppyDrive(hDC, Unit, 1, DiscInserted[1], FloppyLED[1]);
 
 		// With the door open, the cream case dividers between the bays
 		if (FlapOpen)
@@ -981,6 +1023,29 @@ static void DrawUnit(const FileStoreCanvas& Canvas, const FileStoreUnitLayout& U
 
 	BlendRect(Canvas, GreenX - GlowWidth, LEDy - GlowHeight, GreenX + GlowWidth, LEDy + GlowHeight,
 	          FS_GREEN_ON, FS_LED_GLOW_ALPHA);
+
+	// The floppy drive LEDs are small, so their glow spreads further: a
+	// soft outer glow and a brighter inner one
+	if (FileStore)
+	{
+		for (int Drive = 0; Drive < 2; Drive++)
+		{
+			if (!FloppyLED[Drive])
+			{
+				continue;
+			}
+
+			const RECT LED = GetFloppyDriveLED(Unit, Drive);
+			const int SpreadX = std::max(2, (int)(LED.right - LED.left));
+			const int SpreadY = std::max(2, (int)(LED.bottom - LED.top));
+
+			BlendRect(Canvas, LED.left - SpreadX, LED.top - SpreadY, LED.right + SpreadX, LED.bottom + SpreadY,
+			          FS_DRIVE_LED_ON, FS_FLOPPY_GLOW_ALPHA / 2);
+			BlendRect(Canvas, LED.left - SpreadX / 2, LED.top - SpreadY / 2,
+			          LED.right + SpreadX / 2, LED.bottom + SpreadY / 2,
+			          FS_DRIVE_LED_ON, FS_FLOPPY_GLOW_ALPHA);
+		}
+	}
 
 	// The bevel: lit along the top and left, in shadow along the bottom and
 	// right, with a catch-light on the inner top and left edges and a dark
