@@ -1,6 +1,6 @@
 # Rebase notes, October 2026: FileStore, Master ET and keyboard work onto Codeberg master
 
-Version 1.6, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
+Version 1.7, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
 
 ## Summary
 
@@ -198,7 +198,9 @@ On 20 Oct 2026 Mark fetched Codeberg: **master is still dccbcc8**, so filestore-
 | BeebWin.cpp timers | Both new timers | Both handled |
 | BeebEm.rc | Chris's new menu accelerators vs FileStore menus | Both; accelerators added to the FileStore and RTC items (Acorn &FileStore E01, E01&S, FileStore Hard &Drive Units, RTC &Clock Offset) |
 
-The FileStore needed no code changes for the new Econet: it only uses `EconetRead/Write`, `EconetReadStationID`, `EconetInterruptRequest`, `EconetNMIEnabled`, `EconetEnabled` and the CMOS station write in `EconetReset()`, all unchanged. Station number (d-commit after the merge): `-EcoStn` if given; otherwise, with AUTOCONFIGURE, the station number in the FileStore's own CMOS (byte 14, default 254), as for the Master; otherwise the Econet.cfg entry for this PC. EconetReset() writes the station in use back to CMOS bytes 14/15. Writing CMOS byte 14 (e.g. from a FileStore utility) makes the next reset use the new number. MinGW syntax check: the only failures are in Chris's files and also occur on econet-reworking-2 alone (goto past initialisations, `SOCKADDR_STORAGE_XP`).
+The FileStore needed no code changes for the new Econet: it only uses `EconetRead/Write`, `EconetReadStationID`, `EconetInterruptRequest`, `EconetNMIEnabled`, `EconetEnabled` and the CMOS station write in `EconetReset()`, all unchanged. Station number (Mark, 20 Oct): the FileStore always takes its station from its own CMOS (byte 14, saved as CMOSRamE01/E01S, default 254), with or without AUTOCONFIGURE. `-EcoStn` overrides it for the session only: it is written into CMOS so the FileStore ROM sees it, but the original bytes 14/15 are saved in the preferences file (`RTCSetCMOSByte(..., Temporary)`); a change the FileStore makes itself is permanent. Without AUTOCONFIGURE, if Econet.cfg has no entry for that station on this PC, an entry is added in memory for the session (port 10000 + 256 x net + station), so nothing is written to or removed from Econet.cfg. Master behaviour is unchanged (Mark to discuss -EcoStn with Chris).
+
+Fixes to Chris's code needed for the VS2019 v142 build (to pass on to Chris): `UdpServer.cpp` WSASocket -> WSASocketW (C4996 is an error with SDL checks); `Debug.cpp` lines 1319/1331 static_cast<int> of SendMessage (C4244).
 
 Test on this branch: everything in the FileStore test plan, plus Hardware > View Econet Network with the FileStore running (log shows its traffic), AUN gateway/discovery if used, and a Master/Model B station logging on to the FileStore over the new code.
 
@@ -495,6 +497,7 @@ Before building a mechanism, it is worth first showing that the lost key-up happ
 | Version | Date | Change |
 |---|---|---|
 | 1.0 | 19 Oct 2026 | First version, written while building the branches |
+| 1.7 | 20 Oct 2026 | FileStore station from CMOS with session-only -EcoStn override; build fixes for Chris's code |
 | 1.6 | 20 Oct 2026 | filestore-econet: FileStore station number from its CMOS with AUTOCONFIGURE, as the Master |
 | 1.5 | 20 Oct 2026 | Codeberg master unchanged (dccbcc8); new branch filestore-econet merging econet-reworking-2 |
 | 1.4 | 20 Oct 2026 | Clock option generalised: Hardware > RTC Clock Offset for all models, `RTCClockOffset` in the preferences file |
