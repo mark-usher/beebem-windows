@@ -236,6 +236,10 @@ Separate branch for testing, on `filestore-econet` (so with econet-reworking-2 a
 | `UserData/defscsi.cfg` | Pi1MHz's shipped default descriptor, unchanged. |
 | `Tools/BeebSCSITests/` | Linux host tests: Pi1MHz's own `test_beebscsi.c` run against the port (103 pass; the 2 BSSENSE/BSSELECT checks fail by design), and register-level tests of the host adaptor (17 pass). `run_tests.sh <Pi1MHz tree>`. |
 
+Fixed after the first test on SURFACE7 (f9f1e05): the data register keeps the byte the host writes. ADFS (&9A6C) and the FileStore MOS (&FA1E) check for the host adaptor by writing &5A/&A5 (&53/&A5 on the FileStore) to the data register and reading it back; without it ADFS went straight to the floppy drive and the FileStore stopped with error &65.
+
+Preferences: version 3.1 is written (all three FileStore branches, Mark 20 Oct): 3 plus the FileStore and SCSI keys. BeebEm reads only the number before the point (`std::stoi`), so upstream still reads such a file as version 3.
+
 Behaviour changes to check: a drive is started by START UNIT or by its first READ/WRITE, as on Pi1MHz, so TEST UNIT READY before that is "not ready" (the old code reported every opened image ready); the old `.dsc`-only drives still get their geometry from the `.dsc`. The `BeebSCSI` objects build into `$(IntDir)BeebSCSI\` because `scsi.cpp` and `Scsi.cpp` would both be `scsi.obj`. Licence: BeebSCSI and Pi1MHz are GPL v3 or later, BeebEm GPL v2 or later, so a build with them is GPL v3 (to raise with Chris before any PR).
 
 ## master-et-codeberg
