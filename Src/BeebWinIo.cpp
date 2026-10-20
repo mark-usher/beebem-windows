@@ -44,7 +44,6 @@ using std::max;
 #include "BeebMem.h"
 #include "BeebWinPrefs.h"
 #include "Disc1770.h"
-#include "Disc2793.h"
 #include "Disc8271.h"
 #include "DiscEdit.h"
 #include "DiscInfo.h"
@@ -100,7 +99,6 @@ void BeebWin::EjectDiscImage(int Drive)
 {
 	FreeDiscImage(Drive);
 	Close1770Disc(Drive);
-	Close2793Disc(Drive);
 
 	DiscInfo[Drive].FileName[0] = '\0';
 	DiscInfo[Drive].Type = DiscType::SSD;
@@ -191,10 +189,10 @@ bool BeebWin::ReadDisc(int Drive, bool bCheckForPrefs)
 
 		if (IsFileStore(MachineType))
 		{
-			// The FileStore 2793 FDC only uses ADFS format floppy discs
+			// The FileStore only uses ADFS format floppy discs
 			if (Type == FileType::ADFS)
 			{
-				Load2793DiscImage(FileName, Drive, DiscType::ADFS);
+				LoadFileStoreDiscImage(FileName, Drive);
 			}
 			else
 			{
@@ -330,11 +328,15 @@ bool BeebWin::Load1770DiscImage(const char *FileName, int Drive, DiscType Type)
 
 /****************************************************************************/
 
-bool BeebWin::Load2793DiscImage(const char *FileName, int Drive, DiscType Type)
-{
-	Disc2793Result Result = ::Load2793DiscImage(FileName, Drive, Type);
+// The FileStore's floppy discs, loaded into its WD2793, emulated by the 1770
+// code. The FileStore writes to its discs, so they aren't write protected.
 
-	if (Result == Disc2793Result::OpenedReadWrite)
+bool BeebWin::LoadFileStoreDiscImage(const char *FileName, int Drive)
+{
+	const DiscType Type = DiscType::ADFS;
+	Disc1770Result Result = ::Load1770DiscImage(FileName, Drive, Type);
+
+	if (Result == Disc1770Result::OpenedReadWrite)
 	{
 		SetImageName(FileName, Drive, Type);
 		EnableMenuItem(Drive == 0 ? IDM_WRITE_PROTECT_DISC0 : IDM_WRITE_PROTECT_DISC1, true);
@@ -344,7 +346,7 @@ bool BeebWin::Load2793DiscImage(const char *FileName, int Drive, DiscType Type)
 
 		return true;
 	}
-	else if (Result == Disc2793Result::OpenedReadOnly)
+	else if (Result == Disc1770Result::OpenedReadOnly)
 	{
 		SetImageName(FileName, Drive, Type);
 		EnableMenuItem(Drive == 0 ? IDM_WRITE_PROTECT_DISC0 : IDM_WRITE_PROTECT_DISC1, false);
@@ -354,7 +356,7 @@ bool BeebWin::Load2793DiscImage(const char *FileName, int Drive, DiscType Type)
 	}
 	else
 	{
-		// Disc2793Result::Failed
+		// Disc1770Result::Failed
 		Report(MessageType::Error, "Could not open disc file:\n  %s",
 		       FileName);
 
@@ -617,7 +619,7 @@ void BeebWin::NewDiscImage(int Drive)
 			{
 				if (IsFileStore(MachineType))
 				{
-					Load2793DiscImage(FileName, Drive, DiscType::ADFS);
+					LoadFileStoreDiscImage(FileName, Drive);
 				}
 				else
 				{

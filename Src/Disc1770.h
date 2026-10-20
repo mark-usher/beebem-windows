@@ -31,6 +31,12 @@ extern bool DWriteable[2]; // Write Protect
 extern bool Disc1770Enabled;
 extern bool InvertTR00;
 
+// The FileStore has a WD2793, emulated by the 1770 code
+enum class FDCType {
+	WD1770,
+	WD2793
+};
+
 enum class Disc1770Result {
 	OpenedReadWrite,
 	OpenedReadOnly,
@@ -42,6 +48,7 @@ void Write1770Register(int Register, unsigned char Value);
 Disc1770Result Load1770DiscImage(const char *FileName, int Drive, DiscType Type);
 void WriteFDCControlReg(unsigned char Value);
 unsigned char ReadFDCControlReg();
+void Set1770FDCType(FDCType Type);
 void Reset1770();
 void Poll1770(int NCycles);
 bool CreateADFSImage(const char *FileName, int Tracks);

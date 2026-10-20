@@ -91,11 +91,39 @@ static unsigned char RotSect = 0; // Sector counter to fool Opus DDOS on read ad
 bool InvertTR00; // Needed because the bloody stupid watford board inverts the input.
 
 const int SPIN_DOWN_TIME = 4000000; // 2 seconds
-const int SETTLE_TIME    = 30000; // 30 milliseconds
-const int ONE_REV_TIME   = 500000; // 1 sixth of a second - used for density mismatch
-const int SPIN_UP_TIME   = ONE_REV_TIME * 3; // Two Seconds
+const int SETTLE_TIME_1770  = 30000; // 30 milliseconds
+const int ONE_REV_TIME_1770 = 500000; // 1 sixth of a second - used for density mismatch
 
-#define VERIFY_TIME (ONE_REV_TIME / MaxSects[CurrentDrive])
+// WD2793 timings, as used by the FileStore emulation
+const int SETTLE_TIME_2793  = 60000;
+const int ONE_REV_TIME_2793 = 333333;
+
+// The FileStore has a WD2793, which is programmed like the 1770. The
+// differences emulated are:
+// - It has no motor control: status bit 7 is Not Ready instead of Motor
+//   On, and the FileStore's drives are always ready, so every command
+//   waits for the head to load, and the floppy drives can't be disabled
+// - The index pulse status bit is cleared when idle
+// - Type I commands check for a density mismatch, and Read Address doesn't
+// - Its settle and revolution times
+static FDCType FDC = FDCType::WD1770;
+
+static int GetSettleTime()
+{
+	return FDC == FDCType::WD2793 ? SETTLE_TIME_2793 : SETTLE_TIME_1770;
+}
+
+static int GetOneRevTime()
+{
+	return FDC == FDCType::WD2793 ? ONE_REV_TIME_2793 : ONE_REV_TIME_1770;
+}
+
+static int GetSpinUpTime()
+{
+	return GetOneRevTime() * 3;
+}
+
+#define VERIFY_TIME (GetOneRevTime() / MaxSects[CurrentDrive])
 #define BYTE_TIME   (VERIFY_TIME / 256)
 
 // WD1770 registers
@@ -106,7 +134,7 @@ const int WD1770_SECTOR_REGISTER  = 2;
 const int WD1770_DATA_REGISTER    = 3;
 
 // WD1770 status register bits
-const unsigned char WD1770_STATUS_MOTOR_ON         = 0x80;
+const unsigned char WD1770_STATUS_MOTOR_ON         = 0x80; // Not Ready on the WD2793
 const unsigned char WD1770_STATUS_WRITE_PROTECT    = 0x40;
 const unsigned char WD1770_STATUS_SPIN_UP_COMPLETE = 0x20; // Type I commands
 const unsigned char WD1770_STATUS_DELETED_DATA     = 0x20; // Type II and III commands
@@ -150,10 +178,27 @@ static bool CurrentDiscOpen()
 	return CurrentDisc != nullptr;
 }
 
+// The WD2793 has no Motor On status bit
+
+static unsigned char GetMotorOnStatus()
+{
+	return FDC == FDCType::WD2793 ? 0 : WD1770_STATUS_MOTOR_ON;
+}
+
+static bool IsEnabled()
+{
+	return Disc1770Enabled || FDC == FDCType::WD2793;
+}
+
+void Set1770FDCType(FDCType Type)
+{
+	FDC = Type;
+}
+
 // Read 1770 Register. Note - NOT the FDC Control register at &FE24.
 
 unsigned char Read1770Register(int Register) {
-	if (!Disc1770Enabled)
+	if (!IsEnabled())
 		return 0xFF;
 
 	// WriteLog("Disc1770: Read of Register %d - Status is %02X\n", Register, Status);
@@ -161,6 +206,10 @@ unsigned char Read1770Register(int Register) {
 	// Fool anything reading the Index pulse signal by alternating it on each read.
 	if (FDCommand < 6 && FDCommand != 0) {
 		Status ^= WD1770_STATUS_INDEX;
+	}
+
+	if (FDC == FDCType::WD2793 && FDCommand == 0) {
+		Status &= ~WD1770_STATUS_INDEX;
 	}
 
 	if (Register == WD1770_STATUS_REGISTER) {
@@ -194,7 +243,7 @@ static void SetMotor(int Drive, bool State)
 	LEDs.FloppyDisc[Drive] = State;
 
 	if (State) {
-		Status |= WD1770_STATUS_MOTOR_ON;
+		Status |= GetMotorOnStatus();
 
 		if (DiscDriveSoundEnabled && !HeadLoaded[Drive]) {
 			PlaySoundSample(SAMPLE_DRIVE_MOTOR, true);
@@ -216,7 +265,7 @@ static void SetMotor(int Drive, bool State)
 // Write 1770 Register - NOT the FDC Control register at &FE24
 
 void Write1770Register(int Register, unsigned char Value) {
-	if (!Disc1770Enabled)
+	if (!IsEnabled())
 		return;
 
 	// WriteLog("Disc1770: Write of %02X to Register %d\n", Value, Register);
@@ -265,15 +314,26 @@ void Write1770Register(int Register, unsigned char Value) {
 				Verify = (Value & WD1770_CMD_FLAGS_VERIFY) != 0;
 				StepRate = StepRates[Value & WD1770_CMD_FLAGS_STEP_RATE]; // Make sure the step rate time is added to the delay time.
 
-				if (!(Status & WD1770_STATUS_MOTOR_ON)) {
+				if (!(Status & GetMotorOnStatus())) {
 					NextFDCommand = FDCommand;
 					FDCommand = 11; /* Spin-Up delay */
-					LoadingCycles = SPIN_UP_TIME;
+					LoadingCycles = GetSpinUpTime();
 					//if (!SpinUp) LoadingCycles=ONE_REV_TIME;
 					SetMotor(CurrentDrive, true);
 				}
 				else {
-					LoadingCycles = ONE_REV_TIME;
+					LoadingCycles = GetOneRevTime();
+				}
+
+				if (FDC == FDCType::WD2793 && DiskDensity[CurrentDrive] != SelectedDensity) {
+					// Density mismatch
+					FDCommand = 13; // "Confusion spin"
+					SetMotor(CurrentDrive, true);
+					Status &= ~(WD1770_STATUS_SPIN_UP_COMPLETE |
+					            WD1770_STATUS_RECORD_NOT_FOUND |
+					            WD1770_STATUS_CRC_ERROR);
+					Status |= WD1770_STATUS_BUSY;
+					LoadingCycles = GetOneRevTime();
 				}
 			}
 		}
@@ -281,7 +341,7 @@ void Write1770Register(int Register, unsigned char Value) {
 		int SectorCycles = 0; // Number of cycles to wait for sector to come round
 
 		if (CurrentDiscOpen() && Sector > (RotSect + 1))
-			SectorCycles = (ONE_REV_TIME / MaxSects[CurrentDrive]) * ((RotSect + 1) - Sector);
+			SectorCycles = (GetOneRevTime() / MaxSects[CurrentDrive]) * ((RotSect + 1) - Sector);
 
 		if (HComBits == WD1770_COMMAND_READ_SECTOR) {
 			RotSect = Sector;
@@ -337,10 +397,10 @@ void Write1770Register(int Register, unsigned char Value) {
 			FDCommand = 14;
 			Status |= WD1770_STATUS_BUSY;
 			ByteCount = 6;
-			if (!(Status & WD1770_STATUS_MOTOR_ON)) {
+			if (!(Status & GetMotorOnStatus())) {
 				NextFDCommand = FDCommand;
 				FDCommand = 11; // Spin-Up delay
-				LoadingCycles = SPIN_UP_TIME;
+				LoadingCycles = GetSpinUpTime();
 				//if (!SpinUp) LoadingCycles=ONE_REV_TIME; // Make it two seconds instead of one
 				SetMotor(CurrentDrive, true);
 			}
@@ -348,7 +408,7 @@ void Write1770Register(int Register, unsigned char Value) {
 				LoadingCycles = SectorCycles;
 			}
 
-			if (DiskDensity[CurrentDrive] != SelectedDensity) {
+			if (FDC == FDCType::WD1770 && DiskDensity[CurrentDrive] != SelectedDensity) {
 				// Density mismatch
 				FDCommand = 13; // "Confusion spin"
 				SetMotor(CurrentDrive, true);
@@ -356,7 +416,7 @@ void Write1770Register(int Register, unsigned char Value) {
 				            WD1770_STATUS_RECORD_NOT_FOUND |
 				            WD1770_STATUS_CRC_ERROR);
 				Status |= WD1770_STATUS_BUSY;
-				LoadingCycles = ONE_REV_TIME;
+				LoadingCycles = GetOneRevTime();
 			}
 		}
 
@@ -367,10 +427,10 @@ void Write1770Register(int Register, unsigned char Value) {
 			SpinUp = (Value & WD1770_CMD_FLAGS_DISABLE_SPIN_UP) != 0;
 			Verify = (Value & WD1770_CMD_FLAGS_VERIFY) != 0;
 
-			if (!(Status & WD1770_STATUS_MOTOR_ON)) {
+			if (!(Status & GetMotorOnStatus())) {
 				NextFDCommand = FDCommand;
 				FDCommand = 11; // Spin-Up delay
-				LoadingCycles = SPIN_UP_TIME;
+				LoadingCycles = GetSpinUpTime();
 				//if (SpinUp) LoadingCycles=ONE_REV_TIME;
 				SetMotor(CurrentDrive, true);
 			}
@@ -388,7 +448,7 @@ void Write1770Register(int Register, unsigned char Value) {
 				            WD1770_STATUS_RECORD_NOT_FOUND |
 				            WD1770_STATUS_CRC_ERROR);
 				Status |= WD1770_STATUS_BUSY;
-				LoadingCycles = ONE_REV_TIME;
+				LoadingCycles = GetOneRevTime();
 			}
 		}
 	}
@@ -440,7 +500,7 @@ void Poll1770(int NCycles) {
 				SetMotor(i, false);
 				LightsOn[i] = false;
 				if (!LightsOn[0] && !LightsOn[1]) {
-					Status &= ~WD1770_STATUS_MOTOR_ON;
+					Status &= ~GetMotorOnStatus();
 				}
 			}
 		}
@@ -921,7 +981,7 @@ void Poll1770(int NCycles) {
 
 	if (FDCommand == 12) {
 		// Spin Down delay
-		if (Verify) LoadingCycles += SETTLE_TIME;
+		if (Verify) LoadingCycles += GetSettleTime();
 		LightsOn[CurrentDrive] = true;
 		SpinDown[CurrentDrive] = SPIN_DOWN_TIME;
 		RotSect = 0;

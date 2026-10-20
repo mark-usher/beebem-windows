@@ -30,7 +30,6 @@ Boston, MA  02110-1301, USA.
 #include "BeebMem.h"
 #include "BeebWinPrefs.h"
 #include "Disc1770.h"
-#include "Disc2793.h"
 #include "Disc8271.h"
 #include "Econet.h"
 #include "FileStore.h"

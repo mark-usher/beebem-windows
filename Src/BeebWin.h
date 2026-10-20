@@ -560,7 +560,7 @@ public:
 	// Disks
 	bool ReadDisc(int Drive, bool bCheckForPrefs);
 	bool Load1770DiscImage(const char *FileName, int Drive, DiscType Type);
-	bool Load2793DiscImage(const char *FileName, int Drive, DiscType Type);
+	bool LoadFileStoreDiscImage(const char *FileName, int Drive);
 	bool Load8271DiscImage(const char *FileName, int Drive, int Tracks, DiscType Type);
 	void NewDiscImage(int Drive);
 	void CreateDFSDiscImage(const char *FileName, int Drive, int Heads, int Tracks);

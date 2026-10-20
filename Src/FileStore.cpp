@@ -46,7 +46,7 @@ Boston, MA  02110-1301, USA.
 #include "FileStore.h"
 #include "6502core.h"
 #include "BeebMem.h"
-#include "Disc2793.h"
+#include "Disc1770.h"
 #include "Econet.h"
 #include "Rtc.h"
 #include "Scsi.h"
@@ -134,7 +134,7 @@ unsigned char FileStoreReadMem(int Address)
 	// FDC registers
 	if (Address >= 0xfc0c && Address <= 0xfc0f)
 	{
-		return Read2793Register(static_cast<unsigned char>(Address - 0xfc0c));
+		return Read1770Register(Address - 0xfc0c);
 	}
 
 	// System VIA
@@ -248,7 +248,7 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 	// FDC registers
 	if (Address >= 0xfc0c && Address <= 0xfc0f)
 	{
-		Write2793Register(static_cast<unsigned char>(Address - 0xfc0c), Value);
+		Write1770Register(Address - 0xfc0c, Value);
 		return;
 	}
 
@@ -300,7 +300,7 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 
 		if (!FDCResetLine && Reset)
 		{
-			Reset2793();
+			Reset1770();
 		}
 
 		FDCResetLine = Reset;
@@ -320,7 +320,7 @@ void FileStoreWriteMem(int Address, unsigned char Value)
 				Control |= 0x20;
 			}
 
-			WriteFDC2793ControlReg(Control);
+			WriteFDCControlReg(Control);
 		}
 
 		return;
@@ -349,7 +349,7 @@ unsigned int FileStoreRefreshWait(unsigned int Cycles)
 
 // Called from PollHardware() in place of the video, A/D, serial, 8271,
 // 1770, Music 5000, speech and teletext polling, none of which the
-// FileStore has. Also polls the 2793 FDC.
+// FileStore has. Also polls the WD2793 FDC (emulated by the 1770 code).
 
 void FileStorePoll(int Cycles)
 {
@@ -364,7 +364,7 @@ void FileStorePoll(int Cycles)
 
 	RTCPoll(Cycles);
 
-	Poll2793(Cycles);
+	Poll1770(Cycles);
 }
 
 /****************************************************************************/

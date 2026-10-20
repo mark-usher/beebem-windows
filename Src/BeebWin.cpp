@@ -64,7 +64,6 @@ using std::max;
 #include "Debug.h"
 #include "DebugTrace.h"
 #include "Disc1770.h"
-#include "Disc2793.h"
 #include "Disc8271.h"
 #include "DiscInfo.h"
 #include "Econet.h" // Rob O'Donnell Christmas 2004.
@@ -922,6 +921,8 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 	EconetReset();
 	UpdateEconetMenu();
 
+	// The FileStore's WD2793 is emulated by the 1770 code
+	Set1770FDCType(IsFileStore(MachineType) ? FDCType::WD2793 : FDCType::WD1770);
 	Reset1770();
 	AtoDInit();
 	SetRomMenu();
@@ -978,14 +979,9 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 		TeletextInit();
 	}
 
-	if (MachineType == Model::Master128)
+	if (MachineType == Model::Master128 || IsFileStore(MachineType))
 	{
 		InvertTR00 = false;
-	}
-	else if (IsFileStore(MachineType))
-	{
-		// The FileStore has its own 2793 FDC
-		Reset2793();
 	}
 	else
 	{
@@ -996,12 +992,12 @@ void BeebWin::ResetBeebSystem(Model NewModelType, bool LoadRoms)
 
 	if (IsFileStore(MachineType))
 	{
-		// 2793 disc. The FileStore only uses ADFS format floppy discs
+		// The FileStore only uses ADFS format floppy discs
 		for (int Drive = 0; Drive < 2; Drive++)
 		{
 			if (szDiscName[Drive][0] != '\0' && Type[Drive] == DiscType::ADFS)
 			{
-				Load2793DiscImage(szDiscName[Drive], Drive, Type[Drive]);
+				LoadFileStoreDiscImage(szDiscName[Drive], Drive);
 			}
 		}
 	}
@@ -6090,10 +6086,10 @@ void BeebWin::HandleCommandLineFile(int Drive, const char *FileName)
 
 	if (IsFileStore(MachineType))
 	{
-		// The FileStore 2793 FDC only uses ADFS format floppy discs
+		// The FileStore only uses ADFS format floppy discs
 		if (Type == FileType::ADFS)
 		{
-			Load2793DiscImage(FileName, Drive, DiscType::ADFS);
+			LoadFileStoreDiscImage(FileName, Drive);
 		}
 		else
 		{
