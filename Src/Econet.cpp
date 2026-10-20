@@ -1187,18 +1187,15 @@ bool EconetReset()
 		Gateway.Port      = EconetConfig.GatewayPort;
 	}
 
-	if (EconetConfig.FindGateways)
-	{
-		// Send a discovery or keep-alive message immediately.
+	// Send a discovery or keep-alive message immediately.
 
-		if (Gateway.IPAddress == 0)
-		{
-			EconetTimers.GatewayDiscovery = 1;
-		}
-		else
-		{
-			EconetTimers.GatewayKeepAlive = 1;
-		}
+	if (Gateway.IPAddress != 0)
+	{
+		EconetTimers.GatewayKeepAlive = 1;
+	}
+	else if (EconetConfig.FindGateways)
+	{
+		EconetTimers.GatewayDiscovery = 1;
 	}
 
 	if (EconetConfig.AutoConfigure && AnnounceHandle == 0)
