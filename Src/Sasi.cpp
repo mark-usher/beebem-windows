@@ -128,6 +128,11 @@ void SASIReset()
 		char FileName[MAX_PATH];
 		MakeFileName(FileName, MAX_PATH, HardDrivePath, "sasi%d.dat", i);
 
+		// A hard drive folder without a SASI disc image (it is only used
+		// by the Torch Z80) has no SASI drive
+		if (!FileExists(FileName))
+			continue;
+
 		SASIDisc[i] = fopen(FileName, "rb+");
 
 		if (SASIDisc[i] == nullptr)
