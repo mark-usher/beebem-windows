@@ -119,10 +119,20 @@ struct EconetGateway
 	unsigned short Port;
 };
 
+// A station we have received packets from through the gateway
+struct EconetGatewayStation
+{
+	unsigned char Station;
+	unsigned char Network;
+};
+
 const EconetGateway* GetEconetGateway();
 
 int GetEconetHostCount();
 const EconetHost* GetEconetHost(int Index);
+
+int GetEconetGatewayStationCount();
+const EconetGatewayStation* GetEconetGatewayStation(int Index);
 
 int GetEconetNetworkCount();
 const EconetNet* GetEconetNetwork(int Index);

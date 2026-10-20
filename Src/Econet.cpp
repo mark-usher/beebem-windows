@@ -412,6 +412,9 @@ static std::vector<EconetHost> Stations;
 // AUN networks we know about.
 static std::vector<EconetNet> Networks;
 
+// Stations we have received packets from through the gateway.
+static std::vector<EconetGatewayStation> GatewayStations;
+
 // See https://github.com/cr12925/PiEconetBridge/wiki/The-AUN%E2%80%90extended-gateway
 EconetGateway Gateway = { 0, 0 }; // No gateway address.
 
@@ -459,6 +462,7 @@ static bool EconetReceivePacket();
 static void EconetSendGatewayDiscoveryPacket();
 static void EconetSendGatewayKeepAlivePacket();
 static void EconetSendAnnouncePacket();
+static void AddGatewayStation(unsigned char Network, unsigned char Station);
 static void EconetError(const char *Format, ...);
 
 /****************************************************************************/
@@ -1029,6 +1033,8 @@ bool EconetReset()
 		AnnounceHandle = 0; // Clear announce packet sequence number.
 		return true;
 	}
+
+	GatewayStations.clear();
 
 	// Read in Econet.cfg and AUNMap. Done here so can refresh it on Break.
 	if (!ReadEconetConfigFile())
@@ -3326,6 +3332,7 @@ static bool EconetReceivePacket()
 
 			// Find network and station number of sender.
 			bool Found = ResolveEconetHost(Packet, &SrcNet, &SrcStn);
+			bool FromGateway = false;
 
 			if (Found)
 			{
@@ -3365,6 +3372,7 @@ static bool EconetReceivePacket()
 				EconetRx.BytesInBuffer = BytesReceived;
 
 				Found = true;
+				FromGateway = true;
 
 				if (IsBroadcastStation(DestStn))
 				{
@@ -3422,6 +3430,11 @@ static bool EconetReceivePacket()
 				#endif
 
 				return false;
+			}
+
+			if (FromGateway)
+			{
+				AddGatewayStation(SrcNet, SrcStn);
 			}
 
 			#ifdef DEBUG_ECONET
@@ -3992,6 +4005,49 @@ int GetEconetHostCount()
 const EconetHost* GetEconetHost(int Index)
 {
 	return &Stations[Index];
+}
+
+/****************************************************************************/
+
+// Remember a station we have received packets from through the gateway,
+// so it can be shown in the Econet Network dialog.
+
+static void AddGatewayStation(unsigned char Network, unsigned char Station)
+{
+	if (Station == 0 || IsBroadcastStation(Station))
+	{
+		return;
+	}
+
+	// Already listed in the Econet Network dialog?
+	if (FindStation(Station, Network) != nullptr)
+	{
+		return;
+	}
+
+	for (const EconetGatewayStation& GatewayStation : GatewayStations)
+	{
+		if (GatewayStation.Network == Network && GatewayStation.Station == Station)
+		{
+			return;
+		}
+	}
+
+	GatewayStations.push_back({ Station, Network });
+}
+
+/****************************************************************************/
+
+int GetEconetGatewayStationCount()
+{
+	return (int)GatewayStations.size();
+}
+
+/****************************************************************************/
+
+const EconetGatewayStation* GetEconetGatewayStation(int Index)
+{
+	return &GatewayStations[Index];
 }
 
 /****************************************************************************/

@@ -186,7 +186,8 @@ int CALLBACK EconetDialog::PropSheetCallback(HWND hwnd,
 
 EconetNetworkPage::EconetNetworkPage(HINSTANCE hInstance,
                                      int DialogID) :
-	PropertySheetPage(hInstance, DialogID)
+	PropertySheetPage(hInstance, DialogID),
+	m_FirstGatewayStation(0)
 {
 }
 
@@ -194,13 +195,25 @@ EconetNetworkPage::EconetNetworkPage(HINSTANCE hInstance,
 
 INT_PTR EconetNetworkPage::HandleMessage(UINT nMessage,
                                          WPARAM /* wParam */,
-                                         LPARAM /* lParam */)
+                                         LPARAM lParam)
 {
 	switch (nMessage)
 	{
 		case WM_TIMER:
 			OnTimer();
 			return 0;
+
+		case WM_NOTIFY: {
+			const NMHDR* pnmhdr = reinterpret_cast<const NMHDR*>(lParam);
+
+			if (pnmhdr->idFrom == IDC_STATIONS_LIST && pnmhdr->code == NM_CUSTOMDRAW)
+			{
+				LRESULT Result = OnStationsCustomDraw(lParam);
+				SetWindowLongPtr(m_hwnd, DWLP_MSGRESULT, Result);
+				return TRUE;
+			}
+			break;
+		}
 
 		default:
 			break;
@@ -350,6 +363,34 @@ void EconetNetworkPage::UpdateStationsList()
 		m_StationsListView.SetItemText(i, 2, szPort);
 	}
 
+	// Stations heard through the gateway are listed after the others, with
+	// the gateway's address, and drawn in a different colour.
+	m_FirstGatewayStation = Count;
+
+	const EconetGateway* pGateway = GetEconetGateway();
+
+	std::string GatewayAddress;
+	IPAddressToString(AF_INET, &pGateway->IPAddress, GatewayAddress);
+
+	char szGatewayPort[100];
+	sprintf(szGatewayPort, "%u", pGateway->Port);
+
+	const int GatewayStationCount = GetEconetGatewayStationCount();
+
+	for (int i = 0; i < GatewayStationCount; i++)
+	{
+		const EconetGatewayStation* pStation = GetEconetGatewayStation(i);
+
+		char szHost[100];
+		sprintf(szHost, "%d.%d", pStation->Network, pStation->Station);
+
+		const int Row = Count + i;
+
+		m_StationsListView.InsertItem(Row, 0, szHost, 0);
+		m_StationsListView.SetItemText(Row, 1, GatewayAddress.c_str());
+		m_StationsListView.SetItemText(Row, 2, szGatewayPort);
+	}
+
 	m_StationsListView.SetColumnWidth(0, LVSCW_AUTOSIZE_USEHEADER);
 	m_StationsListView.SetColumnWidth(1, LVSCW_AUTOSIZE_USEHEADER);
 	m_StationsListView.SetColumnWidth(2, LVSCW_AUTOSIZE_USEHEADER);
@@ -389,6 +430,31 @@ void EconetNetworkPage::UpdateNetworksList()
 void EconetNetworkPage::OnTimer()
 {
 	UpdateNetworkState();
+}
+
+/****************************************************************************/
+
+LRESULT EconetNetworkPage::OnStationsCustomDraw(LPARAM lParam)
+{
+	NMLVCUSTOMDRAW* pCustomDraw = reinterpret_cast<NMLVCUSTOMDRAW*>(lParam);
+
+	switch (pCustomDraw->nmcd.dwDrawStage)
+	{
+		case CDDS_PREPAINT:
+			return CDRF_NOTIFYITEMDRAW;
+
+		case CDDS_ITEMPREPAINT:
+			if ((int)pCustomDraw->nmcd.dwItemSpec >= m_FirstGatewayStation)
+			{
+				// Stations heard through the gateway
+				pCustomDraw->clrText = GetSysColor(COLOR_HOTLIGHT);
+				return CDRF_NEWFONT;
+			}
+			return CDRF_DODEFAULT;
+
+		default:
+			return CDRF_DODEFAULT;
+	}
 }
 
 /****************************************************************************/

@@ -49,10 +49,12 @@ class EconetNetworkPage : public PropertySheetPage
 		void UpdateNetworksList();
 
 		void OnTimer();
+		LRESULT OnStationsCustomDraw(LPARAM lParam);
 
 	private:
 		ListView m_StationsListView;
 		ListView m_NetworksListView;
+		int m_FirstGatewayStation;
 };
 
 class EconetSettingsPage : public PropertySheetPage
