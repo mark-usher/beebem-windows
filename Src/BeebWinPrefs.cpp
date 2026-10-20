@@ -64,6 +64,11 @@ Boston, MA  02110-1301, USA.
 
 const int PREFERENCES_VERSION = 3;
 
+// The version written to the preferences file: 3 with the FileStore keys
+// (FileStoreDrive0-3, CMOSRamE01, CMOSRamE01S, RTCClockOffset).  BeebEm
+// reads only the number before the point, so it is still version 3.
+const char* const PREFERENCES_VERSION_STR = "3.1";
+
 const char* const MachineTypeStr[] =
 {
 	"ModelB",
@@ -1894,7 +1899,7 @@ void BeebWin::SavePreferences(bool saveAll)
 	if (saveAll)
 	{
 		// Update prefs version
-		m_Preferences.SetDecimalValue(CFG_PREFERENCES_VERSION, PREFERENCES_VERSION);
+		m_Preferences.SetStringValue(CFG_PREFERENCES_VERSION, PREFERENCES_VERSION_STR);
 
 		// Remove obsolete prefs
 		m_Preferences.EraseValue("UserKeyMapRow");
