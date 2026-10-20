@@ -154,7 +154,7 @@ void MakeFileName(char* Path, size_t /* Size */, const char* DirName, const char
 
 	size_t Len = strlen(Path);
 
-	if (Path[Len] != DIR_SEPARATOR)
+	if (Len == 0 || Path[Len - 1] != DIR_SEPARATOR)
 	{
 		Path[Len++] = DIR_SEPARATOR;
 	}
