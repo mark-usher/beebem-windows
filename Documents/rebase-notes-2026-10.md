@@ -1,6 +1,6 @@
 # Rebase notes, October 2026: FileStore, Master ET and keyboard work onto Codeberg master
 
-Version 1.7, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
+Version 1.8, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
 
 ## Summary
 
@@ -201,6 +201,10 @@ On 20 Oct 2026 Mark fetched Codeberg: **master is still dccbcc8**, so filestore-
 The FileStore needed no code changes for the new Econet: it only uses `EconetRead/Write`, `EconetReadStationID`, `EconetInterruptRequest`, `EconetNMIEnabled`, `EconetEnabled` and the CMOS station write in `EconetReset()`, all unchanged. Station number (Mark, 20 Oct): the FileStore always takes its station from its own CMOS (byte 14, saved as CMOSRamE01/E01S, default 254), with or without AUTOCONFIGURE. `-EcoStn` overrides it for the session only: it is written into CMOS so the FileStore ROM sees it, but the original bytes 14/15 are saved in the preferences file (`RTCSetCMOSByte(..., Temporary)`); a change the FileStore makes itself is permanent. Without AUTOCONFIGURE, if Econet.cfg has no entry for that station on this PC, an entry is added in memory for the session (port 10000 + 256 x net + station), so nothing is written to or removed from Econet.cfg. Master behaviour is unchanged (Mark to discuss -EcoStn with Chris).
 
 Fixes to Chris's code needed for the VS2019 v142 build (to pass on to Chris): `UdpServer.cpp` WSASocket -> WSASocketW (C4996 is an error with SDL checks); `Debug.cpp` lines 1319/1331 static_cast<int> of SendMessage (C4244).
+
+Bug in econet-reworking-2 found in testing (to pass on to Chris): with a fixed `GATEWAY` and `FINDGATEWAYS 0`, `EconetReset()` never started the gateway keep-alive, although its comment says it should; the keep-alive timer was only set inside `if (EconetConfig.FindGateways)`. A station that only answers (such as a FileStore) then never sends anything through the gateway, so the Pi Econet Bridge never switches it to gateway mode and real stations get "not present". Fixed: the keep-alive starts whenever a gateway is known, and discovery only when `FINDGATEWAYS` is on and none is known. A failed bind to a configured station's port is now also written to the Econet log, since BeebEm otherwise moves silently to the next configured station for this PC.
+
+Prefs files written by the old `filestore` branch (no `PrefsVersion`) store `MachineType` as a number with that branch's numbering (4 = E01, 5 = E01S). Hand-edited files using the new enum values (5 = E01, 6 = E01S, 4 = Master ET) load as the wrong machine; open each in BeebEm, choose the model and save the preferences to convert it to version 3.
 
 Test on this branch: everything in the FileStore test plan, plus Hardware > View Econet Network with the FileStore running (log shows its traffic), AUN gateway/discovery if used, and a Master/Model B station logging on to the FileStore over the new code.
 
@@ -498,6 +502,7 @@ Before building a mechanism, it is worth first showing that the lost key-up happ
 |---|---|---|
 | 1.0 | 19 Oct 2026 | First version, written while building the branches |
 | 1.7 | 20 Oct 2026 | FileStore station from CMOS with session-only -EcoStn override; build fixes for Chris's code |
+| 1.8 | 20 Oct 2026 | Fixed gateway keep-alive with a fixed GATEWAY; log failed station binds; note on old numeric MachineType |
 | 1.6 | 20 Oct 2026 | filestore-econet: FileStore station number from its CMOS with AUTOCONFIGURE, as the Master |
 | 1.5 | 20 Oct 2026 | Codeberg master unchanged (dccbcc8); new branch filestore-econet merging econet-reworking-2 |
 | 1.4 | 20 Oct 2026 | Clock option generalised: Hardware > RTC Clock Offset for all models, `RTCClockOffset` in the preferences file |

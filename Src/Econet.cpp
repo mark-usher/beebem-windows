@@ -798,9 +798,14 @@ static void AllocateNewAddress()
 					}
 					else
 					{
+						EconetLog(EconetLogMessageType::Status,
+						          "Cannot use station %d.%d, port %u (error %d)",
+						          Station.Network, Station.Station, Station.Port,
+						          GetLastSocketError());
+
 						// Reset station announcement sequence number.
 						AnnounceHandle = 0;
-						
+
 						// Clear this so we can try other manually configured
 						// addresses, and so we don't try it again later in
 						// the random station number section
@@ -1254,18 +1259,15 @@ bool EconetReset()
 		Gateway.Port      = EconetConfig.GatewayPort;
 	}
 
-	if (EconetConfig.FindGateways)
-	{
-		// Send a discovery or keep-alive message immediately.
+	// Send a discovery or keep-alive message immediately.
 
-		if (Gateway.IPAddress == 0)
-		{
-			EconetTimers.GatewayDiscovery = 1;
-		}
-		else
-		{
-			EconetTimers.GatewayKeepAlive = 1;
-		}
+	if (Gateway.IPAddress != 0)
+	{
+		EconetTimers.GatewayKeepAlive = 1;
+	}
+	else if (EconetConfig.FindGateways)
+	{
+		EconetTimers.GatewayDiscovery = 1;
 	}
 
 	if (EconetConfig.AutoConfigure && AnnounceHandle == 0)
