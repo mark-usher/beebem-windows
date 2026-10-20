@@ -119,6 +119,87 @@
         Sectors = heads * (cyclinders high byte * 256 + cyclinders low byte)
         * 33
       </blockquote>
+
+      <h2>SCSI drive descriptors</h2>
+
+      <p>
+        The SCSI drives are emulated as Pi1MHz's BeebSCSI emulates them. Each
+        drive can have a <span class="file">scsi?.cfg</span> file, in the hard
+        drive folder, which gives its identity and its SCSI parameters: the
+        INQUIRY data the host sees, the block size, and the SCSI mode pages a
+        real drive reports (current values, which bits MODE SELECT may change,
+        and factory values). A drive with no <span class="file">.cfg</span>
+        file is described by <span class="file">defscsi.cfg</span>, from the
+        hard drive folder or the user data folder, which is copied to the
+        drive's own <span class="file">scsi?.cfg</span> the first time a host
+        changes its parameters (with MODE SELECT or FORMAT). A drive with a
+        <span class="file">.dsc</span> file and no <span
+        class="file">.cfg</span> file takes its geometry from the
+        <span class="file">.dsc</span> file, as before.
+      </p>
+
+      <p>
+        The shipped <span class="file">defscsi.cfg</span> describes every byte
+        of its values in its comments, and is the best starting point for a
+        drive of your own. The files are the same as Pi1MHz's, so a drive and
+        its <span class="file">.cfg</span> file can be moved between BeebEm and
+        a Pi1MHz. The capacity of a drive is cylinders &times; heads &times;
+        sectors per track &times; block size, from its mode pages (or from
+        the size of the image, see SCSI Drive Geometry below); an image
+        smaller than that grows as it is written.
+      </p>
+
+      <p>
+        The drives are started by a START UNIT command, or by the first READ or
+        WRITE, as on Pi1MHz: until then TEST UNIT READY reports that the drive is
+        not ready.
+      </p>
+
+      <h3>SCSI drive controller</h3>
+
+      <p>
+        The <span class="ui">Hardware &rarr; SCSI Drive Controller</span> menu
+        selects the controller behind the Acorn SCSI host adaptor, for all the
+        drives. It decides the commands the drives answer, how they report
+        errors and how FORMAT lays out a track:
+      </p>
+
+      <ul>
+        <li><b>Mixed (Pi1MHz)</b>: the default. Every command is answered, with
+          mode pages and the Adaptec drive parameter list. ADFS, SuperForm and
+          the Acorn FileStore all work.</li>
+        <li><b>Adaptec ACB-4000 (MFM)</b>: as the Acorn Winchester 110, 120 and
+          130 and the Level 3 file server's board. No INQUIRY or mode pages,
+          so a FileStore finds no drives behind it.</li>
+        <li><b>Adaptec ACB-4070 (RLL)</b>: as the ACB-4000, with the RLL board's
+          sectors per track.</li>
+        <li><b>SASI (Xebec, DTC, OMTI)</b>: as the ACB-4000, keeping the sectors
+          per track the drive's <span class="file">.cfg</span> file gives.</li>
+        <li><b>SCSI Drive (own controller)</b>: a drive with its own controller,
+          such as the Rodime RO652 in an Acorn FileStore E20: extended sense,
+          mode pages as the drive's <span class="file">.cfg</span> file gives
+          them, and new geometry taking effect at the next FORMAT.</li>
+      </ul>
+
+      <h3>SCSI drive geometry</h3>
+
+      <p>
+        The <span class="ui">Hardware &rarr; SCSI Drive Geometry</span> menu
+        selects what to do with a drive <span class="file">.cfg</span> file
+        that has no geometry page (page 4, or page 0 except under SCSI Drive):
+        <b>Auto</b> (the default) works out the geometry from the size of the
+        image file; <b>From the .cfg File Only</b> makes nothing up, and the
+        drive refuses a MODE SENSE of that page, as a drive without it would.
+      </p>
+
+      <p>
+        Both settings are saved in the preferences file
+        (<span class="file">SCSIDriveController</span> and
+        <span class="file">SCSIDriveGeometry</span>). For the details of the
+        <span class="file">.cfg</span> files see Pi1MHz's documentation,
+        <a href="https://github.com/dp111/Pi1MHz">github.com/dp111/Pi1MHz</a>
+        (SCSI Drive Descriptors and Configuration).
+      </p>
     </main>
 
     <footer>

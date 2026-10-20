@@ -451,6 +451,7 @@ public:
 	void ToggleEconet();
 	void ResetEconet();
 	void UpdateEconetMenu();
+	void UpdateSCSIMenu();
 	void OnEconetNetwork();
 	void EconetDialogClosed();
 	void OnEconetAppendLog(bool BufferFull);

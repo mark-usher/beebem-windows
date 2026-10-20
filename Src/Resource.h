@@ -526,6 +526,13 @@
 #define IDM_FILESTORE_DRIVE3_E60S       40355
 #define IDM_FILESTORE_DRIVE3_CUSTOM     40356
 #define IDM_RTC_CLOCK_OFFSET            40357
+#define IDM_SCSI_CONTROLLER_MIXED       40358
+#define IDM_SCSI_CONTROLLER_ACB4000     40359
+#define IDM_SCSI_CONTROLLER_ACB4070     40360
+#define IDM_SCSI_CONTROLLER_SASI        40361
+#define IDM_SCSI_CONTROLLER_SCSI        40362
+#define IDM_SCSI_GEOMETRY_AUTO          40363
+#define IDM_SCSI_GEOMETRY_CFG           40364
 
 // Next default values for new objects
 // 
@@ -533,7 +540,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NO_MFC                     1
 #define _APS_NEXT_RESOURCE_VALUE        127
-#define _APS_NEXT_COMMAND_VALUE         40358
+#define _APS_NEXT_COMMAND_VALUE         40365
 #define _APS_NEXT_CONTROL_VALUE         1167
 #define _APS_NEXT_SYMED_VALUE           101
 #endif

@@ -22,6 +22,16 @@ Boston, MA  02110-1301, USA.
 // Based on code written by Y. Tanaka
 // 26/12/2011 JGH: Disk images at DiscsPath, not AppPath
 
+// The Acorn SCSI host adaptor, as Pi1MHz emulates it (harddisc_emulator.c,
+// https://github.com/dp111/Pi1MHz), with Pi1MHz's BeebSCSI drives behind it
+// (BeebSCSI/scsi.cpp): drive controllers, mode pages and the scsiN.cfg
+// drive descriptors.
+//
+// BeebSCSI is written for its own processor, and waits for the host's
+// acknowledgement of each byte.  Here it runs as a fiber: each access the
+// host makes to the data or select register runs it until it next waits
+// for the host.
+
 /*
 Offset  Description                 Access
 +00     data                        R/W
@@ -32,951 +42,532 @@ Offset  Description                 Access
 
 #include <windows.h>
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <string.h>
 
 #include "Scsi.h"
 #include "6502core.h"
 #include "BeebMem.h"
-#include "DebugTrace.h"
+#include "BeebWin.h"
 #include "FileStore.h"
 #include "FileUtils.h"
-#include "Log.h"
 #include "Main.h"
 #include "Model.h"
+#include "BeebSCSI/filesystem.h"
+#include "BeebSCSI/hostadapter.h"
+#include "BeebSCSI/scsi.h"
+#include "BeebSCSI/statusled.h"
 
-// #define DEBUG_SCSI
+/****************************************************************************/
 
-static unsigned char ReadData();
-static void WriteData(unsigned char data);
-static void BusFree();
-static void Selection(int data);
-static void Command();
-static void Execute();
-static void Status();
-static void Message();
-static bool DiscTestUnitReady(unsigned char *buf);
-static void TestUnitReady();
-static bool DiscStartStop(unsigned char *buf);
-static void StartStop();
-static void RequestSense();
-static int DiscRequestSense(unsigned char *cdb, unsigned char *buf);
-static void Read6();
-static int ReadSector(unsigned char *buf, int block);
-static bool WriteSector(unsigned char *buf, int block);
-static void Write6();
-static void ModeSense();
-static int DiscModeSense(unsigned char *cdb, unsigned char *buf);
-static void ModeSelect();
-static bool WriteGeometry(unsigned char *buf);
-static bool DiscFormat(unsigned char *buf);
-static void Format();
-static bool DiscVerify(unsigned char *buf);
-static void Verify();
-static void Translate();
+// Status register bits
+constexpr unsigned char STATUS_CND = 0x80; // Command, not data
+constexpr unsigned char STATUS_INO = 0x40; // Input, not output
+constexpr unsigned char STATUS_REQ = 0x20; // Request
+constexpr unsigned char STATUS_IRQ = 0x10; // Interrupt request
+constexpr unsigned char STATUS_BSY = 0x02; // Busy
+constexpr unsigned char STATUS_MSG = 0x01; // Message
 
-enum class Phase
-{
-	BusFree,
-	Selection,
-	Command,
-	Execute,
-	Read,
-	Write,
-	Status,
-	Message
-};
+static unsigned char Status;      // Status register, without the IRQ bit
+static bool IRQ;                  // Interrupt request
+static bool IRQEnable;            // Written to +03
+static unsigned char HostData;    // Last byte the host wrote (data or select)
+static unsigned char TargetData;  // Data register, as the drive set it
+static bool Ack;                  // The host has read or written the data register
+static bool Select;               // The host has written the select register
+static bool HostRestarted;        // A selection or reset ended a wait for Ack
 
-struct scsi_t
-{
-	Phase phase;
-	bool sel;
-	bool msg;
-	bool cd;
-	bool io;
-	bool bsy;
-	bool req;
-	bool irq;
-	unsigned char cmd[10];
-	int status;
-	unsigned char message;
-	unsigned char buffer[0x800];
-	int blocks;
-	int next;
-	int offset;
-	int length;
-	unsigned char lastwrite;
-	int lun;
-	int code;
-	int sector;
-};
-
-static scsi_t scsi;
-static FILE *SCSIDisc[4] = { nullptr, nullptr, nullptr, nullptr };
-static int SCSISize[4];
+static LPVOID MainFiber = nullptr;
+static LPVOID ScsiFiber = nullptr;
 
 bool SCSIDriveEnabled = false;
 
-static bool ReadGeometryFile(int lun)
+/****************************************************************************/
+
+static void UpdateIRQ()
 {
-	bool Success = true;
-
-	char FileName[MAX_PATH];
-	MakeFileName(FileName, MAX_PATH, HardDrivePath, "scsi%d.dsc", lun);
-
-	FILE* pFile = fopen(FileName, "rb");
-
-	if (pFile != nullptr)
+	if (IRQ)
 	{
-		unsigned char buff[22];
-		size_t BytesRead = fread(buff, 1, 22, pFile);
-
-		if (BytesRead == 22)
-		{
-			const int Heads = buff[15];
-			const int Cylinders = buff[13] * 256 + buff[14];
-
-			SCSISize[lun] = Heads * Cylinders * 33; // Number of sectors on disk = heads * cyls * 33
-		}
-		else
-		{
-			Success = false;
-		}
-
-		fclose(pFile);
+		IntStatus |= IRQ_HDC;
 	}
 	else
 	{
-		Success = false;
+		IntStatus &= ~IRQ_HDC;
+	}
+}
+
+/****************************************************************************/
+
+static void SetStatus(unsigned char Bits, bool State)
+{
+	if (State)
+	{
+		Status |= Bits;
+	}
+	else
+	{
+		Status &= ~Bits;
+	}
+}
+
+/****************************************************************************/
+
+// Hand back to the emulator until the host next accesses the drive
+
+static void WaitForHost()
+{
+	SwitchToFiber(MainFiber);
+}
+
+/****************************************************************************/
+
+static void CALLBACK ScsiFiberProc(void* /* Parameter */)
+{
+	for (;;)
+	{
+		scsiProcessEmulation();
+
+		if (scsiDiagState() == SCSI_BUSFREE)
+		{
+			// A command has ended: run BUS FREE now, which drops BSY and
+			// takes a selection the host has already made, before waiting
+			scsiProcessEmulation();
+
+			if (scsiDiagState() == SCSI_BUSFREE)
+			{
+				WaitForHost();
+			}
+		}
+	}
+}
+
+/****************************************************************************/
+
+// Run the drive until it waits for the host again
+
+static void RunDrive()
+{
+	if (MainFiber == nullptr)
+	{
+		MainFiber = IsThreadAFiber() ? GetCurrentFiber() : ConvertThreadToFiber(nullptr);
+
+		if (MainFiber == nullptr)
+		{
+			return;
+		}
 	}
 
-	return Success;
+	if (ScsiFiber == nullptr)
+	{
+		ScsiFiber = CreateFiber(256 * 1024, ScsiFiberProc, nullptr);
+
+		if (ScsiFiber == nullptr)
+		{
+			return;
+		}
+	}
+
+	SwitchToFiber(ScsiFiber);
 }
+
+/****************************************************************************/
+
+// Put the host adaptor and the drive back to BUS FREE.  A command in
+// progress is abandoned, as on a BBC reset.
+
+static void BusReset()
+{
+	if (ScsiFiber != nullptr)
+	{
+		DeleteFiber(ScsiFiber);
+		ScsiFiber = nullptr;
+	}
+
+	Status = 0;
+	IRQ = false;
+	IRQEnable = false;
+	Ack = false;
+	Select = false;
+	HostRestarted = false;
+
+	UpdateIRQ();
+
+	statusledActivity(0);
+
+	scsiReset(0);
+}
+
+/****************************************************************************/
+
+// The folder with the default drive descriptor, defscsi.cfg (used for a
+// drive with no scsiN.cfg of its own; a defscsi.cfg in the hard drive folder
+// comes first): the user data folder, or the UserData folder BeebEm was
+// installed with, for a user data folder made before defscsi.cfg existed
+
+static const char* GetDefaultDescriptorFolder()
+{
+	static char Folder[MAX_PATH];
+	char FileName[MAX_PATH];
+
+	strcpy(Folder, mainWin->GetUserDataPath());
+	MakeFileName(FileName, MAX_PATH, Folder, "defscsi.cfg");
+
+	if (GetFileAttributes(FileName) == INVALID_FILE_ATTRIBUTES)
+	{
+		MakeFileName(Folder, MAX_PATH, mainWin->GetAppPath(), "UserData");
+	}
+
+	return Folder;
+}
+
+/****************************************************************************/
 
 void SCSIReset()
 {
-	scsi.code = 0x00;
-	scsi.sector = 0x00;
+	BusReset();
 
-	SCSIClose();
-
-	if (!SCSIDriveEnabled)
-	{
-		return;
-	}
-
-	// On a FileStore, each drive is only attached if a hard drive unit is
-	// configured for it
-	const bool FileStore = IsFileStore(MachineType);
-
-	for (int i = 0; i < 4; ++i)
-	{
-		SCSISize[i] = 0;
-
-		if (FileStore && FileStoreDrive[i] == FileStoreDriveType::None)
-		{
-			continue;
-		}
-
-		char FileName[MAX_PATH];
-		MakeFileName(FileName, MAX_PATH, HardDrivePath, "scsi%d.dat", i);
-
-		// An Auto drive is attached only if its image file exists
-		if (FileStore && FileStoreDrive[i] == FileStoreDriveType::Auto &&
-		    GetFileAttributes(FileName) == INVALID_FILE_ATTRIBUTES)
-		{
-			continue;
-		}
-
-		SCSIDisc[i] = fopen(FileName, "rb+");
-
-		if (SCSIDisc[i] == nullptr)
-		{
-			std::string Error = GetSystemError();
-
-			mainWin->Report(MessageType::Error,
-			                "Could not open SCSI disc image:\n  %s\n\n%s", FileName, Error.c_str());
-		}
-
-		if (SCSIDisc[i] != nullptr)
-		{
-			ReadGeometryFile(i);
-		}
-	}
-
-	BusFree();
+	// The drives may have changed (another hard drive folder, or another
+	// FileStore drive setting): stop them all, so each is opened again
+	// when the host next uses it
+	filesystemSetPaths(HardDrivePath, GetDefaultDescriptorFolder());
+	filesystemReset();
 }
+
+/****************************************************************************/
 
 void SCSIWrite(int Address, unsigned char Value)
 {
 	if (!SCSIDriveEnabled)
 		return;
 
-	// WriteLog("SCSIWrite Address = 0x%02x, Value = 0x%02x, Phase = %d, PC = 0x%04x\n", Address, Value, scsi.phase, ProgramCounter);
-
 	switch (Address)
 	{
-		case 0x00:
-			scsi.sel = true;
-			WriteData(Value);
+		case 0x00: // Data register: the host has written a byte
+			HostData = Value;
+			SetStatus(STATUS_REQ, false);
+			Ack = true;
+			RunDrive();
 			break;
 
 		case 0x01:
-			scsi.sel = true;
 			break;
 
-		case 0x02:
-			scsi.sel = false;
-			WriteData(Value);
+		case 0x02: // Select: the target ID bit pattern on the data bus
+			HostData = Value;
+			Select = true;
+			RunDrive();
 			break;
 
-		case 0x03:
-			scsi.sel = true;
-			if (Value == 0xff)
+		case 0x03: // Interrupt enable (D0)
+			if ((Value & 1) == 0)
 			{
-				scsi.irq = true;
-				IntStatus |= IRQ_HDC;
-				scsi.status = 0x00;
+				IRQEnable = false;
+				IRQ = false;
 			}
 			else
 			{
-				scsi.irq = true;
-				IntStatus &= ~IRQ_HDC;
+				IRQEnable = true;
+
+				if (Status & STATUS_REQ)
+				{
+					IRQ = true;
+				}
 			}
 
+			UpdateIRQ();
 			break;
 	}
 }
+
+/****************************************************************************/
 
 unsigned char SCSIRead(int Address)
 {
 	if (!SCSIDriveEnabled)
 		return 0xff;
 
-	unsigned char data = 0xff;
+	unsigned char Data = 0xff;
 
 	switch (Address)
 	{
-		case 0x00: // Data Register
-			data = ReadData();
+		case 0x00: // Data register: the host has taken the byte
+			Data = TargetData;
+			SetStatus(STATUS_REQ, false);
+			Ack = true;
+			RunDrive();
 			break;
 
-		case 0x01: // Status Register
-			data = 0x20; // Hmmm.. don't know why req has to always be active ? If start at 0x00, ADFS lock up on entry
-			if (scsi.cd) data |= 0x80;
-			if (scsi.io) data |= 0x40;
-			if (scsi.req) data |= 0x20;
-			if (scsi.irq) data |= 0x10;
-			if (scsi.bsy) data |= 0x02;
-			if (scsi.msg) data |= 0x01;
+		case 0x01: // Status register
+			Data = Status;
+
+			if (IRQ)
+			{
+				Data |= STATUS_IRQ;
+			}
 			break;
 
 		case 0x02:
-			break;
-
 		case 0x03:
 			break;
 	}
 
-	// WriteLog("SCSIRead Address = 0x%02x, Value = 0x%02x, Phase = %d, PC = 0x%04x\n", Address, data, scsi.phase, ProgramCounter);
-
-	return data;
+	return Data;
 }
+
+/****************************************************************************/
 
 void SCSIClose()
 {
-	for (int i = 0; i < 4; ++i)
+	BusReset();
+	filesystemReset();
+}
+
+/****************************************************************************/
+
+// The host adaptor, for BeebSCSI (BeebSCSI/hostadapter.h)
+
+/****************************************************************************/
+
+// Wait for the host to read or write the data register.  False if the host
+// started again (a selection or a reset) instead.
+
+static bool WaitAck()
+{
+	while (!Ack && !Select)
 	{
-		if (SCSIDisc[i] != nullptr)
-		{
-			fclose(SCSIDisc[i]);
-			SCSIDisc[i] = nullptr;
-		}
+		WaitForHost();
 	}
-}
 
-static unsigned char ReadData()
-{
-	unsigned char data;
-
-	switch (scsi.phase)
+	if (!Ack)
 	{
-		case Phase::Status:
-			data = (unsigned char)scsi.status;
-			scsi.req = false;
-			Message();
-			return data;
-
-		case Phase::Message:
-			data = scsi.message;
-			scsi.req = false;
-			BusFree();
-			return data;
-
-		case Phase::Read:
-			data = scsi.buffer[scsi.offset];
-			scsi.offset++;
-			scsi.length--;
-			scsi.req = false;
-
-			if (scsi.length == 0) {
-				scsi.blocks--;
-				if (scsi.blocks == 0) {
-					Status();
-					return data;
-				}
-
-				scsi.length = ReadSector(scsi.buffer, scsi.next);
-				if (scsi.length <= 0) {
-					scsi.status = (scsi.lun << 5) | 0x02;
-					scsi.message = 0x00;
-					Status();
-					return data;
-				}
-				scsi.offset = 0;
-				scsi.next++;
-			}
-			return data;
-
-		case Phase::BusFree:
-			return scsi.lastwrite;
-
-		default:
-			BusFree();
-			return scsi.lastwrite;
-	}
-}
-
-static void WriteData(unsigned char data)
-{
-	scsi.lastwrite = data;
-
-	switch (scsi.phase)
-	{
-		case Phase::BusFree:
-			if (scsi.sel) {
-				Selection(data);
-			}
-			return;
-
-		case Phase::Selection:
-			if (!scsi.sel) {
-				Command();
-				return;
-			}
-			break;
-
-		case Phase::Command:
-			scsi.cmd[scsi.offset] = data;
-			if (scsi.offset == 0) {
-				if ((data >= 0x20) && (data <= 0x3f)) {
-					scsi.length = 10;
-				}
-			}
-			scsi.offset++;
-			scsi.length--;
-			scsi.req = false;
-
-			if (scsi.length == 0) {
-				Execute();
-				return;
-			}
-			return;
-
-		case Phase::Write:
-			scsi.buffer[scsi.offset] = data;
-			scsi.offset++;
-			scsi.length--;
-			scsi.req = false;
-
-			if (scsi.length > 0)
-				return;
-
-			switch (scsi.cmd[0]) {
-				case 0x0a:
-				case 0x15:
-				case 0x2a:
-				case 0x2e:
-					break;
-				default:
-					Status();
-					return;
-			}
-
-			switch (scsi.cmd[0]) {
-				case 0x0a:
-					if (!WriteSector(scsi.buffer, scsi.next - 1)) {
-						scsi.status = (scsi.lun << 5) | 0x02;
-						scsi.message = 0;
-						Status();
-						return;
-					}
-					break;
-
-				case 0x15:
-					if (!WriteGeometry(scsi.buffer)) {
-						scsi.status = (scsi.lun << 5) | 0x02;
-						scsi.message = 0;
-						Status();
-						return;
-					}
-					break;
-			}
-
-			scsi.blocks--;
-
-			if (scsi.blocks == 0) {
-				Status();
-				return;
-			}
-			scsi.length = 256;
-			scsi.next++;
-			scsi.offset = 0;
-			return;
-
-		default:
-			break;
-	}
-
-	BusFree();
-}
-
-static void BusFree()
-{
-	scsi.msg = false;
-	scsi.cd = false;
-	scsi.io = false;
-	scsi.bsy = false;
-	scsi.req = false;
-	scsi.irq = false;
-
-	scsi.phase = Phase::BusFree;
-
-	LEDs.HDisc[0] = false;
-	LEDs.HDisc[1] = false;
-	LEDs.HDisc[2] = false;
-	LEDs.HDisc[3] = false;
-}
-
-// Target ID bit pattern on the data bus during selection
-static int SelectedTarget = 0;
-
-static void Selection(int data)
-{
-	scsi.bsy = true;
-	scsi.phase = Phase::Selection;
-
-	SelectedTarget = data;
-
-	#ifdef DEBUG_SCSI
-	DebugTrace("SCSI: Selection, data bus %02X\n", data);
-	#endif
-}
-
-static void Command(void)
-{
-	scsi.phase = Phase::Command;
-
-	scsi.io = false;
-	scsi.cd = true;
-	scsi.msg = false;
-
-	scsi.offset = 0;
-	scsi.length = 6;
-}
-
-static void Execute(void)
-{
-	scsi.phase = Phase::Execute;
-
-	// if (scsi.cmd[0] <= 0x1f) {
-	// 		WriteLog("Execute 0x%02x, Param 1=0x%02x, Param 2=0x%02x, Param 3=0x%02x, Param 4=0x%02x, Param 5=0x%02x, Phase = %d, PC = 0x%04x\n",
-	// 				scsi.cmd[0], scsi.cmd[1], scsi.cmd[2], scsi.cmd[3], scsi.cmd[4], scsi.cmd[5], scsi.phase, ProgramCounter);
-	// } else {
-	// 		WriteLog("Execute 0x%02x, Param 1=0x%02x, Param 2=0x%02x, Param 3=0x%02x, Param 4=0x%02x, Param 5=0x%02x, Param 6=0x%02x, Param 7=0x%02x, Param 8=0x%02x, Param 9=0x%02x, Phase = %d, PC = 0x%04x\n",
-	// 				scsi.cmd[0], scsi.cmd[1], scsi.cmd[2], scsi.cmd[3], scsi.cmd[4], scsi.cmd[5], scsi.cmd[6], scsi.cmd[7], scsi.cmd[8], scsi.cmd[9], scsi.phase, ProgramCounter);
-	// }
-
-	if (IsFileStore(MachineType))
-	{
-		// The FileStore addresses its drives 0-3 as SCSI targets 0-3, each
-		// at LUN 0, so map the selected target ID to the drive number
-		switch (SelectedTarget)
-		{
-			case 0x02: scsi.lun = 1; break;
-			case 0x04: scsi.lun = 2; break;
-			case 0x08: scsi.lun = 3; break;
-			default:   scsi.lun = 0; break;
-		}
-	}
-	else
-	{
-		scsi.lun = (scsi.cmd[1]) >> 5;
-	}
-
-	#ifdef DEBUG_SCSI
-	{
-		// Group 0 commands have a 6 byte CDB, group 1 commands 10 bytes
-		const int Group = scsi.cmd[0] >> 5;
-		const int Length = Group == 1 ? 10 : 6;
-
-		DebugTrace("SCSI: Execute command %02X (group %d, opcode %02X), LUN %d, CDB:",
-		           scsi.cmd[0], Group, scsi.cmd[0] & 0x1f, scsi.lun);
-
-		for (int i = 0; i < Length; i++)
-		{
-			DebugTrace(" %02X", scsi.cmd[i]);
-		}
-
-		DebugTrace("\n");
-	}
-	#endif
-
-	LEDs.HDisc[scsi.lun] = 1;
-
-	switch (scsi.cmd[0])
-	{
-		case 0x00:
-			TestUnitReady();
-			return;
-
-		case 0x03:
-			RequestSense();
-			return;
-
-		case 0x04:
-			Format();
-			return;
-
-		case 0x08:
-			Read6();
-			return;
-
-		case 0x0a:
-			Write6();
-			return;
-
-		case 0x0f:
-			Translate();
-			return;
-
-		case 0x15:
-			ModeSelect();
-			return;
-
-		case 0x1a:
-			ModeSense();
-			return;
-
-		case 0x1b:
-			StartStop();
-			return;
-
-		case 0x2f:
-			Verify();
-			return;
-	}
-
-	scsi.status = (scsi.lun << 5) | 0x02;
-	scsi.message = 0x00;
-	Status();
-}
-
-static void Status()
-{
-	#ifdef DEBUG_SCSI
-	DebugTrace("SCSI: Status phase, status byte %02X\n", scsi.status);
-	#endif
-
-	scsi.phase = Phase::Status;
-
-	scsi.io = true;
-	scsi.cd = true;
-	scsi.req = true;
-}
-
-static void Message()
-{
-	#ifdef DEBUG_SCSI
-	DebugTrace("SCSI: Message in phase, message byte %02X\n", scsi.message);
-	#endif
-
-	scsi.phase = Phase::Message;
-
-	scsi.msg = true;
-	scsi.req = true;
-}
-
-static bool DiscTestUnitReady(unsigned char * /* buf */)
-{
-	if (SCSIDisc[scsi.lun] == NULL) return false;
-	return true;
-}
-
-static void TestUnitReady()
-{
-	bool status = DiscTestUnitReady(scsi.cmd);
-
-	if (status) {
-		scsi.status = (scsi.lun << 5) | 0x00;
-		scsi.message = 0x00;
-	} else {
-		scsi.status = (scsi.lun << 5) | 0x02;
-		scsi.message = 0x00;
-	}
-
-	Status();
-}
-
-static bool DiscStartStop(unsigned char *buf)
-{
-	if (buf[4] & 0x02) {
-		// Eject Disc
-	}
-
-	return true;
-}
-
-static void StartStop()
-{
-	bool status = DiscStartStop(scsi.cmd);
-
-	if (status) {
-		scsi.status = (scsi.lun << 5) | 0x00;
-		scsi.message = 0x00;
-	} else {
-		scsi.status = (scsi.lun << 5) | 0x02;
-		scsi.message = 0x00;
-	}
-
-	Status();
-}
-
-static void RequestSense()
-{
-	scsi.length = DiscRequestSense(scsi.cmd, scsi.buffer);
-
-	if (scsi.length > 0)
-	{
-		scsi.offset = 0;
-		scsi.blocks = 1;
-		scsi.phase = Phase::Read;
-		scsi.io = true;
-		scsi.cd = false;
-
-		scsi.status = (scsi.lun << 5) | 0x00;
-		scsi.message = 0x00;
-
-		scsi.req = true;
-	}
-	else
-	{
-		scsi.status = (scsi.lun << 5) | 0x02;
-		scsi.message = 0x00;
-		Status();
-	}
-}
-
-static int DiscRequestSense(unsigned char *cdb, unsigned char *buf)
-{
-	int size = cdb[4];
-
-	if (size == 0)
-		size = 4;
-
-	switch (scsi.code) {
-		case 0x00:
-			buf[0] = 0x00;
-			buf[1] = 0x00;
-			buf[2] = 0x00;
-			buf[3] = 0x00;
-			break;
-
-		case 0x21:
-			buf[0] = 0x21;
-			buf[1] = (scsi.sector >> 16) & 0xff;
-			buf[2] = (scsi.sector >> 8) & 0xff;
-			buf[3] = (scsi.sector & 0xff);
-			break;
-	}
-
-	scsi.code = 0x00;
-	scsi.sector = 0x00;
-
-	return size;
-}
-
-static void Read6()
-{
-	int record = scsi.cmd[1] & 0x1f;
-	record <<= 8;
-	record |= scsi.cmd[2];
-	record <<= 8;
-	record |= scsi.cmd[3];
-	scsi.blocks = scsi.cmd[4];
-
-	#ifdef DEBUG_SCSI
-	DebugTrace("SCSI: READ(6) LUN %d, LBA %d, blocks %d\n", scsi.lun, record, scsi.blocks == 0 ? 256 : scsi.blocks);
-	#endif
-
-	if (scsi.blocks == 0)
-		scsi.blocks = 0x100;
-	scsi.length = ReadSector(scsi.buffer, record);
-
-	if (scsi.length <= 0) {
-		scsi.status = (scsi.lun << 5) | 0x02;
-		scsi.message = 0x00;
-		Status();
-		return;
-	}
-
-	scsi.status = (scsi.lun << 5) | 0x00;
-	scsi.message = 0x00;
-
-	scsi.offset = 0;
-	scsi.next = record + 1;
-
-	scsi.phase = Phase::Read;
-	scsi.io = true;
-	scsi.cd = false;
-
-	scsi.req = true;
-}
-
-static int ReadSector(unsigned char *buf, int block)
-{
-	if (SCSIDisc[scsi.lun] == NULL) return 0;
-
-	fseek(SCSIDisc[scsi.lun], block * 256, SEEK_SET);
-
-	fread(buf, 256, 1, SCSIDisc[scsi.lun]);
-
-	return 256;
-}
-
-static bool WriteSector(unsigned char *buf, int block)
-{
-	if (SCSIDisc[scsi.lun] == NULL) return false;
-
-	fseek(SCSIDisc[scsi.lun], block * 256, SEEK_SET);
-
-	fwrite(buf, 256, 1, SCSIDisc[scsi.lun]);
-
-	return true;
-}
-
-static void Write6()
-{
-	int record = scsi.cmd[1] & 0x1f;
-	record <<= 8;
-	record |= scsi.cmd[2];
-	record <<= 8;
-	record |= scsi.cmd[3];
-	scsi.blocks = scsi.cmd[4];
-
-	#ifdef DEBUG_SCSI
-	DebugTrace("SCSI: WRITE(6) LUN %d, LBA %d, blocks %d\n", scsi.lun, record, scsi.blocks == 0 ? 256 : scsi.blocks);
-	#endif
-
-	if (scsi.blocks == 0)
-		scsi.blocks = 0x100;
-
-	scsi.length = 256;
-
-	scsi.status = (scsi.lun << 5) | 0x00;
-	scsi.message = 0x00;
-
-	scsi.next = record + 1;
-	scsi.offset = 0;
-
-	scsi.phase = Phase::Write;
-	scsi.cd = false;
-
-	scsi.req = true;
-}
-
-static void ModeSense()
-{
-	scsi.length = DiscModeSense(scsi.cmd, scsi.buffer);
-
-	if (scsi.length > 0)
-	{
-		scsi.offset = 0;
-		scsi.blocks = 1;
-		scsi.phase = Phase::Read;
-		scsi.io = true;
-		scsi.cd = false;
-
-		scsi.status = (scsi.lun << 5) | 0x00;
-		scsi.message = 0x00;
-
-		scsi.req = true;
-	}
-	else
-	{
-		scsi.status = (scsi.lun << 5) | 0x02;
-		scsi.message = 0x00;
-		Status();
-	}
-}
-
-static int DiscModeSense(unsigned char *cdb, unsigned char *buf)
-{
-	if (SCSIDisc[scsi.lun] == NULL) return 0;
-
-	char FileName[MAX_PATH];
-	MakeFileName(FileName, MAX_PATH, HardDrivePath, "scsi%d.dsc", scsi.lun);
-
-	FILE *f = fopen(FileName, "rb");
-
-	if (f == nullptr) return 0;
-
-	int size = cdb[4];
-	if (size == 0)
-		size = 22;
-
-	size = (int)fread(buf, 1, size, f);
-
-	// heads = buf[15];
-	// cyl   = buf[13] * 256 + buf[14];
-	// step  = buf[21];
-	// rwcc  = buf[16] * 256 + buf[17];
-	// lz    = buf[20];
-
-	fclose(f);
-
-	return size;
-}
-
-static void ModeSelect()
-{
-	scsi.length = scsi.cmd[4];
-	scsi.blocks = 1;
-
-	scsi.status = (scsi.lun << 5) | 0x00;
-	scsi.message = 0x00;
-
-	scsi.next = 0;
-	scsi.offset = 0;
-
-	scsi.phase = Phase::Write;
-	scsi.cd = false;
-
-	scsi.req = true;
-}
-
-static bool WriteGeometry(unsigned char *buf)
-{
-	if (SCSIDisc[scsi.lun] == NULL) return false;
-
-	char FileName[MAX_PATH];
-	MakeFileName(FileName, MAX_PATH, HardDrivePath, "scsi%d.dsc", scsi.lun);
-
-	FILE *f = fopen(FileName, "wb");
-
-	if (f == nullptr) return false;
-
-	fwrite(buf, 22, 1, f);
-
-	fclose(f);
-
-	return true;
-}
-
-static bool DiscFormat(unsigned char * /* buf */)
-{
-	// Ignore defect list
-
-	if (SCSIDisc[scsi.lun] != nullptr) {
-		fclose(SCSIDisc[scsi.lun]);
-		SCSIDisc[scsi.lun] = nullptr;
-	}
-
-	char FileName[MAX_PATH];
-	MakeFileName(FileName, MAX_PATH, HardDrivePath, "scsi%d.dat", scsi.lun);
-
-	SCSIDisc[scsi.lun] = fopen(FileName, "wb");
-	if (SCSIDisc[scsi.lun] != nullptr) fclose(SCSIDisc[scsi.lun]);
-	SCSIDisc[scsi.lun] = fopen(FileName, "rb+");
-
-	if (SCSIDisc[scsi.lun] == nullptr) return false;
-
-	ReadGeometryFile(scsi.lun);
-
-	return true;
-}
-
-static void Format()
-{
-	bool status = DiscFormat(scsi.cmd);
-
-	if (status) {
-		scsi.status = (scsi.lun << 5) | 0x00;
-		scsi.message = 0x00;
-	} else {
-		scsi.status = (scsi.lun << 5) | 0x02;
-		scsi.message = 0x00;
-	}
-
-	Status();
-}
-
-static bool DiscVerify(unsigned char * /* buf */)
-{
-	int sector = scsi.cmd[1] & 0x1f;
-	sector <<= 8;
-	sector |= scsi.cmd[2];
-	sector <<= 8;
-	sector |= scsi.cmd[3];
-
-	if (sector >= SCSISize[scsi.lun])
-	{
-		scsi.code = 0x21;
-		scsi.sector = sector;
+		HostRestarted = true;
 		return false;
 	}
 
 	return true;
 }
 
-static void Verify()
+/****************************************************************************/
+
+uint8_t hostadapterReadDatabus()
 {
-	bool status = DiscVerify(scsi.cmd);
-
-	if (status) {
-		scsi.status = (scsi.lun << 5) | 0x00;
-		scsi.message = 0x00;
-	} else {
-		scsi.status = (scsi.lun << 5) | 0x02;
-		scsi.message = 0x00;
-	}
-
-	Status();
+	return HostData;
 }
 
-static void Translate()
+/****************************************************************************/
+
+uint8_t hostadapterReadByte()
 {
-	int record = scsi.cmd[1] & 0x1f;
-	record <<= 8;
-	record |= scsi.cmd[2];
-	record <<= 8;
-	record |= scsi.cmd[3];
+	hostadapterWriteRequestFlag(true);
+	WaitAck();
+	hostadapterWriteRequestFlag(false);
 
-	scsi.buffer[0] = scsi.cmd[3];
-	scsi.buffer[1] = scsi.cmd[2];
-	scsi.buffer[2] = scsi.cmd[1] & 0x1f;
-	scsi.buffer[3] = 0x00;
+	return HostData;
+}
 
-	scsi.length = 4;
+/****************************************************************************/
 
-	scsi.offset = 0;
-	scsi.blocks = 1;
-	scsi.phase = Phase::Read;
-	scsi.io = true;
-	scsi.cd = false;
+void hostadapterWriteByte(uint8_t databusValue)
+{
+	TargetData = databusValue;
 
-	scsi.status = (scsi.lun << 5) | 0x00;
-	scsi.message = 0x00;
+	hostadapterWriteRequestFlag(true);
+	WaitAck();
+	hostadapterWriteRequestFlag(false);
+}
 
-	scsi.req = true;
+/****************************************************************************/
+
+uint32_t hostadapterPerformReadDMALen(const uint8_t *dataBuffer, uint32_t length)
+{
+	uint32_t currentByte = 0;
+
+	do
+	{
+		TargetData = dataBuffer[currentByte++];
+
+		hostadapterWriteRequestFlag(true);
+
+		if (!WaitAck())
+		{
+			return currentByte - 1;
+		}
+
+		hostadapterWriteRequestFlag(false);
+	}
+	while (currentByte < length);
+
+	return currentByte;
+}
+
+/****************************************************************************/
+
+uint32_t hostadapterPerformReadDMA(const uint8_t *dataBuffer)
+{
+	return hostadapterPerformReadDMALen(dataBuffer, 256);
+}
+
+/****************************************************************************/
+
+uint32_t hostadapterPerformWriteDMALen(uint8_t *dataBuffer, uint32_t length)
+{
+	uint32_t currentByte = 0;
+
+	do
+	{
+		hostadapterWriteRequestFlag(true);
+
+		if (!WaitAck())
+		{
+			return currentByte;
+		}
+
+		dataBuffer[currentByte++] = HostData;
+
+		hostadapterWriteRequestFlag(false);
+	}
+	while (currentByte < length);
+
+	return currentByte;
+}
+
+/****************************************************************************/
+
+uint32_t hostadapterPerformWriteDMA(uint8_t *dataBuffer)
+{
+	return hostadapterPerformWriteDMALen(dataBuffer, 256);
+}
+
+/****************************************************************************/
+
+bool hostadapterConnectedToExternalBus()
+{
+	return true;
+}
+
+/****************************************************************************/
+
+void hostadapterWriteResetFlag(bool flagState)
+{
+	HostRestarted = flagState;
+}
+
+/****************************************************************************/
+
+bool hostadapterReadResetFlag()
+{
+	return HostRestarted;
+}
+
+/****************************************************************************/
+
+void hostadapterWriteDataPhaseFlags(bool message, bool commandNotData, bool inputNotOutput)
+{
+	SetStatus(STATUS_MSG, message);
+	SetStatus(STATUS_CND, commandNotData);
+	SetStatus(STATUS_INO, inputNotOutput);
+}
+
+/****************************************************************************/
+
+void hostadapterWriteBusyFlag(bool flagState)
+{
+	SetStatus(STATUS_BSY, flagState);
+
+	if (flagState)
+	{
+		Select = false;
+	}
+}
+
+/****************************************************************************/
+
+void hostadapterWriteRequestFlag(bool flagState)
+{
+	if (flagState)
+	{
+		Ack = false;
+		SetStatus(STATUS_REQ, true);
+
+		if (IRQEnable)
+		{
+			IRQ = true;
+			UpdateIRQ();
+		}
+	}
+	else
+	{
+		SetStatus(STATUS_REQ, false);
+	}
+}
+
+/****************************************************************************/
+
+bool hostadapterReadSelectFlag()
+{
+	return Select;
+}
+
+/****************************************************************************/
+
+// On a FileStore the drives 0-3 are SCSI targets 0-3, selected by their ID
+// bit, and a drive slot set to None (or Auto, with no image) has no drive
+// to answer.  ADFS selects one target, its drives being LUNs 0-7.
+
+bool hostadapterTargetAttached(uint8_t HostID)
+{
+	if (!IsFileStore(MachineType))
+	{
+		return true;
+	}
+
+	int Drive;
+
+	switch (HostID)
+	{
+		case 0x01: Drive = 0; break;
+		case 0x02: Drive = 1; break;
+		case 0x04: Drive = 2; break;
+		case 0x08: Drive = 3; break;
+		default:   Drive = -1; break;
+	}
+
+	bool Attached = Drive >= 0 && FileStoreDrive[Drive] != FileStoreDriveType::None;
+
+	if (Attached && FileStoreDrive[Drive] == FileStoreDriveType::Auto)
+	{
+		char FileName[MAX_PATH];
+		MakeFileName(FileName, MAX_PATH, HardDrivePath, "scsi%d.dat", Drive);
+
+		Attached = GetFileAttributes(FileName) != INVALID_FILE_ATTRIBUTES;
+	}
+
+	if (!Attached)
+	{
+		// The selection goes unanswered: the host times out
+		Select = false;
+	}
+
+	return Attached;
+}
+
+/****************************************************************************/
+
+// The drive LEDs
+
+void statusledActivity(uint8_t ledState)
+{
+	for (int i = 0; i < 4; i++)
+	{
+		LEDs.HDisc[i] = false;
+	}
+
+	if (ledState)
+	{
+		const uint8_t Lun = scsiCurrentLun();
+
+		if (Lun < 4)
+		{
+			LEDs.HDisc[Lun] = true;
+		}
+	}
 }

@@ -1,6 +1,6 @@
 # Rebase notes, October 2026: FileStore, Master ET and keyboard work onto Codeberg master
 
-Version 1.9, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
+Version 1.10, 20 Oct 2026. Written while building the branches; updated after the first Visual Studio builds and the front panel, hardware and FDC work (see the change log).
 
 ## Summary
 
@@ -221,6 +221,22 @@ The failed-bind log line (61f1c06) is only on this branch.
 History rewrite (20 Oct 2026): at Mark's request, the commits on `filestore`, `keyboard-fix`, `archive/rtc-comments`, `filestore-codeberg`, `filestore-econet`, `keyboard-fix-codeberg` and `reference-docs` were rewritten so that mark-usher is the author and committer throughout, with no co-author lines, and every version of these notes was reworded to match. Only these notes changed; the code in every commit is identical. Commit hashes quoted in these notes are the rewritten ones. Clones made before the rewrite must be moved with `git reset --hard origin/<branch>` (or `git branch -f`), not pulled.
 
 Test on this branch: everything in the FileStore test plan, plus Hardware > View Econet Network with the FileStore running (log shows its traffic), AUN gateway/discovery if used, and a Master/Model B station logging on to the FileStore over the new code.
+
+## scsi-pi1mhz (SCSI drives as Pi1MHz emulates them)
+
+Separate branch for testing, on `filestore-econet` (so with econet-reworking-2 and the FileStore). The SCSI drives now behave as Pi1MHz's BeebSCSI does: drive controllers, mode pages and the `scsiN.cfg` drive descriptors. The reference is dp111/Pi1MHz master (0e353a6, 18 Oct 2026, with Mark's PRs on block size and mode pages) plus Mark's unmerged `pr/drive-controller` and `pr/drive-geometry` (Pi1MHzFS, 19 Oct).
+
+| File | What |
+|---|---|
+| `Src/BeebSCSI/scsi.cpp/.h` | Pi1MHz `BeebSCSI/scsi.c` line for line, without the LV-DOS (VFS) LUNs, F-codes, jukebox and BeebSCSI group 6 commands (BSSENSE, BSSELECT, FAT transfer). Two BeebEm hooks: `hostadapterTargetAttached` in BUS FREE, `scsiCurrentLun` for the LEDs. |
+| `Src/BeebSCSI/filesystem.cpp/.h` | The drive half of Pi1MHz `BeebSCSI/filesystem.c` (LUN start/stop, `.cfg`/`.dsc` descriptors, geometry, mode pages and masks, sector I/O), on the C library instead of FatFs. Drives 0-7 in the hard drive folder; `defscsi.cfg` from the hard drive folder, the user data folder or the program's UserData folder. |
+| `Src/BeebSCSI/fileparser.cpp/.h` | Pi1MHz `rpi/fileparser.c` (the `.cfg` reader/rewriter that keeps comments). |
+| `Src/Scsi.cpp` | Rewritten: the Acorn host adaptor registers as Pi1MHz's `harddisc_emulator.c` has them, running BeebSCSI as a Windows fiber that waits for the host's access to the data and select registers. A FileStore drive slot set to None (or Auto with no image) does not answer its selection. |
+| `BeebWin.cpp`, `BeebWinPrefs.cpp`, `BeebEm.rc`, `Resource.h` | Hardware > SCSI Drive Controller (Mixed, ACB-4000, ACB-4070, SASI, SCSI Drive) and SCSI Drive Geometry (Auto, From the .cfg File Only); preferences `SCSIDriveController`, `SCSIDriveGeometry`. IDs 40358-40364. |
+| `UserData/defscsi.cfg` | Pi1MHz's shipped default descriptor, unchanged. |
+| `Tools/BeebSCSITests/` | Linux host tests: Pi1MHz's own `test_beebscsi.c` run against the port (103 pass; the 2 BSSENSE/BSSELECT checks fail by design), and register-level tests of the host adaptor (17 pass). `run_tests.sh <Pi1MHz tree>`. |
+
+Behaviour changes to check: a drive is started by START UNIT or by its first READ/WRITE, as on Pi1MHz, so TEST UNIT READY before that is "not ready" (the old code reported every opened image ready); the old `.dsc`-only drives still get their geometry from the `.dsc`. The `BeebSCSI` objects build into `$(IntDir)BeebSCSI\` because `scsi.cpp` and `Scsi.cpp` would both be `scsi.obj`. Licence: BeebSCSI and Pi1MHz are GPL v3 or later, BeebEm GPL v2 or later, so a build with them is GPL v3 (to raise with Chris before any PR).
 
 ## master-et-codeberg
 
@@ -517,6 +533,7 @@ Before building a mechanism, it is worth first showing that the lost key-up happ
 | 1.0 | 19 Oct 2026 | First version, written while building the branches |
 | 1.7 | 20 Oct 2026 | FileStore station from CMOS with session-only -EcoStn override; build fixes for Chris's code |
 | 1.8 | 20 Oct 2026 | Fixed gateway keep-alive with a fixed GATEWAY; log failed station binds; note on old numeric MachineType |
+| 1.10 | 20 Oct 2026 | New branch scsi-pi1mhz: Pi1MHz BeebSCSI drives, controllers, mode pages and .cfg descriptors |
 | 1.9 | 20 Oct 2026 | Real Econet test set-up (net 7, bridge gateway); stations heard through the gateway shown in the Econet Network dialog; Codeberg PRs; history rewrite to mark-usher authorship |
 | 1.6 | 20 Oct 2026 | filestore-econet: FileStore station number from its CMOS with AUTOCONFIGURE, as the Master |
 | 1.5 | 20 Oct 2026 | Codeberg master unchanged (dccbcc8); new branch filestore-econet merging econet-reworking-2 |

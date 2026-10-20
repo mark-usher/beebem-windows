@@ -25,6 +25,12 @@
     <Filter Include="Documents">
       <UniqueIdentifier>{4459d047-6d52-4030-8bc7-6af92e18bdc3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\BeebSCSI">
+      <UniqueIdentifier>{6A0C2B1E-3F4D-4E5A-9B7C-8D1E2F3A4B5C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\BeebSCSI">
+      <UniqueIdentifier>{7B1D3C2F-4E5F-4F6B-8C8D-9E2F3A4B5C6D}</UniqueIdentifier>
+    </Filter>
     <Filter Include="Source Files\zlib">
       <UniqueIdentifier>{89a12afe-1839-4d54-928b-89cb3d3131d8}</UniqueIdentifier>
     </Filter>
@@ -221,6 +227,15 @@
     </ClCompile>
     <ClCompile Include="Scsi.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="BeebSCSI\scsi.cpp">
+      <Filter>Source Files\BeebSCSI</Filter>
+    </ClCompile>
+    <ClCompile Include="BeebSCSI\filesystem.cpp">
+      <Filter>Source Files\BeebSCSI</Filter>
+    </ClCompile>
+    <ClCompile Include="BeebSCSI\fileparser.cpp">
+      <Filter>Source Files\BeebSCSI</Filter>
     </ClCompile>
     <ClCompile Include="SelectKeyDialog.cpp">
       <Filter>Source Files</Filter>
@@ -572,6 +587,24 @@
     <ClInclude Include="Scsi.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="BeebSCSI\debug.h">
+      <Filter>Header Files\BeebSCSI</Filter>
+    </ClInclude>
+    <ClInclude Include="BeebSCSI\fileparser.h">
+      <Filter>Header Files\BeebSCSI</Filter>
+    </ClInclude>
+    <ClInclude Include="BeebSCSI\filesystem.h">
+      <Filter>Header Files\BeebSCSI</Filter>
+    </ClInclude>
+    <ClInclude Include="BeebSCSI\hostadapter.h">
+      <Filter>Header Files\BeebSCSI</Filter>
+    </ClInclude>
+    <ClInclude Include="BeebSCSI\scsi.h">
+      <Filter>Header Files\BeebSCSI</Filter>
+    </ClInclude>
+    <ClInclude Include="BeebSCSI\statusled.h">
+      <Filter>Header Files\BeebSCSI</Filter>
+    </ClInclude>
     <ClInclude Include="SelectKeyDialog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -910,6 +943,9 @@
       <Filter>UserData</Filter>
     </None>
     <None Include="..\UserData\DefaultUser.kmap">
+      <Filter>UserData</Filter>
+    </None>
+    <None Include="..\UserData\defscsi.cfg">
       <Filter>UserData</Filter>
     </None>
     <None Include="..\UserData\Econet.cfg">

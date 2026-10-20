@@ -93,6 +93,7 @@ using std::max;
 #include "Rtc.h"
 #include "Sasi.h"
 #include "Scsi.h"
+#include "BeebSCSI/scsi.h"
 #include "Serial.h"
 #include "SerialPortDialog.h"
 #include "Sound.h"
@@ -1701,6 +1702,7 @@ void BeebWin::InitMenu(void)
 	CheckMenuItem(IDM_TELETEXT, TeletextAdapterEnabled);
 	CheckMenuItem(IDM_FLOPPY_DRIVE, Disc8271Enabled);
 	CheckMenuItem(IDM_SCSI_HARD_DRIVE, SCSIDriveEnabled);
+	UpdateSCSIMenu();
 	CheckMenuItem(IDM_IDE_HARD_DRIVE, IDEDriveEnabled);
 	CheckMenuItem(IDM_USER_PORT_RTC_MODULE, UserPortRTCEnabled);
 
@@ -4302,6 +4304,23 @@ void BeebWin::ResetEconet()
 
 /****************************************************************************/
 
+void BeebWin::UpdateSCSIMenu()
+{
+	CheckMenuRadioItem(
+		IDM_SCSI_CONTROLLER_MIXED,
+		IDM_SCSI_CONTROLLER_SCSI,
+		IDM_SCSI_CONTROLLER_MIXED + static_cast<UINT>(scsiGetController())
+	);
+
+	CheckMenuRadioItem(
+		IDM_SCSI_GEOMETRY_AUTO,
+		IDM_SCSI_GEOMETRY_CFG,
+		scsiGeometryFromCfgOnly() ? IDM_SCSI_GEOMETRY_CFG : IDM_SCSI_GEOMETRY_AUTO
+	);
+}
+
+/****************************************************************************/
+
 void BeebWin::UpdateEconetMenu()
 {
 	CheckMenuItem(IDM_ECONET, EconetEnabled);
@@ -5435,6 +5454,23 @@ void BeebWin::HandleCommand(UINT MenuID)
 			SCSIDriveEnabled = false;
 			CheckMenuItem(IDM_SCSI_HARD_DRIVE, SCSIDriveEnabled);
 		}
+		break;
+
+	case IDM_SCSI_CONTROLLER_MIXED:
+	case IDM_SCSI_CONTROLLER_ACB4000:
+	case IDM_SCSI_CONTROLLER_ACB4070:
+	case IDM_SCSI_CONTROLLER_SASI:
+	case IDM_SCSI_CONTROLLER_SCSI:
+		scsiSetController(static_cast<scsiController_t>(MenuID - IDM_SCSI_CONTROLLER_MIXED));
+		SCSIReset();
+		UpdateSCSIMenu();
+		break;
+
+	case IDM_SCSI_GEOMETRY_AUTO:
+	case IDM_SCSI_GEOMETRY_CFG:
+		scsiSetGeometryFromCfgOnly(MenuID == IDM_SCSI_GEOMETRY_CFG);
+		SCSIReset();
+		UpdateSCSIMenu();
 		break;
 
 	case IDM_SELECT_HARD_DRIVE_FOLDER:

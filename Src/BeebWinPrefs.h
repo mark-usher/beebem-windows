@@ -181,6 +181,8 @@ const char* const CFG_VIDEO_CAPTURE_FRAME_SKIP_OLD = "FrameSkip"; // For BeebEm 
 const char* const CFG_WRITE_PROTECT_ON_LOAD        = "WriteProtectOnLoad";
 const char* const CFG_FLOPPY_DRIVE_ENABLED         = "FloppyDriveEnabled";
 const char* const CFG_SCSI_DRIVE_ENABLED           = "SCSIDriveEnabled";
+const char* const CFG_SCSI_DRIVE_CONTROLLER        = "SCSIDriveController"; // Mixed, ACB-4000, ACB-4070, SASI or SCSI
+const char* const CFG_SCSI_DRIVE_GEOMETRY          = "SCSIDriveGeometry"; // Auto or CFG
 const char* const CFG_IDE_DRIVE_ENABLED            = "IDEDriveEnabled";
 const char* const CFG_FILESTORE_DRIVE              = "FileStoreDrive%d"; // %d = 0 to 3
 

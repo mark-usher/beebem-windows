@@ -44,6 +44,7 @@ Boston, MA  02110-1301, USA.
 #include "Resource.h"
 #include "Rtc.h"
 #include "Scsi.h"
+#include "BeebSCSI/scsi.h"
 #include "Serial.h"
 #include "Sound.h"
 #include "SoundStreamer.h"
@@ -63,6 +64,17 @@ Boston, MA  02110-1301, USA.
 /****************************************************************************/
 
 const int PREFERENCES_VERSION = 3;
+
+// The names of the SCSI drive controllers, in scsiController_t order
+static const char* const SCSIControllerStr[] =
+{
+	"Mixed",
+	"ACB-4000",
+	"ACB-4070",
+	"SASI",
+	"SCSI",
+	nullptr
+};
 
 const char* const MachineTypeStr[] =
 {
@@ -1653,6 +1665,16 @@ void BeebWin::LoadDiskPreferences()
 	Disc1770Enabled = Disc8271Enabled;
 
 	m_Preferences.GetBoolValue(CFG_SCSI_DRIVE_ENABLED, SCSIDriveEnabled, false);
+
+	// The SCSI drives: the controller behind the host adaptor, and what to
+	// do with a drive .cfg without its geometry page (an unknown name is
+	// the default, Mixed or Auto)
+	std::string SCSIValue;
+	m_Preferences.GetStringValue(CFG_SCSI_DRIVE_CONTROLLER, SCSIValue, SCSIControllerStr[0]);
+	scsiSetControllerName(SCSIValue.c_str());
+
+	m_Preferences.GetStringValue(CFG_SCSI_DRIVE_GEOMETRY, SCSIValue, "Auto");
+	scsiSetGeometryName(SCSIValue.c_str());
 	m_Preferences.GetBoolValue(CFG_IDE_DRIVE_ENABLED, IDEDriveEnabled, false);
 
 	// FileStore hard drive units: None, Auto, E20, E40S, E60S, or a custom
@@ -2093,6 +2115,8 @@ void BeebWin::SavePreferences(bool saveAll)
 		m_Preferences.SetBoolValue(CFG_WRITE_PROTECT_ON_LOAD, m_WriteProtectOnLoad);
 		m_Preferences.SetBoolValue(CFG_FLOPPY_DRIVE_ENABLED, Disc8271Enabled);
 		m_Preferences.SetBoolValue(CFG_SCSI_DRIVE_ENABLED, SCSIDriveEnabled);
+		m_Preferences.SetStringValue(CFG_SCSI_DRIVE_CONTROLLER, SCSIControllerStr[static_cast<int>(scsiGetController())]);
+		m_Preferences.SetStringValue(CFG_SCSI_DRIVE_GEOMETRY, scsiGeometryFromCfgOnly() ? "CFG" : "Auto");
 		m_Preferences.SetBoolValue(CFG_IDE_DRIVE_ENABLED, IDEDriveEnabled);
 
 		for (int Drive = 0; Drive < FILESTORE_MAX_DRIVES; Drive++)

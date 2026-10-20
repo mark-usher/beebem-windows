@@ -386,6 +386,19 @@ BEGIN
         MENUITEM SEPARATOR
         MENUITEM "Floppy Drive On/Off",         IDM_FLOPPY_DRIVE
         MENUITEM "SCSI Hard Drive On/Off",      IDM_SCSI_HARD_DRIVE
+        POPUP "SCSI Dri&ve Controller"
+        BEGIN
+            MENUITEM "&Mixed (Pi1MHz)",                   IDM_SCSI_CONTROLLER_MIXED
+            MENUITEM "Adaptec ACB-4000 (MFM)",            IDM_SCSI_CONTROLLER_ACB4000
+            MENUITEM "Adaptec ACB-4070 (RLL)",            IDM_SCSI_CONTROLLER_ACB4070
+            MENUITEM "&SASI (Xebec, DTC, OMTI)",          IDM_SCSI_CONTROLLER_SASI
+            MENUITEM "SCSI &Drive (own controller)",      IDM_SCSI_CONTROLLER_SCSI
+        END
+        POPUP "SCSI Drive &Geometry"
+        BEGIN
+            MENUITEM "&Auto (from the image size)",       IDM_SCSI_GEOMETRY_AUTO
+            MENUITEM "From the .&cfg File Only",          IDM_SCSI_GEOMETRY_CFG
+        END
         MENUITEM "&IDE Hard Drive On/Off",      IDM_IDE_HARD_DRIVE
         MENUITEM "Select &Hard Drive Folder...", IDM_SELECT_HARD_DRIVE_FOLDER
         POPUP "FileStore Hard &Drive Units"
